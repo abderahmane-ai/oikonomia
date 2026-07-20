@@ -190,7 +190,12 @@ def train(
                 r=lora_r,
                 lora_alpha=lora_alpha,
                 lora_dropout=0.1,
-                target_modules=["query", "key", "value", "dense"],
+                # Attention projections only. "dense" would also match
+                # attention.output.dense, intermediate.dense, output.dense and
+                # lm_head.dense — PEFT matches on suffix — which is far more
+                # than "LoRA on attention" and inflates trainable params well
+                # past what the r=16 label implies.
+                target_modules=["query", "key", "value"],
             ),
         )
         model.print_trainable_parameters()

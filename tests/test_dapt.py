@@ -272,3 +272,35 @@ def test_degenerate_batch_rejected() -> None:
 
     with pytest.raises(ValueError, match="must both be positive"):
         steps_for_epochs(100, 0, 0, 1.0)
+
+
+def test_blocks_are_framed_like_roberta_pretraining() -> None:
+    """RoBERTa never saw a sequence that did not open with <s> and close </s>.
+
+    v1 of the packer emitted raw streams. Position 0 then holds arbitrary
+    content at exactly the position the model is most confident about, and
+    nothing in the loss reports it — the run just adapts less well.
+    """
+    blocks = list(pack_blocks([[9] * 20], seq_len=6, bos_id=0, eos_id=2))
+    assert blocks, "expected at least one block"
+    for b in blocks:
+        assert len(b) == 6
+        assert b[0] == 0 and b[-1] == 2
+        assert all(t == 9 for t in b[1:-1])  # 4 content tokens per block
+
+
+def test_framing_is_optional_and_off_by_default() -> None:
+    assert list(pack_blocks([[1, 2, 3, 4]], seq_len=2)) == [[1, 2], [3, 4]]
+
+
+def test_framing_reserves_two_slots() -> None:
+    """Content per block drops by exactly 2 when framing is on."""
+    unframed = list(pack_blocks([[7] * 100], seq_len=10))
+    framed = list(pack_blocks([[7] * 100], seq_len=10, bos_id=0, eos_id=2))
+    assert len(unframed) == 10  # 100 / 10
+    assert len(framed) == 12  # 100 / 8
+
+
+def test_seq_len_too_small_for_framing_is_rejected() -> None:
+    with pytest.raises(ValueError, match="too small to hold framing"):
+        list(pack_blocks([[1, 2, 3]], seq_len=2, bos_id=0, eos_id=2))

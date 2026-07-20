@@ -78,25 +78,46 @@ def encode_documents(
 
 
 def pack_blocks(
-    token_lists: Iterable[list[int]], seq_len: int
+    token_lists: Iterable[list[int]],
+    seq_len: int,
+    *,
+    bos_id: int | None = None,
+    eos_id: int | None = None,
 ) -> Iterator[list[int]]:
     """Concatenate token lists and cut them into exact ``seq_len`` blocks.
 
-    The trailing partial block is dropped. It is at most ``seq_len - 1`` tokens
-    out of tens of millions, and keeping it would mean either padding (which
-    packing exists to avoid) or a ragged array (which cannot be memory-mapped
-    as a fixed-shape matrix).
+    When ``bos_id``/``eos_id`` are given, each emitted block is framed as
+    ``<s> … </s>`` and carries ``seq_len - 2`` content tokens. **This framing
+    is not cosmetic.** RoBERTa is pretrained exclusively on sequences that open
+    with ``<s>`` and close with ``</s>``; position 0 has never held anything
+    else. Feeding raw packed streams puts every training example off
+    distribution at exactly the position the model is most confident about, and
+    nothing in the loss would report it — the run simply learns a little less.
+
+    The trailing partial block is dropped. It is at most ``seq_len`` tokens out
+    of millions, and keeping it would mean either padding (which packing exists
+    to avoid) or a ragged array (which cannot be memory-mapped as a
+    fixed-shape matrix).
     """
     if seq_len < 2:
         msg = f"seq_len must be at least 2, got {seq_len}"
         raise ValueError(msg)
 
+    frame: tuple[int, int] | None = (
+        (bos_id, eos_id) if bos_id is not None and eos_id is not None else None
+    )
+    content_len = seq_len - 2 if frame else seq_len
+    if content_len < 1:
+        msg = f"seq_len {seq_len} too small to hold framing tokens"
+        raise ValueError(msg)
+
     buffer: list[int] = []
     for ids in token_lists:
         buffer.extend(ids)
-        while len(buffer) >= seq_len:
-            yield buffer[:seq_len]
-            del buffer[:seq_len]
+        while len(buffer) >= content_len:
+            chunk = buffer[:content_len]
+            del buffer[:content_len]
+            yield [frame[0], *chunk, frame[1]] if frame else chunk
 
 
 def write_shard(

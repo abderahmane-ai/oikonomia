@@ -27,7 +27,10 @@ class BuildDaptShardsStage:
     """Tokenise and pack the DAPT corpus, offline and reproducibly."""
 
     name = "build_dapt_shards"
-    version = "1"
+    # 2: frame each block as <s> ... </s>. v1 emitted raw packed streams, which
+    #    is off-distribution for RoBERTa at position 0 and silently costs
+    #    adaptation quality without showing up in the loss.
+    version = "2"
 
     def inputs_key(self, s: Settings) -> str:
         return f"idp@{s.ingest.idp_git_rev or 'UNPINNED'}"
@@ -65,7 +68,10 @@ class BuildDaptShardsStage:
                 s, regime=cfg.regime, split=split, min_chars=cfg.min_chars
             )
             blocks = pack_blocks(
-                encode_documents(texts, tokenizer, sep_id), cfg.seq_len
+                encode_documents(texts, tokenizer, sep_id),
+                cfg.seq_len,
+                bos_id=tokenizer.bos_token_id,
+                eos_id=tokenizer.eos_token_id,
             )
             meta = write_shard(
                 blocks,
