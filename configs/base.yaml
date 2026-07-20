@@ -1,0 +1,15 @@
+# Shared configuration defaults (lowest precedence layer).
+# Environment-specific roots live in paths.<env>.yaml; per-run tuning is applied
+# via CLI overrides (e.g. `--set ingest.idp_git_rev=<sha>`).
+
+seed: 20260719
+run_id: default
+
+ingest:
+  idp_repo_url: "https://github.com/papyri/idp.data.git"
+  # Pinned corpus revision (papyri/idp.data HEAD as of 2026-07-20). Every
+  # processed artifact records this sha, so results are reproducible. Repin
+  # deliberately, not incidentally.
+  idp_git_rev: "d7a34f302d1e44e271256092c2b780733187b478"
+  gap_placeholder: "…"
+  drop_non_greek_langs: true

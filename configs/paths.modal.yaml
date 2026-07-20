@@ -1,0 +1,14 @@
+# Modal-container paths. The data Volume is mounted at /vol/data; processed
+# artifacts, gold, and manifests live there so training containers can read them
+# and checkpoints can be committed durably. Raw corpus is NEVER uploaded to
+# Modal — only processed parquet, gold, and resources are synced.
+paths:
+  root: /vol/data
+  raw: /vol/data/raw            # unused on Modal; present for schema completeness
+  interim: /vol/data/interim
+  processed: /vol/data/processed
+  gold: /vol/data/gold
+  manifests: /vol/data/.manifests
+  artifacts: /vol/ckpt
+  resources: /root/resources    # added via Image.add_local_dir("resources", ...)
+  configs: /root/configs        # added via Image.add_local_dir("configs", ...)

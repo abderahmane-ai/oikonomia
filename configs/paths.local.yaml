@@ -1,0 +1,10 @@
+# Local (macOS dev) paths. Relative paths resolve against the repo root.
+paths:
+  raw: data/raw
+  interim: data/interim
+  processed: data/processed
+  gold: data/gold
+  manifests: data/.manifests
+  artifacts: artifacts
+  resources: resources
+  configs: configs

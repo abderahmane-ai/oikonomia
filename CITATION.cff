@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+title: "OIKONOMIA: Information Extraction from Ancient Greek Documentary Papyri"
+message: "If you use this software or its derived data, please cite it."
+type: software
+authors:
+  - given-names: Abderahmane
+    family-names: Ainouche
+repository-code: "https://github.com/ainouche-abderahmane/oikonomia"
+license: MIT
+keywords:
+  - digital papyrology
+  - ancient Greek
+  - information extraction
+  - DDbDP
+  - economic history
+references:
+  - type: data
+    title: "Duke Databank of Documentary Papyri / HGV (papyri.info idp.data)"
+    notes: "Source corpus, licensed CC BY 3.0."
+    url: "https://github.com/papyri/idp.data"

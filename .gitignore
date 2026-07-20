@@ -1,0 +1,44 @@
+# --- data tiers (see docs/architecture.md) ---------------------------------
+# Raw corpus is large (~2.8 GB), immutable, and re-derivable from a pinned git
+# rev — never committed. Interim/processed artifacts are re-derivable too.
+data/raw/
+data/interim/
+data/processed/
+data/external/
+# BUT: gold annotations and the stage manifest ledger ARE tracked (they are the
+# only irreplaceable artifacts). Un-ignore them explicitly.
+!data/gold/
+!data/.manifests/
+
+# --- model artifacts pulled off Modal --------------------------------------
+artifacts/
+
+# --- python ----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.uv/
+
+# --- tooling caches --------------------------------------------------------
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- notebooks -------------------------------------------------------------
+.ipynb_checkpoints/
+
+# --- local scratch ---------------------------------------------------------
+_fixture_study/
+*.local.parquet
+
+# --- os / editor -----------------------------------------------------------
+.DS_Store
+.idea/
+.vscode/

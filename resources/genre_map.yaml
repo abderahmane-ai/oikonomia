@@ -1,0 +1,61 @@
+# HGV keyword folksonomy → canonical taxonomy.
+#
+# The HGV `keywords[@scheme="hgv"]/term` field is an uncontrolled German
+# folksonomy (~415 distinct terms) mixing three facets:
+#   - genre     : the document type (receipt, contract, lease, letter, …)
+#   - commodity : goods mentioned (wine, grain, …)
+#   - topic     : subject matter (taxation, money, land, …)
+#   - meta      : editorial markers that are not content (e.g. "Übersetzung")
+#
+# Only `facet: genre` terms feed `HgvMetadata.canonical_genres`. This file SEEDS
+# the frequent terms measured during planning; Phase 2 curates the full list.
+# Near-duplicate German forms (Steuer/Steuern, Brief/Brief (privat)) are mapped
+# individually and deliberately — do not normalise them away here.
+
+terms:
+  # ---- genre (document type) ----
+  Quittung: { canonical: receipt, facet: genre }
+  Vertrag: { canonical: contract, facet: genre }
+  Abrechnung: { canonical: account, facet: genre }
+  Liste: { canonical: list, facet: genre }
+  Anweisung: { canonical: order, facet: genre }
+  Pacht: { canonical: lease, facet: genre }
+  Kauf: { canonical: sale, facet: genre }
+  Darlehen: { canonical: loan, facet: genre }
+  Petition: { canonical: petition, facet: genre }
+  Eingabe: { canonical: petition, facet: genre }
+  Brief: { canonical: letter, facet: genre }
+  "Brief (privat)": { canonical: letter_private, facet: genre }
+  "Brief (amtlich)": { canonical: letter_official, facet: genre }
+  Mumienetikett: { canonical: mummy_label, facet: genre }
+  Register: { canonical: register, facet: genre }
+  Deklaration: { canonical: declaration, facet: genre }
+  Zensus: { canonical: census, facet: genre }
+  Rechnung: { canonical: account, facet: genre }
+  Verkauf: { canonical: sale, facet: genre }
+  Empfang: { canonical: receipt, facet: genre }
+  Lieferung: { canonical: delivery, facet: genre }
+
+  # ---- topic (subject matter) ----
+  Steuer: { canonical: taxation, facet: topic }
+  Steuern: { canonical: taxation, facet: topic }
+  Geld: { canonical: money, facet: topic }
+  Land: { canonical: land, facet: topic }
+  Zoll: { canonical: customs, facet: topic }
+  Torzoll: { canonical: customs, facet: topic }
+  Zahlung: { canonical: payment, facet: topic }
+  Namen: { canonical: names, facet: topic }
+  Name: { canonical: names, facet: topic }
+
+  # ---- commodity ----
+  Wein: { canonical: wine, facet: commodity }
+  Getreide: { canonical: grain, facet: commodity }
+  Weizen: { canonical: wheat, facet: commodity }
+  Gerste: { canonical: barley, facet: commodity }
+  "Öl": { canonical: oil, facet: commodity }
+  Esel: { canonical: donkey, facet: commodity }
+  Haus: { canonical: house, facet: commodity }
+  "Grundstück": { canonical: plot, facet: commodity }
+
+  # ---- meta (not content) ----
+  "Übersetzung": { canonical: translation_marker, facet: meta }

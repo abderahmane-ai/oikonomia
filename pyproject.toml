@@ -1,0 +1,102 @@
+# OIKONOMIA — Information Extraction from Ancient Greek Documentary Papyri
+#
+# Packaging uses a src-layout so the library is imported as an installed package
+# (`oikonomia`), never as a stray top-level directory. This matters for Modal:
+# `Image.add_local_python_source("oikonomia")` resolves the package through the
+# normal import machinery, which requires an editable install locally.
+[project]
+name = "oikonomia"
+version = "0.1.0"
+description = "Information extraction from ancient Greek documentary papyri (DDbDP/HGV)."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Abderahmane Ainouche" }]
+
+# Runtime dependencies for the pure-Python library (Phase 1 ingestion).
+# Deliberately minimal: no torch / transformers / modal here — those live in
+# optional extras so the library stays importable and testable on a laptop.
+dependencies = [
+    "lxml>=5.0",          # EpiDoc XML parsing
+    "pydantic>=2.6",      # typed schemas / contracts
+    "pyyaml>=6.0",        # config and resource files (layered loading is hand-rolled)
+    "pandas>=2.1",        # tabular assembly
+    "pyarrow>=15.0",      # parquet IO
+    "typer>=0.12",        # CLI
+]
+
+[project.optional-dependencies]
+# Installed into the Modal *training* image only (Phase 4+). Kept out of the
+# core so `import oikonomia` never drags in a GPU stack.
+train = [
+    "torch>=2.2",
+    "transformers>=4.44",
+    "datasets>=2.20",
+    "peft>=0.12",
+    "accelerate>=0.33",
+    "evaluate>=0.4",
+    "seqeval>=1.2",
+]
+# Local orchestration of Modal jobs.
+modal = ["modal>=1.0"]
+# Developer tooling.
+dev = [
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "types-pyyaml",
+    "lxml-stubs",
+]
+
+[project.scripts]
+oik = "oikonomia.cli.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/oikonomia"]
+
+# ---------------------------------------------------------------------------
+# Tooling configuration
+# ---------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+# A pragmatic, strict-ish selection. E/F/W = pyflakes+pycodestyle, I = isort,
+# UP = pyupgrade, B = bugbear, SIM = simplify, RUF = ruff-specific.
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "N", "C4", "PTH"]
+ignore = [
+    "E501",   # line length handled by the formatter, not the linter
+    "RUF001", # ambiguous-unicode: expected and desirable in Greek text literals
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["N802", "N806"]  # allow non-snake-case in test helpers/fixtures
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+strict = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+# Third-party libs without complete stubs.
+[[tool.mypy.overrides]]
+module = ["lxml.*", "pandas.*", "pyarrow.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "network: test that reaches the network (deselected by default in CI)",
+]
+# Surface our own deprecations without failing on third-party (pyarrow/pandas) ones.
+filterwarnings = ["default"]
