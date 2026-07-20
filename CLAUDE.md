@@ -236,6 +236,14 @@ and a local 2.8 GB checkout).
 view would strip a majority of currency terms and lose restored amounts
 outright. Reversible via the `OffsetMap`.
 
+**Deliberately dropped:** `form_expansions.yaml` (planned in the original
+Phase 2 step 2) was **not** built, and should not be. It existed to map
+abbreviated forms to their expansions — which is precisely what the `edited`
+view already does via `<expan><ex>`, and matching on the edited view is now the
+resolved decision. The residue is handled by the `abbrev_forms` lists in each
+lexicon file, and those account for only **1.15%** of all matches. Revisit only
+if diplomatic-view matching is ever adopted.
+
 **Known defects carried into Phase 5** (both recorded in the guidelines):
 - `τιμή` is filed under `TAX_TERM` but usually means a sale *price*. Move it.
 - Adjectival metal is a false positive the matcher cannot fix: `χαλκοῦν` in
@@ -293,7 +301,15 @@ re-derive; if reality contradicts one, treat it as a finding and update here.
   any kind list from the `MarkupKind` enum, never by hand: a wrong name reports
   0.0, which is indistinguishable from "absent from the corpus".
 - Corpus text mass: 37.4M edited chars, 934,923 lines, 568,449 numerals,
-  median 233 chars/doc. 9.9% of docs have empty edited text.
+  median 233 chars/doc.
+- **`n_chars_edited` counts whitespace, so it is not "how much text there is".**
+  6,731 docs (**9.90%**, flagged `empty_edited_text`) hold only the newline
+  scaffolding left by `<lb>` elements — `n_chars_edited` 4–77, but
+  `.strip()` is empty. Filter on `parse_flags` or `.strip()`, never on
+  `n_chars_edited > 0`, which is true for every document in the corpus.
+- **Usable subset for supervision: 61,249 docs with real text, of which 44,064
+  also carry at least one numeral.** These are the denominators Phase 3 should
+  sample and split against — not 67,980.
 - **Zero entity markup** (`persName`/`placeName`/`measure`/`rs`/`w` = 0% of 200).
   All entity supervision must be built. This makes Phase 5 gold the critical path
   and Phase 8 relations the scientific risk.
