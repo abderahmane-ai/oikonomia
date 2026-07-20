@@ -418,23 +418,84 @@ re-derive; if reality contradicts one, treat it as a finding and update here.
 - papyri.info blocks bots (Anubis) — rendered-text cross-checks are done with
   hand-crafted fixtures, not by scraping.
 
-### Backbones (all are LoRA adapters over `bowphs/GreTa`, T5, apache-2.0)
-- `koineformer` r=16, span-corruption DAPT, 512-token, **CC-BY-SA-4.0** — *not*
-  an encoder-only model (`task_type: SEQ_2_SEQ_LM`).
-- `koine-t5` / `koine-t5-omni` multitask, 256-token, **CC-BY-NC-SA-4.0** (NC).
-- GreTa tokenizer **case-folds** (no capitals) — irrelevant to token
-  classification, fatal to generative proper-name output.
-- Plan: 4-arm ablation A0 GreTa · A1 GreTa+papyri-DAPT (**primary, apache-2.0**) ·
-  A2 koineformer+papyri-DAPT (SA) · A3 koine-t5-omni (**NC, comparison only**).
+### Backbones (re-verified 2026-07-20, directly against HF model files)
+
+**The bowphs family** (Heidelberg NLP, "Exploring LLMs for Classical Philology"):
+- `bowphs/GreBerta` — **encoder-only RoBERTa-base, apache-2.0**, 12 layers,
+  768d, 52k vocab, `max_position_embeddings` **514**. Reports UAS 88.20 /
+  LAS 83.98 on UD 2.10.
+- `bowphs/GreTa` — T5-base encoder-decoder, 0.2B, apache-2.0. Trained on
+  Internet Archive OCR + Open Greek & Latin + CLARIN Medieval + Patrologia.
+- `PhilBerta` / `PhilTa` are the multilingual (Greek+Latin+English) variants.
+
+**Own models** (`ainouche-abderahmane/*`, all LoRA adapters over GreTa):
+- `koineformer` r=16 α=32, 3.7M trainable / 220M, 14 MB, **CC-BY-SA-4.0**
+  (the SA is inherited from MorphGNT, not chosen).
+- `koine-t5`, `koine-t5-omni` — **CC-BY-NC-SA-4.0**. GreTa is apache-2.0, so
+  the NC is *not* inherited from the backbone. Audit where it came from before
+  assuming the firewall is immovable.
+- All three are adapted on ~1.5M tokens of SBLGNT + Apostolic Fathers, i.e.
+  **biblical literary Koine — a different register from documentary papyri.**
+
+**Case is destroyed across the whole Ancient Greek ecosystem — verified, not
+assumed:**
+- GreTa's `tokenizer.json` normalizer contains `{"type":"Lowercase"}` and the
+  vocabulary has **no uppercase Greek at all**.
+- GreBerta's normalizer is `null`, but its vocabulary likewise contains no
+  uppercase Greek — the training text was lowercased.
+- `pranaydeeps/Ancient-Greek-BERT` states "standard de-accentuating and
+  lower-casing for Greek" outright (and declares no licence — unusable for a
+  released artifact).
+- **This is the field convention**, which retroactively validates
+  `labeling/normalize.py`. But 16.16% of corpus tokens are capitalised and in
+  papyri capitals mark proper names, so PERSON/PLACE lose a real signal.
+  Treat capitalisation as an **explicit input feature**, not something the LM
+  supplies. The ledger previously called this "irrelevant to token
+  classification"; that was wrong.
+
+**Architecture evidence for the task (token classification, not generation):**
+- Encoder-only beats encoder-decoder on NER by a wide margin: 84.7 vs 68.1 F1
+  in-domain, 76.6 vs 58.9 out-of-domain (~15–17.7 points). Cause is
+  architectural — MLM pretraining aligns with sequence labelling, and
+  autoregressive decoding accumulates errors across tokens.
+- The bowphs paper itself credits T5's decoder specifically for
+  **lemmatization** — a generative task, which ours is not.
+
+### DAPT method (verified)
+- Gururangan et al., "Don't Stop Pretraining": DAPT gains **2–12 points**,
+  largest when the target domain is *furthest* from the pretraining domain.
+  Documentary papyri vs literary Classical/Medieval Greek is a large distance,
+  so expect the upper half of that range. ~12,500 steps was their setting.
+- **TAPT (task-adaptive pretraining) helps on top of DAPT** — cheap, do both.
+- **Full fine-tuning, not LoRA, for DAPT.** "LoRA learns less and forgets
+  less": LoRA's value is preserving source-domain ability, which is exactly
+  what we do *not* need — literary Greek performance is not a deliverable.
+  GreBerta is 0.1B, so full FT fits an A10 (24 GB) comfortably.
+- Weak/silver supervision (Phase 6) carries **20–60% label noise** in the
+  literature. Budget for noise-robust loss + filtering, not naive training.
+- Joint span-based entity+relation extraction outperforms pipelines when well
+  designed (pipelines suffer error propagation) — but a badly designed joint
+  model underperforms a pipeline.
+
+### Context length (measured against this corpus)
+- GreBerta's 512 tokens covers **~93%** of documents whole (median 267 chars,
+  p90 1,228, p95 1,830; ~6.8% exceed ~512 tokens, 2.0% exceed ~1024).
+  Sliding window with overlap handles the tail.
+- koine-t5/omni's 256-token limit would truncate ~25% — another reason not to
+  build on them.
 
 ### Modal API (verified at modal.com/docs — re-check before Phase 4)
-- `modal.App` (`modal.Stub` is an error in ≥1.0). GPU string `gpu="A10"`
-  (`"A10G"` also resolves), 24 GB, $1.10/hr, `"A10:2"` for multi.
+- `modal.App` (`modal.Stub` is an error in ≥1.0). GPU string **`gpu="A10"`**,
+  24 GB, `"A10:2"` for multi. **`"A10G"` is no longer in the documented GPU
+  list** (T4, L4, A10, L40S, A100, H100, H200, B200, B300, RTX-PRO-6000) —
+  use `"A10"`. `gpu=["H100", "A100-40GB:2"]` expresses ordered fallbacks.
 - `modal.gpu.*` objects, `modal.Mount`/`mount=`, automounting of local modules:
   **all deprecated/removed** — add local source explicitly
   (`add_local_python_source`, `add_local_dir`).
-- Volumes `from_name(create_if_missing=True)`, `volumes={...}`, `.commit()`,
-  background commits; set Trainer `output_dir` inside the Volume.
+- Volumes `from_name(create_if_missing=True)`, `volumes={...}`, `.commit()`;
+  **background commits every few seconds plus a final snapshot on shutdown**
+  are confirmed current. Pass `version=2` for v2 Volumes. Set the HF Trainer's
+  `output_dir` inside the Volume and checkpointing is automatic.
 - `@app.function(gpu=, volumes=, secrets=, timeout=, retries=, max_containers=,
   single_use_containers=)`; timeout max 86400; `concurrency_limit`→`max_containers`.
 - Preemption-resilient pattern: Volume checkpoints + `retries=` +
