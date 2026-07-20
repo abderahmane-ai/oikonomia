@@ -9,7 +9,7 @@ name = "oikonomia"
 version = "0.1.0"
 description = "Information extraction from ancient Greek documentary papyri (DDbDP/HGV)."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Abderahmane Ainouche" }]
 
@@ -22,6 +22,7 @@ dependencies = [
     "pyyaml>=6.0",        # config and resource files (layered loading is hand-rolled)
     "pandas>=2.1",        # tabular assembly
     "pyarrow>=15.0",      # parquet IO
+    "numpy>=1.26",        # MinHash signatures for near-duplicate detection
     "typer>=0.12",        # CLI
 ]
 
@@ -82,7 +83,7 @@ ignore = [
 "tests/*" = ["N802", "N806"]  # allow non-snake-case in test helpers/fixtures
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"  # must match requires-python / the venv
 plugins = ["pydantic.mypy"]
 strict = true
 warn_unused_ignores = true

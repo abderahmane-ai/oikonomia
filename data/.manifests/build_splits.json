@@ -1,0 +1,27 @@
+{
+  "stage": "build_splits",
+  "version": "3",
+  "inputs_key": "idp@d7a34f302d1e44e271256092c2b780733187b478",
+  "params_hash": "5703f2fcd8d6b5420c8fe5799c812c67998b0dadd5f9c0471279cc815b2c41e2",
+  "outputs": [
+    {
+      "path": "data/processed/splits.parquet",
+      "sha256": "d5a9522159d6156af226e536bcc059db23654e6d42eb465902811a1ffcc01f7a",
+      "bytes": 1717630
+    },
+    {
+      "path": "data/processed/splits_report.json",
+      "sha256": "3b638c5364beaa560658bc906d98d318df10a74de70e9298b1af5b59bc69a353",
+      "bytes": 14273
+    }
+  ],
+  "stats": {
+    "n_docs": 61249,
+    "n_groups": 59720,
+    "duplication_rate": 0.0254,
+    "max_stratum_drift": 0.0078,
+    "stratum_tv_train": 0.0023,
+    "temporal_overlap_rate": 0.0007
+  },
+  "created_at": "2026-07-20T18:12:12.240306+00:00"
+}

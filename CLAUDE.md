@@ -121,6 +121,11 @@ uv run oik lexicon verify                   # every form corpus-attested? (~26s)
 uv run oik lexicon eval                     # lexicon attachment rate (~45s)
 uv run oik lexicon baseline                 # proximity baseline (~40s)
 
+# Phase 3
+uv run oik splits build                     # dedup + assign (~25s)
+uv run oik splits report                    # sizes, drift, duplicate clusters
+uv run oik splits check                     # re-verify the artifact on disk
+
 # Quality gate — run after ANY unit of work, in this order
 .venv/bin/ruff check src tests
 .venv/bin/python -m mypy src
@@ -275,6 +280,50 @@ rose slightly; precision rose considerably more than the rates show.
 - `verify` guards *attestation*, not *sense* — it proves a form occurs, not
   that it is filed under the right category. Only gold annotation settles that.
 
+### ✅ Phase 3 — Splits (done)
+
+**Why it got its own phase:** splits are small in code and irreversible in
+practice. Once models are trained and numbers published nobody re-does them, so
+the only defence against a quietly wrong split is being able to rebuild and
+inspect it. `build_splits` is a versioned stage like everything else.
+
+**Deliverables**
+- `splits/dedup.py` — MinHash + LSH near-duplicate clustering over character
+  5-gram shingles of the *folded* text. 128 permutations, 16 bands, Jaccard
+  threshold 0.8, seeded and deterministic.
+- `splits/assign.py` — group-aware stratified assignment (`random`) and
+  temporal holdout (`chronological`), plus `report_split` which verifies no
+  group straddles a split.
+- `splits/build.py` — the stage → `processed/splits.parquet` + report.
+- CLI `oik splits {build,report,check}`. 26 tests.
+
+**Results over the 61,249 documents with real text**
+- **399 duplicate clusters covering 1,553 docs (2.54%)**; largest cluster 454
+  documents. These would have leaked across a naive random split.
+- 59,720 atomic groups. Grouping unions two signals: shared TM id and
+  near-duplicate cluster.
+- `random`: 49,004 / 6,145 / 6,100. Max stratum drift **0.0078**, stratum TV
+  distance 0.0023 — i.e. every stratum is split ~80/10/10, not just the corpus.
+- `chronological`: train −350→466 CE, dev 466→625, test 600→1050. Residual
+  temporal overlap **0.07%** (35 docs), reported rather than hidden.
+
+**Two decisions worth keeping**
+- **Publication volume is NOT a grouping signal.** It is right in spirit
+  (fragments of a roll share a volume) but the largest volume holds 2,023
+  documents; grouping there would force whole volumes into one split and make
+  stratification impossible. Group on evidence of textual identity instead.
+- **Undated documents go to train in the chronological regime.** They cannot
+  support a claim about temporal generalisation, and putting them in test would
+  dilute the exact measurement the regime exists to make.
+
+**Bug worth remembering:** the first implementation balanced splits against a
+*global* deficit. Train's deficit is largest until it is nearly full, so whole
+strata landed in train and only the strata processed last were divided —
+`receipt|high_roman` came out 33/33/33 and every `nogenre|*` stratum went 100%
+to train. **The corpus-level 80/10/10 was exact throughout**, which is what
+made it invisible. Only a per-stratum assertion catches it; there is now a test
+that fails on the old algorithm and passes on the new one.
+
 ---
 
 ## 7. Verified fact ledger
@@ -348,6 +397,14 @@ re-derive; if reality contradicts one, treat it as a finding and update here.
   i.e. editors tagged one and left the next bare. Do not treat `<num>` as a
   complete inventory of numbers; annotation guidelines say to read the number,
   not the tag.
+- **Near-duplication is real but modest: 2.54%** (1,553 of 61,249 texted docs
+  in 399 clusters, MinHash Jaccard >=0.8 over folded 5-grams). Largest cluster
+  454 documents. Enough to inflate a naive random split; not enough to distort
+  corpus statistics.
+- **1,706 documents share a TM id with another** — the same papyrus edited or
+  republished separately. A real leakage group, and cheap to detect.
+- Publication volume is far too coarse to group on: 1,025 volumes, largest
+  holding 2,023 documents.
 - Lexicon false friends share stems across categories: `χαλκεύς` (coppersmith)
   vs currency `χαλκοῦς`; `σιτολόγος` (grain officer) vs commodity `σῖτος`;
   `ἐλαιουργός` (oil-worker) vs `ἔλαιον`. These are OCCUPATION. Stem matching
@@ -387,12 +444,13 @@ re-derive; if reality contradicts one, treat it as a finding and update here.
 
 ## 8. Progress
 
-**~22% of the full project.** Phases 0, 1 and 2 complete: foundation, a
+**~28% of the full project.** Phases 0, 1, 2 and 3 complete: foundation, a
 validated corpus-ingestion pipeline built over all 67,980 documents at parse
 rate 1.000, whole-corpus characterization, mined lexicons with measured recall,
-the annotation schema, and a proximity baseline at a 74.28% numeral link rate.
+the annotation schema, a proximity baseline at a 74.50% numeral link rate, and
+leak-free stratified + chronological splits.
 
-Remaining: Phase 3 splits · Phase 4 DAPT (Modal) · Phase 5 gold annotation ·
+Remaining: Phase 4 DAPT (Modal) · Phase 5 gold annotation ·
 Phase 6 weak/silver labeling · Phase 7 entity model · Phase 8 relation model ·
 Phase 9 corpus inference → DB · Phase 10 historical analysis · Phase 11 release.
 
@@ -404,7 +462,7 @@ remains the scientific risk.
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-20 (end of Phase 2)._
+_Last updated: 2026-07-20 (end of Phase 3)._
 
 ### Quality gate at last save
 **ruff PASS · mypy PASS · 130 tests PASS.** Caches cleared. All work is
@@ -433,6 +491,9 @@ and self-healing.
 - `data/.manifests/build_corpus.json`.
 - `data/interim/numeral_context*.csv` — mined candidate vocabulary
   (17,540 tokens at `--min-docs 2`). Regenerate with `oik lexicon mine`.
+- `data/processed/splits.parquet` + `splits_report.json` — `build_splits`
+  stage version **3**. 61,249 rows, both regimes in one table
+  (`split_random`, `split_chronological`).
 
 Disk: watch headroom — corpus 6.1 GB + processed 280 MB.
 
@@ -453,30 +514,36 @@ cd /Users/abdoumagico/Development/ACHATES
 # 1. Confirm the tree is green before changing anything
 .venv/bin/ruff check src tests && .venv/bin/python -m mypy src && .venv/bin/python -m pytest
 
-# 2. Confirm the derived artifacts are still there and still agree with §7.
-#    If corpus.parquet is missing, rebuild: `oik ingest build` (~85s).
+# 2. Confirm the derived artifacts still exist and still agree with §7.
+#    Rebuild if missing: `oik ingest build` (~85s), `oik splits build` (~25s).
 .venv/bin/oik corpus stats | head -30
+.venv/bin/oik splits check
 ```
 
-Then start **Phase 3 — Splits**. The design questions to settle first, because
-they determine what Phases 4–8 can honestly claim:
+Then start **Phase 4 — DAPT on Modal**. Order of business:
 
-1. **Split on what axis?** Random document splits will leak: the corpus has
-   near-duplicate documents (reissues, fragments of one roll) and heavy genre
-   and date imbalance. Consider grouping by TM id family and stratifying by
-   `canonical_genres` × date bucket.
-2. **Hold out by date?** A chronologically held-out test set is the honest way
-   to claim the price series generalises across the millennium, and is much
-   harder than a random split. Decide deliberately and record why.
-3. **Reserve the Phase 5 gold sample now**, drawn from the train split only, and
-   stratified — the baseline yields in §6 give the denominators to sample
-   against.
-4. Splits belong in a pipeline stage writing `data/processed/splits.parquet`
-   plus a manifest, so they are reproducible and versioned like everything else.
-
-**Before Phase 4 (Modal, DAPT):** re-check every Modal API detail in §7 against
-`modal.com/docs`. Those facts were verified during planning and Modal moves;
-never write Modal syntax from memory.
+1. **Re-verify every Modal API fact in §7 against `modal.com/docs` first.**
+   Those were checked during planning, Modal moves, and the standing rule is
+   never to write Modal syntax from memory. This is the first thing to do, not
+   a detail to confirm later.
+2. Install the extras that were deliberately deferred: `uv pip install -e
+   ".[modal,train]"`. The core library must stay importable without them —
+   `modal_app/` imports the library, never the reverse.
+3. Feed the GPU from the **train split only** (`split_random == "train"`, or
+   the chronological train set for the temporal arm). Domain-adaptive
+   pretraining on dev or test would contaminate every later evaluation, and
+   with 2.54% near-duplication already clustered, the split is the only thing
+   standing between DAPT and leakage.
+4. Preprocess offline into packed, tokenised, memory-mapped shards — the A10G
+   (24 GB) should never wait on CPU tokenisation. Prefer bf16 and packed
+   sequences.
+5. The 4-arm ablation is in §7: A0 GreTa · A1 GreTa+papyri-DAPT (primary,
+   apache-2.0) · A2 koineformer+papyri-DAPT (SA) · A3 koine-t5-omni (NC,
+   comparison only). **Licence firewall: nothing releasable may descend from
+   an NC ancestor.**
+6. Checkpoint into a Modal Volume and use `retries=` +
+   `single_use_containers=True` + resume-from-checkpoint; A10G capacity is
+   preemptible.
 
 **Reminder:** commit after each green unit of work, and update §6/§8/§9 of this
 file before ending a session.

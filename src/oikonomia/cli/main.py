@@ -8,6 +8,7 @@ from oikonomia import __version__
 from oikonomia.cli.corpus_cmd import corpus_app
 from oikonomia.cli.ingest_cmd import ingest_app
 from oikonomia.cli.lexicon_cmd import lexicon_app
+from oikonomia.cli.splits_cmd import splits_app
 
 app = typer.Typer(
     help="OIKONOMIA — information extraction from ancient Greek documentary papyri.",
@@ -16,6 +17,7 @@ app = typer.Typer(
 app.add_typer(ingest_app, name="ingest")
 app.add_typer(corpus_app, name="corpus")
 app.add_typer(lexicon_app, name="lexicon")
+app.add_typer(splits_app, name="splits")
 
 
 @app.command("version")

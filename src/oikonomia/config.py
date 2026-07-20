@@ -57,6 +57,21 @@ class IngestConfig(BaseModel):
     drop_non_greek_langs: bool = True
 
 
+class SplitsConfig(BaseModel):
+    """Train/dev/test partitioning parameters (Phase 3).
+
+    ``dup_threshold`` is Jaccard similarity over character 5-grams. The usable
+    band is ~0.7-0.85: lower merges documents merely on the same subject, higher
+    lets lightly re-edited republications through as distinct.
+    """
+
+    seed: int = 17
+    dup_threshold: float = 0.8
+    train: float = 0.8
+    dev: float = 0.1
+    test: float = 0.1
+
+
 class Settings(BaseModel):
     """The fully-resolved, typed configuration for a run."""
 
@@ -65,6 +80,7 @@ class Settings(BaseModel):
     run_id: str = "default"
     paths: Paths
     ingest: IngestConfig = IngestConfig()
+    splits: SplitsConfig = SplitsConfig()
 
 
 # ---------------------------------------------------------------------------
