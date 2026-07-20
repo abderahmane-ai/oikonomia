@@ -118,6 +118,9 @@ uv run oik ingest report                                  # coverage + failures
 uv run oik corpus stats                     # recompute the §7 ledger (~7s)
 uv run oik lexicon mine --min-docs 2 --top 200000 > out.csv   # units/currency
 uv run oik lexicon mine-titles > titles.csv  # occupations (after a NAME)
+
+# Phase 5
+uv run oik gold sample --n 150 --iaa 30 --blind 30   # -> data/gold/
 uv run oik lexicon verify                   # every form corpus-attested? (~26s)
 uv run oik lexicon eval                     # lexicon attachment rate (~45s)
 uv run oik lexicon baseline                 # proximity baseline (~40s)
@@ -504,7 +507,34 @@ On document 134 the baseline went from **6 to 8** of the 18 gold entities. The
 remaining 10 are PERSON (×7), PLACE, COMMODITY and TAX_TERM mentions that no
 lexicon will reach — which is exactly what gold annotation is for.
 
-#### How to run the annotation
+#### The batch is built — `oik gold sample`
+
+`data/gold/to_annotate.jsonl` — **150 documents, 94.6k characters**, plus
+`data/gold/ANNOTATION.md` (format, labels, worked example, decision rules).
+Both tracked in git. Regenerate deterministically with
+`oik gold sample --n 150 --iaa 30 --blind 30`.
+
+The sampler enforces four things that are easy to get wrong by hand:
+- **train split only, one document per group** — near-duplicates and shared-TM
+  documents cannot both be drawn, which would spend the budget twice and
+  inflate agreement;
+- **genre-capped**: 12–13 documents each across 11 genres, against a corpus
+  that is 25% receipts;
+- **spread over time**: 17–24 documents per era, not clustered in the 2nd
+  century where the mass is;
+- **20% deliberately low-numeral**, so PERSON/PLACE are seen in prose and not
+  only in accounting lines.
+
+It also filters what would waste annotator time: **Latin documents** (idp.data
+carries them; 3 were in the first draft at 0% Greek) and documents more than
+10% lacunae. Length is bounded to 120–1,600 characters.
+
+30 documents are flagged `double_annotate` for agreement. **30 carry no
+suggestions at all** (`suggested_entities: null`) — pre-annotation anchors the
+annotator, so the blind subset is the only honest basis for a later
+baseline-vs-gold comparison. Annotate those first, while unanchored.
+
+#### Remaining choices
 
 - **Sample from the train split only.** Annotating dev/test documents
   contaminates them. `splits.parquet` → `split_random == "train"`.
@@ -833,8 +863,8 @@ Both defects found by running the baseline on a real receipt are **fixed**:
 `DATE_REF` now absorbs its numeral, and occupations are mined from title
 position via `oik lexicon mine-titles` (9 new entries). See §6 Phase 5.
 
-Not yet built and worth having: `oik gold sample` — a stratified export of
-train-split documents to JSONL for the annotation tool. Ask for it.
+The annotation batch is built: `data/gold/to_annotate.jsonl` (150 docs) plus
+`data/gold/ANNOTATION.md`. Output goes to `data/gold/annotated.jsonl`.
 
 **Phase 4 is built and can run any time** (`modal run modal_app/dapt.py::push`
 then `::sweep`, ~$0.25–0.80), but it optimises perplexity as a proxy. It will

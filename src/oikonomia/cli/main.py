@@ -7,6 +7,7 @@ import typer
 from oikonomia import __version__
 from oikonomia.cli.corpus_cmd import corpus_app
 from oikonomia.cli.dapt_cmd import dapt_app
+from oikonomia.cli.gold_cmd import gold_app
 from oikonomia.cli.ingest_cmd import ingest_app
 from oikonomia.cli.lexicon_cmd import lexicon_app
 from oikonomia.cli.splits_cmd import splits_app
@@ -20,6 +21,7 @@ app.add_typer(corpus_app, name="corpus")
 app.add_typer(lexicon_app, name="lexicon")
 app.add_typer(splits_app, name="splits")
 app.add_typer(dapt_app, name="dapt")
+app.add_typer(gold_app, name="gold")
 
 
 @app.command("version")
