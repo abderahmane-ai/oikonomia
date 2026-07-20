@@ -5,6 +5,7 @@ from __future__ import annotations
 import typer
 
 from oikonomia import __version__
+from oikonomia.cli.corpus_cmd import corpus_app
 from oikonomia.cli.ingest_cmd import ingest_app
 
 app = typer.Typer(
@@ -12,6 +13,7 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(ingest_app, name="ingest")
+app.add_typer(corpus_app, name="corpus")
 
 
 @app.command("version")
