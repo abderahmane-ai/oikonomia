@@ -116,7 +116,8 @@ uv run oik ingest report                                  # coverage + failures
 
 # Phase 2
 uv run oik corpus stats                     # recompute the §7 ledger (~7s)
-uv run oik lexicon mine --min-docs 2 --top 200000 > out.csv   # candidate vocab
+uv run oik lexicon mine --min-docs 2 --top 200000 > out.csv   # units/currency
+uv run oik lexicon mine-titles > titles.csv  # occupations (after a NAME)
 uv run oik lexicon verify                   # every form corpus-attested? (~26s)
 uv run oik lexicon eval                     # lexicon attachment rate (~45s)
 uv run oik lexicon baseline                 # proximity baseline (~40s)
@@ -481,17 +482,27 @@ them. For this document, 18 entities:
 PERSON, PLACE and OCCUPATION. That gap is precisely the value gold annotation
 adds, and the reason Phase 5 gates everything.
 
-#### Two defects this example exposed (fix before annotating)
+#### Two defects this example exposed — both fixed
 
-1. **`DATE_REF` spans are incomplete.** The guidelines say a regnal-year
-   expression is one span covering numeral *and* year word (`ἔτους νβ`). The
-   baseline emits `ἔτους` alone and *suppresses* `νβ` entirely, so the numeral
-   is discarded rather than merged. Guidelines and code disagree; the
-   guidelines are right.
-2. **`τελωνῶν` and `ἀντιγραφεὺς` are not in `occupations.yaml`.** Mine
-   occupation vocabulary from *title positions* (after a personal name), not
-   only from numeral neighbourhoods — the current mining window never sees
-   them.
+1. **`DATE_REF` now absorbs its numeral.** The code used to emit `ἔτους` alone
+   and suppress `νβ`, discarding the year while the guidelines required one
+   span. It now merges in either order (`ἔτους νβ`, `Παχὼν κα`, `ιϛ ἔτος`),
+   with adjacency capped at `DATE_ADJACENCY = 4` chars so a later amount on the
+   same line is not swallowed.
+2. **Occupations are now mined from title position** (`oik lexicon mine-titles`).
+   Occupations follow a *name*, not a numeral, so the numeral-context miner
+   structurally could not see them. Names are located by **capitalisation** —
+   the signal recovered by not lowercasing (see §7). Added 9 entries
+   (praktor 594 docs, banker 359, priest 210, tax_farmer 177, village_scribe
+   173, overseer 127, notary 123, logistes 96, checking_clerk 67), curated
+   against false friends: `ἀντίγραφον` ("a copy") is not `ἀντιγραφεύς` (the
+   clerk), and `τράπεζα` (the bank) is not `τραπεζίτης` (the banker).
+
+OCCUPATION coverage went 13,938 → **21,470** matches corpus-wide; the lexicon
+is now 97 entries / 378 forms, all corpus-attested (`oik lexicon verify`).
+On document 134 the baseline went from **6 to 8** of the 18 gold entities. The
+remaining 10 are PERSON (×7), PLACE, COMMODITY and TAX_TERM mentions that no
+lexicon will reach — which is exactly what gold annotation is for.
 
 #### How to run the annotation
 
@@ -818,13 +829,9 @@ example of one real document with all 18 of its gold spans, the JSONL format,
 sampling rules (train split only, stratified), size targets, tool options, and
 the anchoring caveat on pre-annotation.
 
-Two things to fix *before* annotating, both found by running the baseline on a
-real receipt (§6 Phase 5):
-1. `DATE_REF` spans are incomplete — code emits `ἔτους` and drops `νβ`, while
-   the guidelines require the single span `ἔτους νβ`. Guidelines are right.
-2. `τελωνῶν`, `ἀντιγραφεὺς` are missing from `occupations.yaml`; mine
-   occupation vocabulary from title position (after a personal name), not only
-   from numeral neighbourhoods.
+Both defects found by running the baseline on a real receipt are **fixed**:
+`DATE_REF` now absorbs its numeral, and occupations are mined from title
+position via `oik lexicon mine-titles` (9 new entries). See §6 Phase 5.
 
 Not yet built and worth having: `oik gold sample` — a stratified export of
 train-split documents to JSONL for the annotation tool. Ask for it.

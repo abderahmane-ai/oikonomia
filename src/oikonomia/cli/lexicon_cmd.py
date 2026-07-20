@@ -19,7 +19,7 @@ from oikonomia.labeling.evaluate import (
 )
 from oikonomia.labeling.lexicon import load_lexicon
 from oikonomia.labeling.matcher import Matcher
-from oikonomia.labeling.mine import MINE_COLUMNS, mine_batches
+from oikonomia.labeling.mine import MINE_COLUMNS, TITLE_COLUMNS, mine_batches, mine_titles
 from oikonomia.labeling.weak_rules import BASELINE_COLUMNS, run_baseline
 
 lexicon_app = typer.Typer(help="Lexicon mining and evaluation (Phase 2).", no_args_is_help=True)
@@ -54,6 +54,29 @@ def mine(
             [c.token, c.n_docs, c.n_occurrences, c.n_left, c.n_right, c.right_ratio,
              " ".join(c.example_forms)]
         )
+
+
+@lexicon_app.command("mine-titles")
+def mine_titles_cmd(
+    env: EnvOpt = "local",
+    set_: SetOpt = None,
+    window: Annotated[int, typer.Option(help="Words after a name to consider.")] = 2,
+    min_docs: Annotated[int, typer.Option(help="Drop tokens seen in fewer documents.")] = 5,
+    top: Annotated[int, typer.Option(help="How many candidates to emit.")] = 400,
+) -> None:
+    """Rank words in title position — the source of OCCUPATION vocabulary.
+
+    Occupations follow a personal name, not a numeral, so `oik lexicon mine`
+    structurally cannot find them. Names are located by capitalisation.
+    """
+    s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    batches = iter_batches(corpus_path(s.paths.processed), TITLE_COLUMNS)
+    candidates = mine_titles(batches, window=window, min_docs=min_docs)
+
+    writer = csv.writer(sys.stdout)
+    writer.writerow(["token", "n_docs", "n_occurrences", "forms"])
+    for c in candidates[:top]:
+        writer.writerow([c.token, c.n_docs, c.n_occurrences, " ".join(c.example_forms)])
 
 
 @lexicon_app.command("eval")

@@ -36,6 +36,14 @@ MINE_COLUMNS = ("document_json", "canonical_genres")
 # or single-letter numerals the parser did not tag; they swamp the ranking.
 MIN_TOKEN_LEN = 2
 
+# Folded articles and particles that sit between a name and its title
+# ("Πολυδεύκης ὁ ἀντιγραφεύς"). Skipped rather than counted, so they do not
+# consume the title slot or dominate the ranking.
+GREEK_ARTICLES = frozenset(
+    {"ο", "η", "το", "του", "τησ", "τω", "τη", "τον", "την", "οι", "αι", "των", "τοισ",
+     "ταισ", "τουσ", "τασ", "τα", "και", "δε", "μεν", "ωσ", "υιοσ", "υιου"}
+)
+
 
 class TokenCandidate(BaseModel):
     """One mined candidate: a folded token seen adjacent to a numeral."""
@@ -170,6 +178,89 @@ def mine_batches(
             n_occurrences=occ_counts[token],
             n_left=left_counts[token],
             n_right=right_counts[token],
+            example_forms=[f for f, _ in forms.get(token, Counter()).most_common(3)],
+        )
+        for token, n_docs in doc_counts.items()
+        if n_docs >= min_docs
+    ]
+    candidates.sort(key=lambda c: (-c.n_docs, c.token))
+    return candidates
+
+
+TITLE_COLUMNS = ("document_json",)
+
+
+def mine_title_positions(
+    doc: dict[str, Any], window: int = 2
+) -> Iterator[tuple[str, str]]:
+    """Yield ``(folded_token, surface)`` for words following a personal name.
+
+    Occupations and roles sit in *title position* — directly after a name
+    (``Ἀπολλώνιος χαλκεύς``, ``Ἥρων Ἥρωνος ἐλαιουργός``, ``Πολυδεύκης ὁ
+    ἀντιγραφεύς``) — and essentially never next to a numeral. Mining only
+    numeral neighbourhoods therefore cannot find them, which is why
+    ``τελωνῶν`` and ``ἀντιγραφεύς`` were missing from the occupation lexicon
+    despite being common.
+
+    Names are located by **capitalisation**, which the corpus marks and which
+    GreBerta's tokenizer also preserves. Articles are skipped, so ``ὁ`` in
+    ``Πολυδεύκης ὁ ἀντιγραφεύς`` does not consume the slot.
+    """
+    text = doc["edited_text"]
+    if not text.strip():
+        return
+
+    for line in doc["lines"]:
+        span = line.get("edited")
+        if not span:
+            continue
+        raw = text[span["start"] : span["end"]]
+        tokens = tokenize(raw)  # works on cased text: it splits on Greek letters
+
+        for i, (tok, _) in enumerate(tokens):
+            if not tok[:1].isupper():
+                continue
+            taken = 0
+            for follower, follower_span in tokens[i + 1 :]:
+                if follower[:1].isupper():
+                    break  # a second name, not a title
+                folded = normalize(follower).text
+                if folded in GREEK_ARTICLES:
+                    continue  # "ὁ", "τοῦ" … do not consume the slot
+                if len(folded) >= MIN_TOKEN_LEN:
+                    yield folded, follower_span.slice(raw)
+                taken += 1
+                if taken >= window:
+                    break
+
+
+def mine_titles(
+    batches: Iterable[pd.DataFrame], window: int = 2, min_docs: int = 5
+) -> list[TokenCandidate]:
+    """Rank words appearing in title position across record batches."""
+    doc_counts: Counter[str] = Counter()
+    occ_counts: Counter[str] = Counter()
+    forms: dict[str, Counter[str]] = {}
+
+    for df in batches:
+        for doc_json in df["document_json"]:
+            doc = json.loads(doc_json)
+            seen: set[str] = set()
+            for token, surface in mine_title_positions(doc, window=window):
+                occ_counts[token] += 1
+                if surface:
+                    forms.setdefault(token, Counter())[surface] += 1
+                seen.add(token)
+            for token in seen:
+                doc_counts[token] += 1
+
+    candidates = [
+        TokenCandidate(
+            token=token,
+            n_docs=n_docs,
+            n_occurrences=occ_counts[token],
+            n_left=0,
+            n_right=occ_counts[token],  # by construction, always after the name
             example_forms=[f for f, _ in forms.get(token, Counter()).most_common(3)],
         )
         for token, n_docs in doc_counts.items()

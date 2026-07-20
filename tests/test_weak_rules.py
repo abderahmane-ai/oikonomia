@@ -73,19 +73,44 @@ def test_currency_makes_it_money_not_quantity(matcher: Matcher) -> None:
     assert ("μ", "δραχμὰς") in _rels(result, "HAS_CURRENCY")
 
 
-def test_regnal_year_numeral_is_not_a_quantity(matcher: Matcher) -> None:
-    """Rule 3: ιϛ in "ιϛ ἔτος" is part of the date, not an amount."""
+def test_regnal_year_numeral_is_absorbed_into_the_date_span(matcher: Matcher) -> None:
+    """Rule 3, and the span it produces.
+
+    The guidelines define a date reference as ONE span covering the word and
+    its number. An earlier version suppressed the numeral and left DATE_REF on
+    the bare word, silently disagreeing with the guidelines and discarding the
+    year — which is the part that carries the information.
+    """
     result = _label("ιϛ ἔτος", matcher, ["ιϛ"])
     assert not [e for e in result.entities if e.label in {"QUANTITY", "MONEY_AMOUNT"}]
-    assert [e.label for e in result.entities] == ["DATE_REF"]
+    assert [(e.label, e.text) for e in result.entities] == [("DATE_REF", "ιϛ ἔτος")]
 
 
-def test_date_numeral_suppressed_but_real_quantity_kept(matcher: Matcher) -> None:
-    """Both in one line: the regnal year drops out, the artabas do not."""
+def test_date_absorbs_a_numeral_on_either_side(matcher: Matcher) -> None:
+    """Both orders occur in the corpus: "ιϛ ἔτος" and "Παχὼν κα"."""
+    text = "ἔτους νβ Παχὼν κα."
+    result = _label(text, matcher, ["νβ", "κα"])
+    assert [(e.label, e.text) for e in result.entities] == [
+        ("DATE_REF", "ἔτους νβ"),
+        ("DATE_REF", "Παχὼν κα"),
+    ]
+    for e in result.entities:
+        assert e.span.slice(text) == e.text
+
+
+def test_distant_numeral_is_not_absorbed_by_a_date(matcher: Matcher) -> None:
+    """Absorption is adjacency, not "anywhere on the line"."""
+    result = _label("ἔτους νβ πυροῦ ἀρτάβας μ", matcher, ["νβ", "μ"])
+    assert ("DATE_REF", "ἔτους νβ") in [(e.label, e.text) for e in result.entities]
+    assert ("QUANTITY", "μ") in [(e.label, e.text) for e in result.entities]
+
+
+def test_date_numeral_absorbed_but_real_quantity_kept(matcher: Matcher) -> None:
+    """Both in one line: the regnal year joins the date, the artabas do not."""
     text = "ιϛ ἔτος πυροῦ ἀρτάβας μ"
     result = _label(text, matcher, ["ιϛ", "μ"])
-    amounts = [e.text for e in result.entities if e.label == "QUANTITY"]
-    assert amounts == ["μ"]
+    assert [e.text for e in result.entities if e.label == "QUANTITY"] == ["μ"]
+    assert ("DATE_REF", "ιϛ ἔτος") in [(e.label, e.text) for e in result.entities]
     assert _rels(result, "HAS_UNIT") == [("μ", "ἀρτάβας")]
 
 
@@ -160,6 +185,19 @@ def test_time_is_a_price_not_a_tax(matcher: Matcher) -> None:
     """τιμή was misfiled under TAX_TERM; it is the price in a sale."""
     result = _label("τιμῆς τῆς συγχωρηθείσης", matcher, [])
     assert [(e.label, e.text) for e in result.entities] == [("PRICE_TERM", "τιμῆς")]
+
+
+def test_title_position_occupations_are_found(matcher: Matcher) -> None:
+    """Mined from title position, not numeral context — the numeral window
+    structurally cannot see them, which is why they were missing."""
+    for text, entry_id in [
+        ("παρὰ Πανίσκου καὶ Κεφάλωνος τελωνῶν", "tax_farmer"),
+        ("Πολυδεύκης ὁ ἀντιγραφεὺς", "checking_clerk"),
+        ("διὰ Ἡρακλείδου πράκτορος", "praktor"),
+        ("Σαραπίων τραπεζίτης", "banker"),
+    ]:
+        hits = [e for e in _label(text, matcher, []).entities if e.label == "OCCUPATION"]
+        assert [h.entry_id for h in hits] == [entry_id], text
 
 
 def test_occupations_are_labelled_not_confused_with_goods(matcher: Matcher) -> None:

@@ -50,6 +50,12 @@ MONEY_AMOUNT = "MONEY_AMOUNT"
 # a whole clause; lines cap it anyway.
 DEFAULT_WINDOW = 40
 
+# How close a numeral must sit to a date word to belong to it. Tight: "ἔτους νβ"
+# is one character apart, while an amount later in the same clause is not part
+# of the date. Both orders occur — "ιϛ ἔτος" and "Παχὼν κα" — so this is
+# direction-agnostic.
+DATE_ADJACENCY = 4
+
 # Columns the corpus-wide baseline run needs.
 BASELINE_COLUMNS = ("document_json",)
 
@@ -160,11 +166,26 @@ def label_document(
         by_cat.setdefault(ent.label, []).append((i, ent, lines.line_of(ent.span.start)))
 
     # Numerals become QUANTITY, unless a date word sits next to them (rule 3),
-    # in which case the numeral belongs to the date expression and is not an
-    # amount of anything.
+    # in which case the numeral is part of the date expression.
+    #
+    # It is *absorbed*, not dropped. The annotation guidelines define a
+    # regnal-year or calendar reference as a single span covering the word and
+    # its number — "ἔτους νβ", "Παχὼν κα" — because the number is what makes
+    # the reference a date at all. An earlier version suppressed the numeral
+    # and left DATE_REF on the bare word, which silently disagreed with the
+    # guidelines and threw away the year.
     numeral_indices: list[int] = []
     for span in numeral_spans:
-        if _nearest(span, by_cat.get(DATE_REF, []), lines, window=4) is not None:
+        date_idx = _nearest(span, by_cat.get(DATE_REF, []), lines, window=DATE_ADJACENCY)
+        if date_idx is not None:
+            date_ent = entities[date_idx]
+            merged = CharSpan(
+                start=min(date_ent.span.start, span.start),
+                end=max(date_ent.span.end, span.end),
+            )
+            entities[date_idx] = date_ent.model_copy(
+                update={"span": merged, "text": merged.slice(text)}
+            )
             continue
         entities.append(WeakEntity(label=QUANTITY, span=span, text=span.slice(text)))
         numeral_indices.append(len(entities) - 1)

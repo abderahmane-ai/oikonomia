@@ -132,3 +132,77 @@ entries:
       - πρεσβυτερων    # 19
       - πρεσβυτερω    # 13
       - πρεσβυτεροι    # 11
+  - id: praktor
+    gloss: "praktor — tax collector"
+    forms:
+      - πρακτωρ    # 594
+      - πρακτορεσ    # 322
+      - πρακτορι    # 69
+      - πρακτορων    # 61
+      - πρακτοροσ    # 55
+      - πρακτορσι    # 55
+      - πρακτορσιν    # 38
+  - id: tax_farmer
+    gloss: "telones — tax farmer"
+    forms:
+      - τελωναι    # 177
+      - τελωνησ    # 53
+      - τελωνου    # 20
+      - τελωνων    # 13
+  - id: banker
+    gloss: "trapezites — banker"
+    # Excludes trapeza/trapezan — the bank itself, not the banker.
+    forms:
+      - τραπεζιτησ    # 359
+      - τραπεζιτου    # 70
+      - τραπεζιτη    # 69
+      - τραπεζιτηι    # 38
+      - τραπεζιτην    # 13
+  - id: village_scribe
+    gloss: "komogrammateus — village scribe"
+    forms:
+      - κωμογραμματεωσ    # 173
+      - κωμογραμματευσ    # 147
+      - κωμογραμματει    # 107
+      - κωμογραμματεα    # 14
+      - κωμογραμματευσι    # 5
+  - id: checking_clerk
+    gloss: "antigrapheus — checking clerk, counter-signatory"
+    # Excludes antigraphon (79 docs) — that is 'a copy', a document
+    # type, not the official. Same stem, different word.
+    forms:
+      - αντιγραφευσ    # 67
+      - αντιγραφεωσ    # 26
+      - αντιγραφει    # 23
+  - id: overseer
+    gloss: "epiteretes — overseer of a tax or monopoly"
+    forms:
+      - επιτηρηται    # 127
+      - επιτηρητησ    # 37
+      - επιτηρητων    # 25
+      - επιτηρηταισ    # 14
+      - επιτηρητου    # 12
+      - επιτηρητη    # 9
+  - id: notary
+    gloss: "symbolaiographos — notary"
+    forms:
+      - συμβολαιογραφου    # 123
+      - συμβολαιογραφοσ    # 9
+  - id: logistes
+    gloss: "logistes — curator, civic financial officer"
+    # Excludes logisterion (the office) and logisteia (the post).
+    forms:
+      - λογιστη    # 96
+      - λογιστησ    # 20
+      - λογιστων    # 15
+      - λογιστου    # 13
+  - id: priest
+    gloss: "hiereus — priest"
+    # hiereia (priestess) forms are kept separate below.
+    forms:
+      - ιερευσ    # 210
+      - ιερεωσ    # 156
+      - ιερει    # 116
+      - ιερεων    # 109
+      - ιερεισ    # 19
+      - ιερεα    # 12
