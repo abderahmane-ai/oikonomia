@@ -95,18 +95,37 @@ def test_correct_relation_direction_passes() -> None:
     assert validate_document(doc) == []
 
 
-def test_transaction_anchored_relation_is_flagged_as_unanchored() -> None:
-    """PARTY_OF/DATED_TO point at 'the transaction', which is not an entity."""
-    doc = _doc(
-        "Νεχούτης οἰκίας",
+def test_party_of_must_point_at_a_transaction_trigger() -> None:
+    """PARTY_OF is anchored on an explicit TRANSACTION span, not on the goods."""
+    ents = [
+        {"start": 0, "end": 8, "label": "PERSON", "text": "ὁμολογεῖ"},
+        {"start": 9, "end": 15, "label": "COMMODITY", "text": "οἰκίας"},
+    ]
+    bad = _doc("ὁμολογεῖ οἰκίας", ents, [{"head": 0, "tail": 1, "type": "PARTY_OF"}])
+    assert [p.kind for p in validate_document(bad)] == ["relation_direction"]
+
+    good = _doc(
+        "ὁμολογεῖ Νεχούτης",
         [
-            {"start": 0, "end": 8, "label": "PERSON", "text": "Νεχούτης"},
-            {"start": 9, "end": 15, "label": "COMMODITY", "text": "οἰκίας"},
+            {"start": 0, "end": 8, "label": "TRANSACTION", "text": "ὁμολογεῖ"},
+            {"start": 9, "end": 17, "label": "PERSON", "text": "Νεχούτης"},
         ],
-        [{"head": 0, "tail": 1, "type": "PARTY_OF"}],
+        [{"head": 1, "tail": 0, "type": "PARTY_OF"}],
     )
-    problems = validate_document(doc)
-    assert [p.kind for p in problems] == ["relation_unanchored"]
+    assert validate_document(good) == []
+
+
+def test_counted_people_may_carry_a_quantity() -> None:
+    """`ἱερεῖς β` — HAS_QUANTITY accepts OCCUPATION, not only COMMODITY."""
+    doc = _doc(
+        "ἱερεῖς β",
+        [
+            {"start": 0, "end": 6, "label": "OCCUPATION", "text": "ἱερεῖς"},
+            {"start": 7, "end": 8, "label": "QUANTITY", "text": "β"},
+        ],
+        [{"head": 0, "tail": 1, "type": "HAS_QUANTITY"}],
+    )
+    assert validate_document(doc) == []
 
 
 def test_out_of_range_relation_index() -> None:

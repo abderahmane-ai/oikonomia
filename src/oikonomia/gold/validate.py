@@ -28,19 +28,21 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 # Relation signatures, from resources/schema/annotation_guidelines.md §"Relations".
-RELATION_SIGNATURES: dict[str, tuple[str, str]] = {
-    "HAS_QUANTITY": ("COMMODITY", "QUANTITY"),
-    "HAS_UNIT": ("QUANTITY", "UNIT"),
-    "HAS_CURRENCY": ("MONEY_AMOUNT", "CURRENCY"),
-    "HAS_PRICE": ("COMMODITY", "MONEY_AMOUNT"),
-    "CHARGED_UNDER": ("MONEY_AMOUNT", "TAX_TERM"),
+# Each side is the set of labels allowed at that endpoint.
+RELATION_SIGNATURES: dict[str, tuple[frozenset[str], frozenset[str]]] = {
+    "HAS_QUANTITY": (frozenset({"COMMODITY", "OCCUPATION", "PERSON_ROLE"}), frozenset({"QUANTITY"})),
+    "HAS_UNIT": (frozenset({"QUANTITY"}), frozenset({"UNIT"})),
+    "HAS_CURRENCY": (frozenset({"MONEY_AMOUNT"}), frozenset({"CURRENCY"})),
+    "HAS_PRICE": (frozenset({"COMMODITY"}), frozenset({"MONEY_AMOUNT"})),
+    "CHARGED_UNDER": (frozenset({"MONEY_AMOUNT"}), frozenset({"TAX_TERM"})),
+    # Anchored on an explicit TRANSACTION trigger — see the guidelines. Before
+    # TRANSACTION existed these pointed at "the transaction", which was not an
+    # entity, so there was nothing to point at and they could not be checked.
+    "PARTY_OF": (frozenset({"PERSON", "PERSON_ROLE"}), frozenset({"TRANSACTION"})),
+    "DATED_TO": (frozenset({"TRANSACTION"}), frozenset({"DATE_REF"})),
+    "PAID_BY": (frozenset({"PERSON", "PERSON_ROLE"}), frozenset({"MONEY_AMOUNT", "COMMODITY"})),
+    "PAID_TO": (frozenset({"PERSON", "PERSON_ROLE"}), frozenset({"MONEY_AMOUNT", "COMMODITY"})),
 }
-
-# Relations the guidelines define as pointing at "the transaction" — which is
-# not an entity, so there is nothing to point at. Reported, never auto-fixed:
-# the schema has to decide what anchors a transaction before these can be
-# checked. See the Phase 5 notes in CLAUDE.md.
-TRANSACTION_ANCHORED = frozenset({"PARTY_OF", "DATED_TO", "PAID_BY", "PAID_TO"})
 
 ProblemKind = Literal[
     "empty_span",
@@ -48,7 +50,6 @@ ProblemKind = Literal[
     "text_mismatch",
     "relation_index",
     "relation_direction",
-    "relation_unanchored",
     "overlap",
 ]
 
@@ -168,35 +169,22 @@ def _check_relation(
             )
         ]
 
-    if rtype in TRANSACTION_ANCHORED:
-        problems.append(
-            Problem(
-                doc_id=doc_id,
-                kind="relation_unanchored",
-                index=i,
-                detail=(
-                    f"{rtype} points at 'the transaction', which is not an entity; "
-                    f"here it links {labels[head]} -> {labels[tail]}"
-                ),
-            )
-        )
-        return problems
-
     sig = RELATION_SIGNATURES.get(rtype)
     if sig is None:
         return problems
     want_head, want_tail = sig
     got_head, got_tail = labels[head], labels[tail]
-    if (got_head, got_tail) != (want_head, want_tail):
-        reversed_hint = " (endpoints are reversed)" if (got_tail, got_head) == sig else ""
+    if got_head not in want_head or got_tail not in want_tail:
+        swapped = got_tail in want_head and got_head in want_tail
         problems.append(
             Problem(
                 doc_id=doc_id,
                 kind="relation_direction",
                 index=i,
                 detail=(
-                    f"{rtype} should be {want_head} -> {want_tail}, "
-                    f"got {got_head} -> {got_tail}{reversed_hint}"
+                    f"{rtype} should be {'|'.join(sorted(want_head))} -> "
+                    f"{'|'.join(sorted(want_tail))}, got {got_head} -> {got_tail}"
+                    + (" (endpoints are reversed)" if swapped else "")
                 ),
             )
         )

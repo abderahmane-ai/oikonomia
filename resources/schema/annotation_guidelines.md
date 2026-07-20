@@ -88,6 +88,8 @@ COMMODITY.**
 | Label | Covers | Example |
 |---|---|---|
 | `DATE_REF` | any in-text date expression | `ιϛ ἔτος`, `ἰνδικτίονος`, `Μεσορὴ δ` |
+| `AGE` | a person's stated age | `πεντήκοντα ὀκτὼ` in `ὡς ἐτῶν πεντήκοντα ὀκτὼ` |
+| `TRANSACTION` | the word that *names* the transaction | `ὁμολογία`, `μίσθωσις`, `δάνειον`, `ὁμολογεῖ`, `μισθώσασθαι` |
 | `TAX_TERM` | a named impost, due or payment heading | `λαογραφίας`, `μερισμοῦ`, `φόρου`, `φυλακιτικοῦ` |
 | `PRICE_TERM` | a price or valuation | `τιμῆς` |
 
@@ -100,13 +102,13 @@ expression is a single `DATE_REF` spanning the numeral and the year word
 
 | Relation | From → To | Example |
 |---|---|---|
-| `HAS_QUANTITY` | `COMMODITY` → `QUANTITY` | πυροῦ → τεσσαράκοντα |
+| `HAS_QUANTITY` | `COMMODITY`/`OCCUPATION`/`PERSON_ROLE` → `QUANTITY` | πυροῦ → τεσσαράκοντα; ἱερεῖς → β |
 | `HAS_UNIT` | `QUANTITY` → `UNIT` | τεσσαράκοντα → ἀρτάβας |
 | `HAS_CURRENCY` | `MONEY_AMOUNT` → `CURRENCY` | μ → δραχμάς |
 | `HAS_PRICE` | `COMMODITY` → `MONEY_AMOUNT` | the price paid for the good |
-| `PARTY_OF` | `PERSON` → transaction | with a `PERSON_ROLE` qualifier |
-| `PAID_BY` / `PAID_TO` | `PERSON` → `MONEY_AMOUNT`/`COMMODITY` | direction of transfer |
-| `DATED_TO` | transaction → `DATE_REF` | |
+| `PARTY_OF` | `PERSON`/`PERSON_ROLE` → `TRANSACTION` | every party, named or not |
+| `PAID_BY` / `PAID_TO` | `PERSON`/`PERSON_ROLE` → `MONEY_AMOUNT`/`COMMODITY` | direction of transfer |
+| `DATED_TO` | `TRANSACTION` → `DATE_REF` | |
 | `CHARGED_UNDER` | `MONEY_AMOUNT` → `TAX_TERM` | ὑπὲρ λαογραφίας |
 
 Relations are annotated **within a document**, and may cross line boundaries.
@@ -197,11 +199,40 @@ Byzantine contract is an isopsephism (= ἀμήν), and `κολλήματος μ
 sheet number. Neither is an economic quantity. Read the number's job, not its
 shape.
 
-**`PARTY_OF` / `DATED_TO` are omitted for now.** They are defined as pointing
-at "the transaction", which is not an entity in this schema, so there is
-nothing to point at (see §1). Rather than invent an anchor, these first
-documents record no such relations. **This must be settled before Phase 8** —
-either add a transaction/event entity, or make them document-level attributes.
+**A transaction is anchored on the word that names it.** `PARTY_OF` and
+`DATED_TO` used to point at "the transaction", which was not an entity — so
+there was nothing to point at and nothing to check. The fix is to annotate the
+trigger itself as a `TRANSACTION` span: `ὁμολογία`, `μίσθωσις`, `δάνειον`,
+`ὁμολογεῖ`, `μισθώσασθαι`, `ἐξοικονομοῦντες`.
+
+This is not a formality — it is what makes multi-transaction documents
+representable at all. A register like doc 11974 puts **eight** contracts on
+eight lines, each opening with its own trigger; a document-level attribute
+could not tell them apart, and anchoring on the goods or the money would
+misattribute parties across contracts.
+
+Where a document records a transaction with no trigger word — a bare account
+line — annotate no `TRANSACTION`. `HAS_QUANTITY` and `HAS_UNIT` do not need
+one, and the `lines` table already groups such entries.
+
+**Unnamed parties are `PERSON_ROLE`, and they matter.** `καὶ τῆς γυναικὸς`
+("and his wife") is a contracting party with no name. Annotate the role phrase
+and give it `PARTY_OF` like any other party — otherwise every transaction with
+an unnamed participant silently loses one.
+
+**Annotate the guardian formula.** `χωρὶς κυρίου` ("without a guardian") and
+`μετὰ κυρίου τοῦ ἀνδρός` ("with her husband as guardian") are `PERSON_ROLE`
+spans, and the modality is part of the span — `χωρὶς κυρίου`, not bare
+`κυρίου`. This is the single clearest textual marker of whether a woman is
+acting as a legal principal in her own right, which is one of this project's
+stated research questions. Dropping the negation makes the two cases
+indistinguishable and the question unanswerable.
+
+**Ages are `AGE`, not `QUANTITY`.** `ὡς ἐτῶν πεντήκοντα ὀκτὼ` ("about 58 years
+old") is a number, so leaving it unlabelled trains the model on an
+inconsistent negative: a numeral that looks exactly like every `QUANTITY` it
+is asked to find. Every numeral in a document should receive a decision —
+`QUANTITY`, `MONEY_AMOUNT`, `DATE_REF`, `FRACTION` or `AGE`.
 
 ## 6. Annotation unit and agreement
 
