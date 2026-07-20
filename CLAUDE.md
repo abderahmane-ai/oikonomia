@@ -117,6 +117,7 @@ uv run oik ingest report                                  # coverage + failures
 # Phase 2
 uv run oik corpus stats                     # recompute the §7 ledger (~7s)
 uv run oik lexicon mine --min-docs 2 --top 200000 > out.csv   # candidate vocab
+uv run oik lexicon verify                   # every form corpus-attested? (~26s)
 uv run oik lexicon eval                     # lexicon attachment rate (~45s)
 uv run oik lexicon baseline                 # proximity baseline (~40s)
 
@@ -125,6 +126,7 @@ uv run oik lexicon baseline                 # proximity baseline (~40s)
 .venv/bin/python -m mypy src
 .venv/bin/python -m pytest
 make clean                        # always clear caches afterwards
+# During iteration, skip the whole-corpus scan: pytest -m "not corpus"
 ```
 
 Modal extras (`.[modal]`, `.[train]`) are installed only when Phase 4 begins.
@@ -224,12 +226,16 @@ and a local 2.8 GB checkout).
 5. **`weak_rules.py` proximity baseline**, written before any model exists.
 
 **Measured results (the bar Phases 7–8 must beat)**
-- Lexicon attachment: **62.13%** of 528,085 numerals get a lexicon term
-  (`oik lexicon eval`). By genre it tracks document type: register 79.7%,
-  account 68.2%, list 67.2%, vs petition 34.9%, contract 35.4% — where numerals
+- Lexicon attachment: **62.35%** of 528,085 numerals get a lexicon term
+  (`oik lexicon eval`). By genre it tracks document type: register ~80%,
+  account ~68%, list ~67%, vs petition ~35%, contract ~35% — where numerals
   are ages and regnal years, not economic quantities.
-- Baseline (`oik lexicon baseline`): 942,701 entities, 386,296 relations,
-  16.95% of numerals suppressed as dates, **74.28% numeral link rate**.
+- Baseline (`oik lexicon baseline`): **74.50% numeral link rate**, 16.95% of
+  numerals suppressed as dates.
+- **`oik lexicon verify`: 336/336 forms attested, 0 unattested.** This is the
+  standing guard on "measured, never recalled" — an invented form matches
+  nothing and raises no error, so nothing else would catch it. Also a test
+  (`-m corpus`, skipped when the corpus is absent).
 
 **Resolved judgment call:** match on the **edited** view. Measured basis:
 `<expan>` covers 68.8% of documents and `<supplied>` 62.4%, so the diplomatic
@@ -244,13 +250,30 @@ resolved decision. The residue is handled by the `abbrev_forms` lists in each
 lexicon file, and those account for only **1.15%** of all matches. Revisit only
 if diplomatic-view matching is ever adopted.
 
-**Known defects carried into Phase 5** (both recorded in the guidelines):
-- `τιμή` is filed under `TAX_TERM` but usually means a sale *price*. Move it.
-- Adjectival metal is a false positive the matcher cannot fix: `χαλκοῦν` in
-  `ποτήριον χαλκοῦν` ("a bronze cup") is not currency. Pinned by a test so it
-  stays a *known* limitation.
-- No `PERSON` / `PERSON_ROLE` / `OCCUPATION` / `PLACE` lexicons exist yet —
-  those types have guidelines but no candidate generator.
+**Defects found and fixed** (each by checking real usage, not by reasoning
+about the words — the context check is `oik lexicon mine` plus reading lines):
+- `τιμή` was filed under `TAX_TERM`; `ἡ τιμὴ τοῦ βασιλικοῦ σίτου` is a sale
+  price. Now its own `PRICE_TERM`. Cut spurious `CHARGED_UNDER` by 30%
+  (9,403 → 6,603).
+- `φορά` was a `TAX_TERM`; `ὀνικαὶ φοραὶ β` is "two donkey-loads". Now a
+  `UNIT`. `φόρος` (rent/tribute) stays a tax. `φυλακιτικόν` (guard tax) added.
+- Adjectival metal dropped from `CURRENCY`: `χαλκοῦν`/`χαλκᾶ`/`χαλκαῖ` describe
+  bronze *objects* (`λυχνίαι χαλκαῖ β` = two bronze lampstands), and `χρυσᾶ` is
+  also the personal name **Χρυσᾶ**. Monetary `χαλκοῖ` kept.
+- `μύρια`/`μυρι` dropped from `myriad`: bare number words, not the multiplier.
+- **`occupations.yaml` added** (13 entries, mined + context-checked). Covers the
+  stem-sharing false friends: `χαλκεύς`, `σιτολόγος`, `ἐλαιουργός`, `κεραμεύς`.
+  Excludes `γεωργίου`/`γεώργιος` — folded, those are the *name* Georgios, not
+  the trade `γεωργός`.
+
+Net: 88 entries / 336 forms across 8 categories. Attachment and link rate both
+rose slightly; precision rose considerably more than the rates show.
+
+**Still open before Phase 5:**
+- No `PERSON` / `PERSON_ROLE` / `PLACE` lexicons. Personal names are the hard
+  case: folding erases the capital distinguishing `Γεώργιος` from `γεωργός`.
+- `verify` guards *attestation*, not *sense* — it proves a form occurs, not
+  that it is filed under the right category. Only gold annotation settles that.
 
 ---
 

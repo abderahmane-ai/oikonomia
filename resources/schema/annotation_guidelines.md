@@ -88,7 +88,8 @@ COMMODITY.**
 | Label | Covers | Example |
 |---|---|---|
 | `DATE_REF` | any in-text date expression | `ιϛ ἔτος`, `ἰνδικτίονος`, `Μεσορὴ δ` |
-| `TAX_TERM` | a named impost, due or payment heading | `λαογραφίας`, `μερισμοῦ`, `φόρου` |
+| `TAX_TERM` | a named impost, due or payment heading | `λαογραφίας`, `μερισμοῦ`, `φόρου`, `φυλακιτικοῦ` |
+| `PRICE_TERM` | a price or valuation | `τιμῆς` |
 
 `DATE_REF` is the **in-text** date reference. It is distinct from the
 document's HGV dating, which is metadata and is not annotated. A regnal-year
@@ -116,17 +117,28 @@ They may not cross documents.
 These are the cases that actually recur; each is a rule, not a suggestion.
 
 **Adjectival metal is not currency.** In `ποτήριον χαλκοῦν` ("a bronze cup"),
-`χαλκοῦν` is an adjective describing material — annotate nothing, or
-`COMMODITY` for the cup. Contrast `χαλκοῦ νομίσματος` ("in bronze coin"),
-where it *is* `CURRENCY`. The test: does it name what an amount is reckoned
-in, or what an object is made of? The lexicon matcher cannot make this
-distinction and will produce false positives here; the gold annotation must.
+`λυχνίαι χαλκαῖ β` ("two bronze lampstands") or `σπονδεῖα χαλκᾶ δ` ("four
+bronze bowls"), the metal word is an adjective describing material — annotate
+`COMMODITY` for the object, nothing for the adjective. Contrast `χαλκοῦ
+νομίσματος` ("in bronze coin"), where it *is* `CURRENCY`. The test: does it
+name what an amount is reckoned in, or what an object is made of?
 
-**`τιμή` is a price, not a tax.** The v0.1 lexicon files it under
-`TAX_TERM`, which is wrong in the common case: `τιμῆς` in
-`τιμῆς τῆς συγχωρηθείσης` ("of the agreed price") is the price of a sale.
-Annotate the *sense in context*; the lexicon's category is a hint, never
-authority. **This misfiling is a known defect to fix in the lexicon.**
+The consistently adjectival forms (`χαλκοῦν`, `χαλκᾶ`, `χαλκαῖ`, `χρυσοῦν`,
+`χρυσᾶ`) have been dropped from the currency lexicon, so the common cases no
+longer produce false positives. `χρυσᾶ` had a second problem: folded, it is
+also the personal name **Χρυσᾶ**. Genuinely monetary forms (`χαλκοῖ` in
+`δραχμαὶ ε … χαλκοῖ ζ`) are kept. The residue — a monetary form used
+adjectivally — still needs gold annotation to resolve.
+
+**`τιμή` is a price, not a tax.** `τιμῆς` in `ἡ τιμὴ τοῦ βασιλικοῦ σίτου`
+("the price of the royal grain") is a sale price. It was misfiled under
+`TAX_TERM` in v0.1 and now has its own `PRICE_TERM` category — which cut
+spurious `CHARGED_UNDER` relations by 30%. The general rule stands: annotate
+the *sense in context*; the lexicon's category is a hint, never authority.
+
+**`φορά` is a load, not an impost.** `ὀνικαὶ φοραὶ β` is "two donkey-loads" —
+a `UNIT` of carriage. Distinguish it from `φόρος` (rent/tribute), which is a
+genuine `TAX_TERM`. Same stem, different word.
 
 **Line boundaries are transaction boundaries in accounts.** In an account or
 register, the entry on the next line is usually a different transaction.
@@ -158,8 +170,20 @@ v0.1 — drafted in Phase 2, before any gold annotation exists. Sections 3 and 4
 are stable enough to build the Phase 6 weak labeler against. Section 5 will
 grow fastest once real annotators hit real documents.
 
-Known defects to fix before Phase 5:
-- `τιμή` is filed under `TAX_TERM` in `resources/lexicon/tax_terms.yaml` and
-  should be its own `PRICE_TERM`, or moved.
-- No `PERSON`, `PERSON_ROLE`, `OCCUPATION` or `PLACE` lexicons exist yet;
-  those entity types currently have guidelines but no candidate generator.
+Resolved since the first draft:
+- `τιμή` moved to its own `PRICE_TERM` category.
+- `φορά` moved from `TAX_TERM` to `UNIT`; `φυλακιτικόν` (guard tax) added to
+  `TAX_TERM`.
+- Adjectival metal forms dropped from `CURRENCY`.
+- `OCCUPATION` now has a mined lexicon (13 entries), covering the stem-sharing
+  false friends the guidelines warn about: `χαλκεύς`, `σιτολόγος`,
+  `ἐλαιουργός`, `κεραμεύς`.
+
+Still open before Phase 5:
+- No `PERSON`, `PERSON_ROLE` or `PLACE` lexicons. Personal names are the hard
+  case — folding erases the capital that distinguishes `Γεώργιος` (a name)
+  from `γεωργός` (a farmer), and that collision is already handled by
+  exclusion in `occupations.yaml` rather than by any general rule.
+- `oik lexicon verify` guards attestation, not sense: it proves every form
+  occurs in the corpus, not that it is filed under the right category. Only
+  gold annotation settles sense.

@@ -173,9 +173,15 @@ entries:
       - μυριαδων    # 57
       - μυριαδοσ    # 29
       - μυριαδα    # 16
-      - μυρια    # 12
     # Truncated abbreviation forms: shorter, so riskier to
     # match; kept separate so the matcher can weight them.
     abbrev_forms:
       - μυριαδ    # 13
-      - μυρι    # 6
+  - id: phora
+    gloss: "phora — a load, esp. a donkey-load of produce"
+    # Moved out of TAX_TERM: onikai phorai b is 'two donkey-loads', a unit
+    # of carriage, not an impost. phoros (rent/tribute) stays a TAX_TERM.
+    forms:
+      - φοραι    # 462
+      - φορα    # 369
+      - φορασ    # 52

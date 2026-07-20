@@ -97,6 +97,7 @@ testpaths = ["tests"]
 addopts = "-q --strict-markers"
 markers = [
     "network: test that reaches the network (deselected by default in CI)",
+    "corpus: test that scans the whole built corpus (skipped if it is absent)",
 ]
 # Surface our own deprecations without failing on third-party (pyarrow/pandas) ones.
 filterwarnings = ["default"]

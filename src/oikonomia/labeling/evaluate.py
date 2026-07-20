@@ -25,6 +25,7 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel, Field
 
+from oikonomia.labeling.lexicon import Lexicon
 from oikonomia.labeling.matcher import Matcher
 from oikonomia.labeling.mine import MIN_TOKEN_LEN, tokenize
 from oikonomia.labeling.normalize import normalize
@@ -193,4 +194,86 @@ def evaluate_coverage(
         abbrev_match_share=round(n_abbrev / n_matches, 4) if n_matches else 0.0,
         top_unmatched_neighbours=gaps.most_common(top_gaps),
         by_genre=by_genre,
+    )
+
+
+VERIFY_COLUMNS = ("document_json",)
+
+
+class FormAttestation(BaseModel):
+    """How often one lexicon form actually occurs in the corpus."""
+
+    form: str
+    entry_id: str
+    category: str
+    n_docs: int
+    is_abbrev: bool
+
+
+class VerifyReport(BaseModel):
+    """Result of checking every lexicon form against the corpus.
+
+    Guards the project's core lexicon rule — forms are *measured, never
+    recalled*. A form absent from the corpus is not a harmless extra: it is
+    evidence that something was written from memory, and it fails silently,
+    because an unattested form simply never matches and reports no error.
+    """
+
+    n_forms: int
+    n_attested: int
+    n_unattested: int
+    unattested: list[FormAttestation]
+    rarest_attested: list[FormAttestation]
+
+    @property
+    def ok(self) -> bool:
+        return self.n_unattested == 0
+
+
+def verify_lexicon(
+    batches: Iterable[pd.DataFrame],
+    lexicon: Lexicon,
+    *,
+    rarest: int = 20,
+) -> VerifyReport:
+    """Count, for every lexicon form, how many documents contain it.
+
+    Attestation is checked against the whole edited text, not just numeral
+    neighbourhoods: mining is how forms are *found*, but a form is legitimate
+    as long as the corpus contains it at all.
+    """
+    index = lexicon.index()
+    abbrevs = {f for e in lexicon.entries for f in e.abbrev_forms}
+    wanted = set(index)
+    counts: Counter[str] = Counter()
+
+    for df in batches:
+        for doc_json in df["document_json"]:
+            doc = json.loads(doc_json)
+            text = doc["edited_text"]
+            if not text.strip():
+                continue
+            tokens = {tok for tok, _ in tokenize(normalize(text).text)}
+            for tok in tokens & wanted:
+                counts[tok] += 1
+
+    attestations = [
+        FormAttestation(
+            form=form,
+            entry_id=entry.id,
+            category=entry.category,
+            n_docs=counts.get(form, 0),
+            is_abbrev=form in abbrevs,
+        )
+        for form, entry in sorted(index.items())
+    ]
+    unattested = [a for a in attestations if a.n_docs == 0]
+    attested = sorted((a for a in attestations if a.n_docs > 0), key=lambda a: a.n_docs)
+
+    return VerifyReport(
+        n_forms=len(attestations),
+        n_attested=len(attested),
+        n_unattested=len(unattested),
+        unattested=unattested,
+        rarest_attested=attested[:rarest],
     )

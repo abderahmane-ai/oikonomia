@@ -134,15 +134,52 @@ def test_spans_index_the_original_text(matcher: Matcher) -> None:
         assert ent.span.slice(text) == ent.text
 
 
-def test_known_failure_adjectival_metal_is_mislabelled(matcher: Matcher) -> None:
-    """A documented false positive, pinned so it cannot regress silently.
+def test_adjectival_metal_is_not_currency(matcher: Matcher) -> None:
+    """Bronze/gold *objects* must not be read as denominations.
 
-    In "ποτήριον χαλκοῦν" ("a bronze cup") χαλκοῦν is an adjective, but the
-    lexicon calls it CURRENCY. The guidelines (§5) require gold annotation to
-    fix this; the baseline cannot. Asserting it keeps the limitation visible.
+    Checking real usage showed χαλκοῦν, χαλκᾶ and χαλκαῖ almost always describe
+    material — "ποτήριον χαλκοῦν" (a bronze cup), "λυχνίαι χαλκαῖ β" (two bronze
+    lampstands) — so they were dropped from the currency lexicon. χρυσᾶ went
+    with them: besides "golden", it is the personal name Χρυσᾶ.
     """
-    result = _label("ποτήριον χαλκοῦν", matcher, [])
-    assert [(e.label, e.text) for e in result.entities] == [("CURRENCY", "χαλκοῦν")]
+    for text in ["ποτήριον χαλκοῦν", "λυχνίαι χαλκαῖ", "σπονδεῖα χαλκᾶ", "ἰμάτια ἢ χρυσᾶ"]:
+        assert _label(text, matcher, []).entities == [], text
+
+
+def test_genuine_bronze_coinage_still_matches(matcher: Matcher) -> None:
+    """Dropping the adjectives must not cost the real denomination.
+
+    "δραχμαὶ ε … χαλκοῖ ζ" is bronze coin counted alongside drachmas.
+    """
+    result = _label("χαλκοῦ νομίσματος", matcher, [])
+    assert [e.label for e in result.entities] == ["CURRENCY", "CURRENCY"]
+    assert [e.entry_id for e in result.entities] == ["chalkous", "nomisma"]
+
+
+def test_time_is_a_price_not_a_tax(matcher: Matcher) -> None:
+    """τιμή was misfiled under TAX_TERM; it is the price in a sale."""
+    result = _label("τιμῆς τῆς συγχωρηθείσης", matcher, [])
+    assert [(e.label, e.text) for e in result.entities] == [("PRICE_TERM", "τιμῆς")]
+
+
+def test_occupations_are_labelled_not_confused_with_goods(matcher: Matcher) -> None:
+    """The stem-sharing false friends now resolve to OCCUPATION."""
+    for text, entry_id in [
+        ("Ἀπολλώνιος χαλκεύς", "coppersmith"),
+        ("Ἥρων Ἥρωνος ἐλαιουργὸς", "oil_worker"),
+        ("Ἡρακλείδης ὁ σιτολόγος", "grain_officer"),
+        ("Πεττυκᾶμις ὁ κεραμεὺς", "potter"),
+    ]:
+        hits = [e for e in _label(text, matcher, []).entities if e.label == "OCCUPATION"]
+        assert [h.entry_id for h in hits] == [entry_id], text
+
+
+def test_phora_is_a_unit_of_carriage(matcher: Matcher) -> None:
+    """"ὀνικαὶ φοραὶ β" is two donkey-loads — a UNIT, not an impost."""
+    result = _label("ὀνικαὶ φοραὶ β", matcher, ["β"])
+    unit = [e for e in result.entities if e.label == "UNIT"]
+    assert [e.entry_id for e in unit] == ["phora"]
+    assert _rels(result, "HAS_UNIT") == [("β", "φοραὶ")]
 
 
 def test_run_baseline_over_batches(matcher: Matcher) -> None:

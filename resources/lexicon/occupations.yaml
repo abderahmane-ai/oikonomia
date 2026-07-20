@@ -1,0 +1,134 @@
+# OCCUPATION lexicon — mined, not recalled.
+#
+# Trades and offices. Several share a stem with a currency or commodity.
+#
+# Every form below was observed adjacent to a <num> element in DDbDP at
+# corpus rev d7a34f302d1e, via `oik lexicon mine`. The number after each form is
+# its document frequency in that mining pass. Forms are folded (accents and
+# breathings stripped, case folded, final sigma -> sigma): match against
+# oikonomia.labeling.normalize output, never against raw text.
+#
+# `oik lexicon verify` re-checks every form against the corpus; a form that is
+# not attested there is an error, not a harmless extra.
+
+version: 1
+category: OCCUPATION
+entries:
+  - id: grain_officer
+    gloss: "sitologos — grain officer"
+    # Shares a stem with COMMODITY sitos. This is the officer, not the grain.
+    forms:
+      - σιτολογοσ    # 27
+      - σιτολογων    # 25
+      - σιτολογοι    # 18
+      - σιτολογου    # 9
+      - σιτολογοισ    # 6
+      - σιτολογωι    # 5
+    abbrev_forms:
+      - σιτολογ    # 4
+  - id: oil_worker
+    gloss: "elaiourgos — oil-presser"
+    # Shares a stem with COMMODITY elaion. Excludes elaiourgiou (the
+    # oil-press itself, a place) and the adjective elaiourgikoi.
+    forms:
+      - ελαιουργου    # 17
+      - ελαιουργοσ    # 12
+      - ελαιουργω    # 10
+      - ελαιουργοισ    # 9
+      - ελαιουργων    # 6
+  - id: coppersmith
+    gloss: "chalkeus — coppersmith"
+    # Shares a stem with CURRENCY chalkous.
+    forms:
+      - χαλκευσ    # 20
+      - χαλκεισ    # 17
+      - χαλκεωσ    # 6
+  - id: potter
+    gloss: "kerameus — potter"
+    # Shares a stem with UNIT keramion. Excludes kerameion (the kiln).
+    forms:
+      - κεραμευσ    # 9
+      - κεραμεωσ    # 10
+      - κεραμει    # 7
+      - κεραμεων    # 8
+  - id: farmer
+    gloss: "georgos — farmer, cultivator"
+    # Excludes georgiou/georgios: folded, those are the personal name
+    # Georgios, not the trade.
+    forms:
+      - γεωργοσ    # 79
+      - γεωργου    # 39
+      - γεωργων    # 32
+      - γεωργοι    # 21
+      - γεωργω    # 9
+      - γεωργοισ    # 8
+    abbrev_forms:
+      - γεωργ    # 8
+  - id: scribe
+    gloss: "grammateus — scribe, secretary"
+    forms:
+      - γραμματευσ    # 73
+      - γραμματει    # 61
+      - γραμματεωσ    # 48
+      - γραμματευσι    # 11
+      - γραμματευσιν    # 5
+      - γραμματεα    # 4
+  - id: carpenter
+    gloss: "tekton — carpenter, builder"
+    forms:
+      - τεκτων    # 47
+      - τεκτονοσ    # 29
+      - τεκτονι    # 20
+      - τεκτονεσ    # 8
+      - τεκτονων    # 5
+      - τεκτοσι    # 5
+  - id: donkey_driver
+    gloss: "onelates — donkey driver"
+    forms:
+      - ονηλατησ    # 37
+      - ονηλατου    # 33
+      - ονηλαται    # 22
+      - ονηλαταισ    # 15
+      - ονηλατη    # 15
+      - ονηλατων    # 9
+      - ονηλατηι    # 7
+  - id: shepherd
+    gloss: "poimen — shepherd"
+    forms:
+      - ποιμην    # 29
+      - ποιμενοσ    # 24
+      - ποιμενων    # 12
+      - ποιμενι    # 9
+  - id: sailor
+    gloss: "nautes — sailor"
+    forms:
+      - ναυτων    # 28
+      - ναυται    # 18
+      - ναυτου    # 16
+      - ναυτησ    # 12
+      - ναυταισ    # 5
+      - ναυτη    # 4
+  - id: dyer
+    gloss: "bapheus — dyer"
+    forms:
+      - βαφεωσ    # 10
+      - βαφευσ    # 9
+      - βαφει    # 5
+      - βαφεων    # 5
+  - id: guard
+    gloss: "phylakites — guard"
+    # Excludes phylakitikon, which is the guard *tax* -> TAX_TERM.
+    forms:
+      - φυλακιτησ    # 11
+      - φυλακιτων    # 26
+      - φυλακιτου    # 9
+      - φυλακιται    # 6
+      - φυλακιταισ    # 4
+  - id: elder
+    gloss: "presbyteros — village elder, later church presbyter"
+    forms:
+      - πρεσβυτεροσ    # 91
+      - πρεσβυτερου    # 90
+      - πρεσβυτερων    # 19
+      - πρεσβυτερω    # 13
+      - πρεσβυτεροι    # 11

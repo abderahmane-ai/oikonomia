@@ -120,12 +120,9 @@ entries:
       - χαλκου    # 949
       - χαλκουσ    # 468
       - χαλκοι    # 385
-      - χαλκουν    # 66
       - χαλκων    # 23
       - χαλκοσ    # 17
       - χαλκον    # 15
-      - χαλκα    # 14
-      - χαλκαι    # 11
       - χαλκωι    # 8
     # Truncated abbreviation forms: shorter, so riskier to
     # match; kept separate so the matcher can weight them.
@@ -147,8 +144,6 @@ entries:
       - χρυσιου    # 204
       - χρυσου    # 806
       - χρυσων    # 27
-      - χρυσουν    # 14
-      - χρυσα    # 9
     # Truncated abbreviation forms: shorter, so riskier to
     # match; kept separate so the matcher can weight them.
     abbrev_forms:

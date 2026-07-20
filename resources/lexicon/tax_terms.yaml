@@ -42,12 +42,6 @@ entries:
       - φορουσ    # 7
       - φορον    # 41
       - φορων    # 20
-  - id: phora
-    gloss: "phora — a delivery/instalment of rent in kind"
-    forms:
-      - φοραι    # 462
-      - φορα    # 369
-      - φορασ    # 52
   - id: stephanikon
     gloss: "stephanikon — crown tax"
     forms:
@@ -67,13 +61,12 @@ entries:
     gloss: "prosdiagraphomena — supplementary surcharges"
     forms:
       - προσδιαγραφομενα    # 483
-  - id: time
-    gloss: "time — price paid for something"
-    forms:
-      - τιμησ    # 285
-      - τιμην    # 94
-      - τιμη    # 74
   - id: genema
     gloss: "genema — the harvest a payment is charged against"
     forms:
       - γενηματοσ    # 1682
+  - id: phylakitikon
+    gloss: "phylakitikon — the guard tax"
+    forms:
+      - φυλακιτικου    # 60
+      - φυλακιτικον    # 24

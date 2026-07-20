@@ -11,7 +11,12 @@ import typer
 
 from oikonomia.config import load_settings
 from oikonomia.corpus.io import corpus_path, iter_batches
-from oikonomia.labeling.evaluate import EVAL_COLUMNS, evaluate_coverage
+from oikonomia.labeling.evaluate import (
+    EVAL_COLUMNS,
+    VERIFY_COLUMNS,
+    evaluate_coverage,
+    verify_lexicon,
+)
 from oikonomia.labeling.lexicon import load_lexicon
 from oikonomia.labeling.matcher import Matcher
 from oikonomia.labeling.mine import MINE_COLUMNS, mine_batches
@@ -82,3 +87,25 @@ def baseline(
     batches = iter_batches(corpus_path(s.paths.processed), BASELINE_COLUMNS)
     report = run_baseline(batches, matcher, window=window)
     typer.echo(json.dumps(report.model_dump(), ensure_ascii=False, indent=2))
+
+
+@lexicon_app.command("verify")
+def verify(
+    env: EnvOpt = "local",
+    set_: SetOpt = None,
+    rarest: Annotated[int, typer.Option(help="How many rarest attested forms to show.")] = 20,
+) -> None:
+    """Check every lexicon form is attested in the corpus. Exits 1 if not.
+
+    The standing guard on the "measured, never recalled" rule: an invented form
+    never matches anything and reports no error, so nothing else would catch it.
+    """
+    s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    lexicon = load_lexicon(s.paths.resources)
+    batches = iter_batches(corpus_path(s.paths.processed), VERIFY_COLUMNS)
+    report = verify_lexicon(batches, lexicon, rarest=rarest)
+
+    typer.echo(json.dumps(report.model_dump(), ensure_ascii=False, indent=2))
+    if not report.ok:
+        typer.echo(f"\n{report.n_unattested} form(s) not attested in the corpus.", err=True)
+        raise typer.Exit(code=1)
