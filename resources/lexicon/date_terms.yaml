@@ -1,0 +1,104 @@
+# DATE_REF lexicon — mined, not recalled.
+#
+# Calendar and regnal vocabulary that marks a numeral as a date, not a quantity.
+#
+# Every form below was observed adjacent to a <num> element in DDbDP at
+# corpus rev d7a34f302d1e, via `oik lexicon mine`. The number after each form is
+# its document frequency in that mining pass. Forms are folded (accents and
+# breathings stripped, case folded, final sigma -> sigma): match against
+# oikonomia.labeling.normalize output, never against raw text.
+#
+# Curation removed homographs of other categories -- e.g. chalkeus
+# (coppersmith) and sitologos (grain officer) are OCCUPATIONs, not a
+# currency and a commodity, though they share a stem.
+
+version: 1
+category: DATE_REF
+entries:
+  - id: year
+    gloss: "etos — 'year N', the regnal or era year"
+    forms:
+      - ετουσ    # 19298
+      - ετων    # 1997
+      - ετει    # 943
+      - ετοσ    # 860
+      - ετη    # 341
+  - id: month_word
+    gloss: "men — the word 'month' introducing a month name"
+    forms:
+      - μηνοσ    # 1277
+      - μηνι    # 881
+  - id: indiction
+    gloss: "indiction — the 15-year late-antique tax cycle"
+    forms:
+      - ινδικτιονοσ    # 2565
+      - ινδικτιωνοσ    # 2005
+      - ινδικτιονι    # 9
+      - ινδικτιωνι    # 2
+  - id: thoth
+    gloss: "Thoth — 1st Egyptian month"
+    forms:
+      - θωθ    # 1749
+  - id: phaophi
+    gloss: "Phaophi — 2nd Egyptian month"
+    forms:
+      - φαωφι    # 2008
+  - id: hathyr
+    gloss: "Hathyr — 3rd Egyptian month"
+    forms:
+      - αθυρ    # 1887
+  - id: choiak
+    gloss: "Choiak — 4th Egyptian month"
+    forms:
+      - χοιακ    # 909
+      - χοιαχ    # 474
+  - id: tybi
+    gloss: "Tybi — 5th Egyptian month"
+    forms:
+      - τυβι    # 1744
+  - id: mecheir
+    gloss: "Mecheir — 6th Egyptian month"
+    forms:
+      - μεχειρ    # 1687
+  - id: phamenoth
+    gloss: "Phamenoth — 7th Egyptian month"
+    forms:
+      - φαμενωθ    # 1848
+  - id: pharmouthi
+    gloss: "Pharmouthi — 8th Egyptian month"
+    forms:
+      - φαρμουθι    # 2008
+  - id: pachon
+    gloss: "Pachon — 9th Egyptian month"
+    forms:
+      - παχων    # 1948
+  - id: payni
+    gloss: "Payni — 10th Egyptian month"
+    forms:
+      - παυνι    # 2626
+  - id: epeiph
+    gloss: "Epeiph — 11th Egyptian month"
+    forms:
+      - επειφ    # 2351
+      - επιφ    # 413
+  - id: mesore
+    gloss: "Mesore — 12th Egyptian month"
+    forms:
+      - μεσορη    # 2830
+  - id: epagomenai
+    gloss: "the five epagomenal days closing the Egyptian year"
+    forms:
+      - επαγομενων    # 427
+  - id: caesar
+    gloss: "Kaisaros — regnal dating by the emperor's name"
+    forms:
+      - καισαροσ    # 2824
+  - id: autokrator
+    gloss: "Autokratoros — 'Imperator' in a regnal date"
+    forms:
+      - αυτοκρατοροσ    # 2011
+  - id: sebastos
+    gloss: "Sebastos — 'Augustus' in a regnal date"
+    forms:
+      - σεβαστου    # 1428
+      - σεβαστων    # 432

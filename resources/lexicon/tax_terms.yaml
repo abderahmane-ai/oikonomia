@@ -1,0 +1,79 @@
+# TAX_TERM lexicon — mined, not recalled.
+#
+# Named imposts, dues and payment categories.
+#
+# Every form below was observed adjacent to a <num> element in DDbDP at
+# corpus rev d7a34f302d1e, via `oik lexicon mine`. The number after each form is
+# its document frequency in that mining pass. Forms are folded (accents and
+# breathings stripped, case folded, final sigma -> sigma): match against
+# oikonomia.labeling.normalize output, never against raw text.
+#
+# Curation removed homographs of other categories -- e.g. chalkeus
+# (coppersmith) and sitologos (grain officer) are OCCUPATIONs, not a
+# currency and a commodity, though they share a stem.
+
+version: 1
+category: TAX_TERM
+entries:
+  - id: laographia
+    gloss: "laographia — the poll tax"
+    forms:
+      - λαογραφιασ    # 673
+  - id: merismos
+    gloss: "merismos — apportioned levy"
+    forms:
+      - μερισμου    # 254
+      - μερισμων    # 55
+      - μερισμον    # 22
+      - μερισμοσ    # 9
+  - id: demosia
+    gloss: "demosia — public dues"
+    forms:
+      - δημοσιων    # 145
+      - δημοσιου    # 49
+      - δημοσιω    # 44
+      - δημοσιασ    # 27
+      - δημοσιον    # 25
+      - δημοσια    # 18
+  - id: phoros
+    gloss: "phoros — rent or tribute"
+    forms:
+      - φορου    # 152
+      - φορουσ    # 7
+      - φορον    # 41
+      - φορων    # 20
+  - id: phora
+    gloss: "phora — a delivery/instalment of rent in kind"
+    forms:
+      - φοραι    # 462
+      - φορα    # 369
+      - φορασ    # 52
+  - id: stephanikon
+    gloss: "stephanikon — crown tax"
+    forms:
+      - στεφανικου    # 14
+      - στεφανικων    # 6
+  - id: telesma
+    gloss: "telesma — a due paid"
+    forms:
+      - τελεσματοσ    # 38
+      - τελεσματων    # 8
+  - id: syntaxis
+    gloss: "syntaxis — contribution"
+    forms:
+      - συνταξεωσ    # 13
+      - συνταξιμου    # 7
+  - id: prosdiagraphomena
+    gloss: "prosdiagraphomena — supplementary surcharges"
+    forms:
+      - προσδιαγραφομενα    # 483
+  - id: time
+    gloss: "time — price paid for something"
+    forms:
+      - τιμησ    # 285
+      - τιμην    # 94
+      - τιμη    # 74
+  - id: genema
+    gloss: "genema — the harvest a payment is charged against"
+    forms:
+      - γενηματοσ    # 1682

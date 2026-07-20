@@ -16,14 +16,14 @@ and independent of corpus size.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
-import pyarrow.parquet as pq
 from pydantic import BaseModel, Field
 
+from oikonomia.corpus.io import iter_batches
 from oikonomia.schemas.document import MarkupKind
 
 # Every markup kind the parser can emit, taken from the enum rather than
@@ -237,16 +237,6 @@ def compute_stats(batches: Iterable[pd.DataFrame]) -> CorpusStats:
     return acc.finalize()
 
 
-def iter_batches(parquet_path: Path, batch_size: int = 2000) -> Iterator[pd.DataFrame]:
-    """Stream the corpus table as pandas frames, reading only needed columns."""
-    parquet = pq.ParquetFile(parquet_path)
-    for batch in parquet.iter_batches(batch_size=batch_size, columns=list(STATS_COLUMNS)):
-        yield batch.to_pandas()
-
-
 def corpus_stats(parquet_path: Path, batch_size: int = 2000) -> CorpusStats:
     """Compute whole-corpus statistics from the built parquet table."""
-    if not parquet_path.is_file():
-        msg = f"corpus table not found at {parquet_path}. Run `oik ingest build` first."
-        raise FileNotFoundError(msg)
-    return compute_stats(iter_batches(parquet_path, batch_size=batch_size))
+    return compute_stats(iter_batches(parquet_path, STATS_COLUMNS, batch_size=batch_size))

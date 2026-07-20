@@ -1,0 +1,155 @@
+# CURRENCY lexicon — mined, not recalled.
+#
+# Denominations and money-metals that name what an amount is counted in.
+#
+# Every form below was observed adjacent to a <num> element in DDbDP at
+# corpus rev d7a34f302d1e, via `oik lexicon mine`. The number after each form is
+# its document frequency in that mining pass. Forms are folded (accents and
+# breathings stripped, case folded, final sigma -> sigma): match against
+# oikonomia.labeling.normalize output, never against raw text.
+#
+# Curation removed homographs of other categories -- e.g. chalkeus
+# (coppersmith) and sitologos (grain officer) are OCCUPATIONs, not a
+# currency and a commodity, though they share a stem.
+
+version: 1
+category: CURRENCY
+entries:
+  - id: drachma
+    gloss: "drachma — the standard silver denomination"
+    forms:
+      - δραχμαι    # 4870
+      - δραχμασ    # 4527
+      - δραχμων    # 1066
+      - δραχμην    # 572
+      - δραχμη    # 498
+      - δραχμησ    # 135
+      - δραχμαισ    # 55
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - δραχμ    # 397
+  - id: obol
+    gloss: "obol — one sixth of a drachma"
+    forms:
+      - οβολοσ    # 867
+      - οβολοι    # 833
+      - οβολουσ    # 640
+      - οβολον    # 553
+      - οβολου    # 304
+      - οβολων    # 61
+      - οβολο    # 6
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - οβολ    # 127
+  - id: diobol
+    gloss: "diobol — two obols"
+    forms:
+      - διωβολον    # 1071
+      - διωβολου    # 41
+  - id: triobol
+    gloss: "triobol — three obols"
+    forms:
+      - τριωβολον    # 1009
+      - τριωβολου    # 57
+  - id: tetrobol
+    gloss: "tetrobol — four obols"
+    forms:
+      - τετρωβολον    # 1130
+      - τετρωβολου    # 32
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - τετρωβολ    # 7
+  - id: pentobol
+    gloss: "pentobol — five obols"
+    forms:
+      - πεντωβολον    # 678
+      - πεντωβολου    # 40
+  - id: hemiobelion
+    gloss: "hemiobelion — half an obol"
+    forms:
+      - ημιωβελιον    # 737
+      - ημιωβελιου    # 132
+      - ημιωβολον    # 16
+  - id: talent
+    gloss: "talent — the largest money-of-account unit"
+    forms:
+      - ταλαντα    # 1129
+      - ταλαντον    # 493
+      - ταλαντων    # 275
+      - ταλαντου    # 80
+      - ταλαντοισ    # 10
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - ταλαντ    # 77
+  - id: keration
+    gloss: "keration — carat, fraction of the gold solidus"
+    forms:
+      - κερατια    # 1175
+      - κερατιον    # 183
+      - κερατιων    # 109
+      - κερατιου    # 76
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - κερατι    # 15
+  - id: nomisma
+    gloss: "nomisma / solidus — late-antique gold coin"
+    forms:
+      - νομισματα    # 746
+      - νομισματια    # 675
+      - νομισμα    # 425
+      - νομισματοσ    # 350
+      - νομισματιον    # 336
+      - νομισματιου    # 179
+      - νομισματων    # 141
+      - νομισματιων    # 82
+      - νομισματι    # 14
+      - νομισμασι    # 10
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - νομισματ    # 24
+      - νομισμ    # 18
+  - id: chalkous
+    gloss: "chalkous — bronze small change"
+    forms:
+      - χαλκου    # 949
+      - χαλκουσ    # 468
+      - χαλκοι    # 385
+      - χαλκουν    # 66
+      - χαλκων    # 23
+      - χαλκοσ    # 17
+      - χαλκον    # 15
+      - χαλκα    # 14
+      - χαλκαι    # 11
+      - χαλκωι    # 8
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - χαλκ    # 51
+  - id: argyrion
+    gloss: "argyrion — silver money"
+    forms:
+      - αργυριου    # 1167
+      - αργυριον    # 46
+      - αργυρι    # 6
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - αργυρ    # 7
+  - id: chrysion
+    gloss: "chrysion — gold money"
+    forms:
+      - χρυσιου    # 204
+      - χρυσου    # 806
+      - χρυσων    # 27
+      - χρυσουν    # 14
+      - χρυσα    # 9
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - χρυσ    # 9

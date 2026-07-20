@@ -1,0 +1,181 @@
+# UNIT lexicon — mined, not recalled.
+#
+# Units of capacity, area, weight and length that quantify a commodity.
+#
+# Every form below was observed adjacent to a <num> element in DDbDP at
+# corpus rev d7a34f302d1e, via `oik lexicon mine`. The number after each form is
+# its document frequency in that mining pass. Forms are folded (accents and
+# breathings stripped, case folded, final sigma -> sigma): match against
+# oikonomia.labeling.normalize output, never against raw text.
+#
+# Curation removed homographs of other categories -- e.g. chalkeus
+# (coppersmith) and sitologos (grain officer) are OCCUPATIONs, not a
+# currency and a commodity, though they share a stem.
+
+version: 1
+category: UNIT
+entries:
+  - id: artaba
+    gloss: "artaba — the standard dry (grain) measure"
+    forms:
+      - αρταβαι    # 2692
+      - αρταβασ    # 1745
+      - αρταβησ    # 996
+      - αρταβη    # 702
+      - αρταβων    # 616
+      - αρταβην    # 337
+      - αρταβαισ    # 32
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - αρταβ    # 272
+  - id: aroura
+    gloss: "aroura — the standard land-area measure"
+    forms:
+      - αρουρων    # 822
+      - αρουραι    # 722
+      - αρουρασ    # 632
+      - αρουρησ    # 422
+      - αρουρα    # 270
+      - αρουραν    # 118
+      - αρουραισ    # 45
+      - αρουρη    # 9
+      - αρουρην    # 6
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - αρουρ    # 159
+  - id: keramion
+    gloss: "keramion — a jar, standard wine measure"
+    forms:
+      - κεραμια    # 446
+      - κεραμιον    # 150
+      - κεραμιων    # 74
+      - κεραμιου    # 51
+      - κεραμιοισ    # 6
+      - κεραμιν    # 5
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - κεραμι    # 6
+  - id: metretes
+    gloss: "metretes — large liquid measure"
+    forms:
+      - μετρηται    # 69
+      - μετρητασ    # 54
+      - μετρητην    # 32
+      - μετρητων    # 17
+      - μετρητου    # 16
+      - μετρητησ    # 13
+  - id: choinix
+    gloss: "choinix — small dry measure, a daily grain ration"
+    forms:
+      - χοινικεσ    # 214
+      - χοινικασ    # 81
+      - χοινικοσ    # 31
+      - χοινικα    # 24
+      - χοινικων    # 13
+      - χοινιξ    # 68
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - χοινικ    # 15
+  - id: kotyle
+    gloss: "kotyle — small liquid measure"
+    forms:
+      - κοτυλαι    # 68
+      - κοτυλασ    # 35
+      - κοτυλη    # 28
+      - κοτυλων    # 21
+      - κοτυλησ    # 14
+      - κοτυλην    # 13
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - κοτυλ    # 6
+  - id: xestes
+    gloss: "xestes — liquid measure, the Roman sextarius"
+    forms:
+      - ξεσται    # 213
+      - ξεστασ    # 116
+      - ξεστων    # 56
+      - ξεστησ    # 42
+      - ξεστου    # 39
+      - ξεστην    # 24
+      - ξεστιον    # 8
+      - ξεστια    # 6
+  - id: mna
+    gloss: "mna — mina, weight and money-of-account"
+    forms:
+      - μναι    # 57
+      - μνασ    # 64
+      - μνα    # 16
+      - μναν    # 8
+  - id: litra
+    gloss: "litra — pound weight"
+    forms:
+      - λιτραι    # 323
+      - λιτρασ    # 200
+      - λιτρων    # 83
+      - λιτρα    # 48
+      - λιτραν    # 22
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - λιτρ    # 9
+  - id: naubion
+    gloss: "naubion — earth-volume measure used in dyke work"
+    forms:
+      - ναυβιου    # 122
+      - ναυβια    # 57
+      - ναυβιον    # 23
+      - ναυβιων    # 17
+  - id: schoinion
+    gloss: "schoinion — land measure, a surveyor's cord"
+    forms:
+      - σχοινια    # 44
+      - σχοινιων    # 26
+      - σχοινιον    # 17
+      - σχοινιου    # 13
+  - id: pechys
+    gloss: "pechys — cubit, length measure"
+    forms:
+      - πηχεισ    # 88
+      - πηχει    # 61
+      - πηχων    # 55
+      - πηχεων    # 34
+      - πηχεωσ    # 11
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - πηχ    # 8
+  - id: modios
+    gloss: "modios — Roman dry measure"
+    forms:
+      - μοδιοι    # 41
+      - μοδια    # 26
+      - μοδιουσ    # 25
+      - μοδιω    # 13
+      - μοδιον    # 6
+  - id: zeugos
+    gloss: "zeugos — a yoke/pair, counted for draught animals"
+    forms:
+      - ζευγη    # 120
+      - ζευγοσ    # 31
+      - ζευγων    # 16
+      - ζευγουσ    # 8
+  - id: myriad
+    gloss: "myriad — ten thousand, a multiplier in inflationary sums"
+    forms:
+      - μυριαδεσ    # 312
+      - μυριασ    # 137
+      - μυριαδασ    # 135
+      - μυριαδων    # 57
+      - μυριαδοσ    # 29
+      - μυριαδα    # 16
+      - μυρια    # 12
+    # Truncated abbreviation forms: shorter, so riskier to
+    # match; kept separate so the matcher can weight them.
+    abbrev_forms:
+      - μυριαδ    # 13
+      - μυρι    # 6
