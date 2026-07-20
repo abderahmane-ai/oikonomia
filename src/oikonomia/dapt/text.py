@@ -9,24 +9,32 @@ on, and every downstream number becomes meaningless. Phase 3 exists to prevent
 exactly this, so the split filter is mandatory here, not optional: the loader
 refuses to run without a split table.
 
-**Case is folded, deliberately.** GreBerta's tokenizer is a ByteLevel BPE whose
-merges are entirely lowercase — verified against its ``tokenizer.json``, whose
-vocabulary contains no uppercase Greek. Uppercase input is therefore
-*representable* (byte fallback) but out of distribution: a capitalised proper
-name shatters into single-byte tokens. Since ~16% of corpus tokens are
-capitalised, feeding raw text would fragment precisely the proper names we
-care most about.
+**Case is preserved by default — and an earlier version of this module was
+wrong about that.** It lowercased everything, on the reasoning that GreBerta's
+vocabulary holds no uppercase Greek and capitals would therefore shatter into
+byte fallback. That was inferred from reading the vocabulary file rather than
+from tokenising anything, and testing it shows the opposite:
 
-So the language model sees lowercase, matching what it was pretrained on. The
-capitalisation signal is not discarded — it is carried separately as an
-explicit feature for the Phase 7 tagger (ablation arm B2), where it can be
-used properly instead of being mangled into byte soup.
+* ``Ἡλιοδώρου`` → ``[2213, 513, 50508]`` vs ``ἡλιοδώρου`` → ``[1342, 513,
+  50508]``: distinct, and it decodes back to ``Ἡλιοδώρου`` with the capital.
+* ``Γεώργιος`` and ``γεωργός`` tokenise to entirely different ids — the very
+  name/occupation distinction the lexicon had to handle by exclusion.
+* Keeping case costs **-0.59%** tokens over the corpus. It is *cheaper*.
 
-Accents are **kept**. GreBerta's vocabulary contains accented lowercase forms,
-so folding them away would push the text out of distribution in the other
-direction. This is a lighter fold than
-:func:`oikonomia.labeling.normalize.normalize`, which is for lexicon matching,
-not for feeding a language model.
+So lowercasing threw away the strongest available cue for PERSON and PLACE, in
+exchange for nothing. ByteLevel BPE composes capitals out of byte pieces
+perfectly well; an absent uppercase *merge* is not an absent uppercase
+*representation*.
+
+``lowercase`` remains available because it is genuinely model-dependent: GreTa
+folds case inside its own tokenizer normalizer (``{"type": "Lowercase"}``), so
+for that backbone the flag changes nothing and the signal is unavailable no
+matter what we feed. That is a property of GreTa, not of Ancient Greek models
+in general.
+
+Accents are kept in both cases. This is a lighter transform than
+:func:`oikonomia.labeling.normalize.normalize`, which strips accents for
+lexicon matching and would push text away from what the model was trained on.
 """
 
 from __future__ import annotations
@@ -47,14 +55,15 @@ TEXT_COLUMNS = ("stem", "edited_text")
 VALID_REGIMES = ("split_random", "split_chronological")
 
 
-def fold_for_lm(text: str) -> str:
-    """Lowercase for the language model, keeping accents.
+def prepare_for_lm(text: str, *, lowercase: bool = False) -> str:
+    """Whitespace-normalise for the language model; keep case unless asked.
 
     Deliberately *not* :func:`oikonomia.labeling.normalize.normalize`: that
     strips accents and folds final sigma, which is right for matching a lexicon
-    and wrong for feeding a model whose vocabulary contains accented forms.
+    and wrong for feeding a model trained on accented text.
     """
-    return text.lower()
+    cleaned = " ".join(text.split())
+    return cleaned.lower() if lowercase else cleaned
 
 
 def load_split_ids(settings: Settings, regime: str, split: str) -> set[str]:
@@ -85,8 +94,9 @@ def iter_dapt_texts(
     regime: str = "split_random",
     split: str = "train",
     min_chars: int = 20,
+    lowercase: bool = False,
 ) -> Iterator[str]:
-    """Yield lowercased training text for one split.
+    """Yield training text for one split, case preserved unless asked.
 
     ``min_chars`` drops fragments too short to carry any language signal; they
     are mostly single-word scraps that would only add separator noise to the
@@ -100,12 +110,12 @@ def iter_dapt_texts(
         for stem, text in zip(df["stem"], df["edited_text"], strict=True):
             if str(stem) not in allowed:
                 continue
-            cleaned = " ".join(str(text).split())
+            cleaned = prepare_for_lm(str(text), lowercase=lowercase)
             if len(cleaned) < min_chars:
                 skipped += 1
                 continue
             kept += 1
-            yield fold_for_lm(cleaned)
+            yield cleaned
     logger.info(f"dapt: yielded {kept} documents, skipped {skipped} short ones")
 
 

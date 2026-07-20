@@ -27,10 +27,12 @@ class BuildDaptShardsStage:
     """Tokenise and pack the DAPT corpus, offline and reproducibly."""
 
     name = "build_dapt_shards"
+    # 3: stop lowercasing. GreBerta distinguishes case and keeping it is
+    #    *cheaper* in tokens; v1-v2 discarded the best PERSON/PLACE cue.
     # 2: frame each block as <s> ... </s>. v1 emitted raw packed streams, which
     #    is off-distribution for RoBERTa at position 0 and silently costs
     #    adaptation quality without showing up in the loss.
-    version = "2"
+    version = "3"
 
     def inputs_key(self, s: Settings) -> str:
         return f"idp@{s.ingest.idp_git_rev or 'UNPINNED'}"
@@ -42,6 +44,7 @@ class BuildDaptShardsStage:
             "seq_len": cfg.seq_len,
             "regime": cfg.regime,
             "min_chars": cfg.min_chars,
+            "lowercase": cfg.lowercase,
         }
 
     def outputs(self, s: Settings) -> list[Path]:
@@ -65,7 +68,11 @@ class BuildDaptShardsStage:
         stats: dict[str, float | int | str] = {}
         for split in PACKED_SPLITS:
             texts = iter_dapt_texts(
-                s, regime=cfg.regime, split=split, min_chars=cfg.min_chars
+                s,
+                regime=cfg.regime,
+                split=split,
+                min_chars=cfg.min_chars,
+                lowercase=cfg.lowercase,
             )
             blocks = pack_blocks(
                 encode_documents(texts, tokenizer, sep_id),
@@ -83,7 +90,7 @@ class BuildDaptShardsStage:
                     "regime": cfg.regime,
                     "model_name": cfg.model_name,
                     "corpus_rev": s.ingest.idp_git_rev,
-                    "lowercased": True,
+                    "lowercased": cfg.lowercase,
                 },
             )
             stats[f"{split}_blocks"] = meta["n_blocks"]

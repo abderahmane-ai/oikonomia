@@ -84,6 +84,10 @@ class DaptConfig(BaseModel):
     seq_len: int = 512
     regime: str = "split_random"
     min_chars: int = 20
+    # Case is INFORMATION for GreBerta: Γεώργιος (a name) and γεωργός (a
+    # farmer) tokenise differently, and keeping case costs -0.59% tokens.
+    # Only set this for a backbone that folds case internally anyway (GreTa).
+    lowercase: bool = False
     # Training hyperparameters, consumed by modal_app/ (not by the library).
     mlm_probability: float = 0.15
     learning_rate: float = 5e-5

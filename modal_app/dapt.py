@@ -48,7 +48,6 @@ of blocks. Cheap to test; included in the sweep.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import modal
@@ -125,6 +124,7 @@ def train(
     adapter: str = "lora",  # "lora" | "full"
     lora_r: int = 16,
     lora_alpha: int = 32,
+    lora_scope: str = "attn+ffn",  # "attn+ffn" | "attn"
     # A *ceiling*, not a target: early stopping on dev loss ends the run. Set
     # generously (~16 epochs) so the dev curve, not this number, decides.
     max_steps: int = 4048,
@@ -172,6 +172,38 @@ def train(
             block = torch.from_numpy(self.data[i].astype(np.int64))
             return {"input_ids": block, "attention_mask": torch.ones_like(block)}
 
+    class GapAwareCollator(DataCollatorForLanguageModeling):
+        """MLM masking that never targets the lacuna placeholder.
+
+        The gap marker "…" is 1.16% of corpus *characters* but tokenises to two
+        byte pieces, making it **6.0% of the token stream**. Left alone, ~6% of
+        the masking budget is spent predicting an editorial symbol that is
+        trivially predictable from its other half — near-zero loss, near-zero
+        gradient. Worse, those easy targets deflate dev perplexity, and dev
+        perplexity is what early stopping and model selection run on.
+
+        The markers stay in the *input*: they are real, they appear at
+        inference, and deleting them would splice text across a lacuna and
+        manufacture adjacencies that never existed. They are only excluded from
+        being prediction targets.
+        """
+
+        def __init__(self, *args, gap_ids: set[int] | None = None, **kwargs) -> None:
+            super().__init__(*args, **kwargs)
+            self.gap_ids = gap_ids or set()
+
+        def torch_mask_tokens(self, inputs, special_tokens_mask=None):
+            if self.gap_ids:
+                is_gap = torch.zeros_like(inputs, dtype=torch.bool)
+                for gid in self.gap_ids:
+                    is_gap |= inputs == gid
+                special_tokens_mask = (
+                    is_gap
+                    if special_tokens_mask is None
+                    else special_tokens_mask.bool() | is_gap
+                )
+            return super().torch_mask_tokens(inputs, special_tokens_mask=special_tokens_mask)
+
     torch.manual_seed(seed)
     shard_dir = Path(SHARD_DIR)
     train_ds = PackedShard(shard_dir / "train.bin")
@@ -183,19 +215,47 @@ def train(
     if adapter == "lora":
         from peft import LoraConfig, TaskType, get_peft_model
 
+        # PEFT matches target_modules by *suffix* ("it is checked if the name
+        # of the module ends with any of the passed strings"). A bare "dense"
+        # therefore also captures lm_head.dense, which is not part of the
+        # encoder and is tied to the embeddings — so every name here is
+        # qualified enough to exclude it.
+        #
+        # Default is attention + FFN, not attention alone. DAPT's job is to
+        # absorb domain content, and the feed-forward blocks are where lexical
+        # and factual associations live; the literature reports MLP-only
+        # matching or beating all-linear, and attention-only is the
+        # conservative choice rather than the apt one here. At r=16 this is
+        # still ~1% of the model, far from an overfitting risk on 8.3M tokens.
+        scopes = {
+            "attn": ["query", "key", "value"],
+            "attn+ffn": [
+                "query",
+                "key",
+                "value",
+                "attention.output.dense",
+                "intermediate.dense",
+                "output.dense",
+            ],
+        }
+        if lora_scope not in scopes:
+            raise ValueError(f"lora_scope must be one of {sorted(scopes)}, got {lora_scope!r}")
+
         model = get_peft_model(
             model,
             LoraConfig(
+                # PEFT has no masked-LM task type; FEATURE_EXTRACTION adapts
+                # the encoder and leaves the LM head frozen. That head is tied
+                # to the input embeddings, so training it would mean training
+                # the embedding matrix — a much larger change than "LoRA".
+                # Adaptation therefore happens in the encoder and the frozen
+                # head decodes it, which is what we want for a tagger backbone.
                 task_type=TaskType.FEATURE_EXTRACTION,
                 r=lora_r,
                 lora_alpha=lora_alpha,
                 lora_dropout=0.1,
-                # Attention projections only. "dense" would also match
-                # attention.output.dense, intermediate.dense, output.dense and
-                # lm_head.dense — PEFT matches on suffix — which is far more
-                # than "LoRA on attention" and inflates trainable params well
-                # past what the r=16 label implies.
-                target_modules=["query", "key", "value"],
+                target_modules=scopes[lora_scope],
+                exclude_modules=["lm_head.dense", "lm_head.decoder"],
             ),
         )
         model.print_trainable_parameters()
@@ -241,14 +301,18 @@ def train(
         args=args,
         train_dataset=train_ds,
         eval_dataset=eval_ds,
-        data_collator=DataCollatorForLanguageModeling(
-            tokenizer=tokenizer, mlm=True, mlm_probability=mlm_probability
+        data_collator=GapAwareCollator(
+            tokenizer=tokenizer,
+            mlm=True,
+            mlm_probability=mlm_probability,
+            gap_ids=set(tokenizer("…", add_special_tokens=False)["input_ids"]),
         ),
         callbacks=[EarlyStoppingCallback(early_stopping_patience=patience)],
     )
 
-    resume = os.path.isdir(ckpt_dir) and any(
-        p.startswith("checkpoint-") for p in os.listdir(ckpt_dir)
+    ckpt_path = Path(ckpt_dir)
+    resume = ckpt_path.is_dir() and any(
+        p.name.startswith("checkpoint-") for p in ckpt_path.iterdir()
     )
     trainer.train(resume_from_checkpoint=resume or None)
 
@@ -264,6 +328,7 @@ def train(
     result = {
         "run": run_name,
         "adapter": adapter,
+        "lora_scope": lora_scope if adapter == "lora" else "-",
         "eval_loss": loss,
         "perplexity": math.exp(loss),
         "stopped_at_step": stopped_at,
@@ -290,7 +355,8 @@ def sweep() -> None:
     corpus is data-starved rather than capacity-starved.
     """
     configs = [
-        {"run_name": "b1-lora", "adapter": "lora"},
+        {"run_name": "b1-lora-attn-ffn", "adapter": "lora", "lora_scope": "attn+ffn"},
+        {"run_name": "b1-lora-attn", "adapter": "lora", "lora_scope": "attn"},
         {"run_name": "b1-full", "adapter": "full"},
     ]
     # spawn(), not map(): map/starmap take positional arguments only, so they

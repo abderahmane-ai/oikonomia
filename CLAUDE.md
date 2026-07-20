@@ -133,7 +133,7 @@ modal run modal_app/dapt.py::push           # upload shards to the Volume
 modal run modal_app/dapt.py::launch         # DAPT on an A10
 
 # Quality gate — run after ANY unit of work, in this order
-.venv/bin/ruff check src tests
+.venv/bin/ruff check src tests modal_app
 .venv/bin/python -m mypy src
 .venv/bin/python -m pytest
 make clean                        # always clear caches afterwards
@@ -148,7 +148,8 @@ Modal extras (`.[modal]`, `.[train]`) are installed only when Phase 4 begins.
 
 Run every time before declaring a phase done and moving on:
 
-1. `.venv/bin/ruff check src tests` — must pass with **All checks passed!**
+1. `.venv/bin/ruff check src tests modal_app` — must pass with **All checks passed!**
+   (`modal_app/` was omitted from the gate until Phase 4 and had accumulated lint.)
 2. `.venv/bin/python -m mypy src` — must be **Success: no issues found**.
 3. `.venv/bin/python -m pytest` — all tests green.
 4. Clear caches — `make clean`, or explicitly:
@@ -520,21 +521,32 @@ re-derive; if reality contradicts one, treat it as a finding and update here.
 - All three are adapted on ~1.5M tokens of SBLGNT + Apostolic Fathers, i.e.
   **biblical literary Koine — a different register from documentary papyri.**
 
-**Case is destroyed across the whole Ancient Greek ecosystem — verified, not
-assumed:**
-- GreTa's `tokenizer.json` normalizer contains `{"type":"Lowercase"}` and the
-  vocabulary has **no uppercase Greek at all**.
-- GreBerta's normalizer is `null`, but its vocabulary likewise contains no
-  uppercase Greek — the training text was lowercased.
-- `pranaydeeps/Ancient-Greek-BERT` states "standard de-accentuating and
-  lower-casing for Greek" outright (and declares no licence — unusable for a
-  released artifact).
-- **This is the field convention**, which retroactively validates
-  `labeling/normalize.py`. But 16.16% of corpus tokens are capitalised and in
-  papyri capitals mark proper names, so PERSON/PLACE lose a real signal.
-  Treat capitalisation as an **explicit input feature**, not something the LM
-  supplies. The ledger previously called this "irrelevant to token
-  classification"; that was wrong.
+**Case handling differs by model — and an earlier version of this ledger got
+it wrong.** It claimed case was destroyed family-wide, inferred from reading
+vocabulary files. Tokenising actual text shows otherwise:
+
+| | `Ἡλιοδώρου` vs `ἡλιοδώρου` | round-trip |
+|---|---|---|
+| **GreTa** | identical ids `[11655, 17067]` | lowercased — **case lost** |
+| **GreBerta** | `[2213, 513, 50508]` vs `[1342, 513, 50508]` | `Ἡλιοδώρου` — **case kept** |
+
+GreTa's tokenizer normalizer contains `{"type": "Lowercase"}`, so case is gone
+before the model sees it. **GreBerta has no such normalizer and preserves case
+fine** — ByteLevel BPE composes capitals from byte pieces, and an absent
+uppercase *merge* is not an absent uppercase *representation*. `Γεώργιος` and
+`γεωργός` tokenise to entirely different ids.
+
+**Keeping case costs −0.59% tokens** over the corpus, i.e. it is *cheaper* as
+well as more informative. 16.16% of corpus tokens are capitalised and in papyri
+capitals mark proper names, so lowercasing throws away the strongest available
+PERSON/PLACE cue for nothing. `pranaydeeps/Ancient-Greek-BERT` does state
+"de-accentuating and lower-casing" outright (and declares no licence — unusable
+for a released artifact), but that is a property of that model, not of the
+field.
+
+**Consequence:** the planned B2 arm ("does an explicit capitalisation feature
+help?") is largely moot for GreBerta — the backbone already sees case. Reuse
+that slot for something that is actually in question.
 
 **Architecture evidence for the task (token classification, not generation):**
 - Encoder-only beats encoder-decoder on NER by a wide margin: 84.7 vs 68.1 F1
@@ -566,7 +578,7 @@ assumed:**
 |---|---|---|---|---|
 | **B0** | GreBerta | none | apache-2.0 | **Control.** Isolates what DAPT buys. |
 | **B1** | GreBerta | papyri | apache-2.0 | **Primary. The released model.** |
-| **B2** | GreBerta | papyri + case feature | apache-2.0 | Does explicit capitalisation help? |
+| **B2** | GreBerta | papyri, seq_len 256 | apache-2.0 | Median papyrus is ~74 tokens; a 512-block packs ~7 unrelated documents. |
 | **A1** | GreTa | papyri | apache-2.0 | Architecture control: encoder vs encoder-decoder. |
 | **A3** | koine-t5-omni | — | **CC-BY-NC-SA** | Comparison only. **Never released.** |
 

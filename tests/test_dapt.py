@@ -25,7 +25,7 @@ from oikonomia.dapt.pack import (
     read_shard,
     write_shard,
 )
-from oikonomia.dapt.text import fold_for_lm, iter_dapt_texts, load_split_ids
+from oikonomia.dapt.text import iter_dapt_texts, load_split_ids, prepare_for_lm
 
 
 class FakeTokenizer:
@@ -73,9 +73,9 @@ def test_dapt_reads_only_the_train_split(settings) -> None:
     """The whole point of Phase 3: dev and test must be unreachable here."""
     texts = list(iter_dapt_texts(settings, regime="split_random", split="train"))
     joined = " ".join(texts)
-    assert "πυρου" in joined  # doc a, train
-    assert "κεραμια" not in joined  # doc b is dev
-    assert "κριθησ" not in joined and "ἀρτάβαι" not in joined  # doc c is test
+    assert "ΠΥΡΟΥ" in joined  # doc a, train — case preserved
+    assert "κεράμια" not in joined  # doc b is dev
+    assert "ἀρτάβαι" not in joined  # doc c is test
 
 
 def test_regime_is_respected(settings) -> None:
@@ -107,10 +107,19 @@ def test_short_documents_are_dropped(settings) -> None:
 # --------------------------------------------------------------------------
 
 
-def test_fold_lowercases_but_keeps_accents() -> None:
-    """GreBerta's vocabulary is lowercase *and* accented; match that exactly."""
-    assert fold_for_lm("ἈΡΤΆΒΑΣ") == "ἀρτάβας"
-    assert fold_for_lm("Ἡλιοδώρου") == "ἡλιοδώρου"
+def test_case_is_preserved_by_default() -> None:
+    """The regression: lowercasing destroyed the best PERSON/PLACE cue.
+
+    GreBerta tokenises Γεώργιος (a name) and γεωργός (a farmer) to different
+    ids, and keeping case costs -0.59% tokens — strictly better on both counts.
+    """
+    assert prepare_for_lm("Ἡλιοδώρου") == "Ἡλιοδώρου"
+    assert prepare_for_lm("Γεώργιος τοῦ γεωργοῦ") == "Γεώργιος τοῦ γεωργοῦ"
+
+
+def test_lowercase_is_opt_in_for_case_folding_backbones() -> None:
+    """GreTa folds case in its own normalizer, so the flag exists for it."""
+    assert prepare_for_lm("Ἡλιοδώρου", lowercase=True) == "ἡλιοδώρου"
 
 
 def test_fold_is_lighter_than_lexicon_normalisation() -> None:
@@ -119,7 +128,7 @@ def test_fold_is_lighter_than_lexicon_normalisation() -> None:
     from oikonomia.labeling.normalize import normalize
 
     raw = "ἈΡΤΆΒΑΣ"
-    assert fold_for_lm(raw) != normalize(raw).text
+    assert prepare_for_lm(raw) != normalize(raw).text
     assert normalize(raw).text == "αρταβασ"
 
 
