@@ -22,6 +22,7 @@ import pandas as pd
 from oikonomia.config import Settings
 from oikonomia.corpus.io import corpus_path, iter_batches
 from oikonomia.logging import get_logger
+from oikonomia.pipeline.manifest import upstream_key
 from oikonomia.pipeline.stage import StageContext
 from oikonomia.splits.assign import (
     DocRecord,
@@ -86,9 +87,11 @@ class BuildSplitsStage:
     version = "3"
 
     def inputs_key(self, s: Settings) -> str:
-        # Splits derive entirely from the corpus table, which is itself pinned
-        # to the corpus rev; carry that through as the fingerprint.
-        return f"idp@{s.ingest.idp_git_rev or 'UNPINNED'}"
+        # Splits derive entirely from the corpus table, so the fingerprint is
+        # that table's identity — NOT the corpus rev. Keying on the rev misses
+        # a rebuild of corpus.parquet from unchanged raw files (a parser fix),
+        # which is exactly what happened with `<lb break="no"/>`.
+        return upstream_key(s.paths.manifests, "build_corpus")
 
     def outputs(self, s: Settings) -> list[Path]:
         return [s.paths.processed / OUTPUT_NAME, s.paths.processed / REPORT_NAME]

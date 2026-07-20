@@ -7,6 +7,7 @@ smoke tests.
 
 from __future__ import annotations
 
+from oikonomia.config import IngestConfig
 from oikonomia.ingest.epidoc_text import parse_ddbdp
 from oikonomia.schemas.document import MarkupKind
 
@@ -129,3 +130,57 @@ def test_real_fixture_parses_and_holds_invariants(ingest_cfg) -> None:
     assert len(doc.edited_text) > 0
     assert doc.n_numerals >= 1
     assert_document_invariants(doc)
+
+
+def test_line_break_inside_a_word_emits_no_separator(ingest_cfg: IngestConfig) -> None:
+    """EpiDoc `<lb break="no"/>` falls inside a word, not between words.
+
+    Emitting a newline there splits the word: ναύκληρος became "ναύκλη ρος",
+    which no lexicon matches and no tokenizer handles well. 35% of DDbDP
+    documents contain at least one.
+    """
+    # Indented exactly as the real DDbDP files are: the pretty-printer puts a
+    # newline and four spaces before the tag, and that whitespace lands in the
+    # preceding element's tail. Without indentation this test passes even with
+    # the emitted newline suppressed, so the indentation is the point.
+    xml = (
+        '<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body>'
+        '<div type="edition" xml:lang="grc"><ab>'
+        '<lb n="1"/>ναύκλη\n\n    <lb n="2" break="no"/>ρος'
+        "</ab></div></body></text></TEI>"
+    ).encode()
+    doc = parse_ddbdp(xml, "1", ingest_cfg)
+    assert doc.edited_text == "ναύκληρος"
+    # The physical break is still recorded, even though no character marks it.
+    assert len(doc.lines) == 2
+
+
+def test_word_join_strips_whitespace_held_inside_the_previous_element(
+    ingest_cfg: IngestConfig,
+) -> None:
+    """The trailing whitespace is not always in a tail.
+
+    In ~2% of corpus cases the preceding text is the last text node *inside*
+    the previous element (`<supplied>ά\n    </supplied><lb break="no"/>χ`),
+    so stripping only `prev.tail` leaves the split in place.
+    """
+    xml = (
+        '<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body>'
+        '<div type="edition" xml:lang="grc"><ab>'
+        '<lb n="1"/>δρ<supplied reason="lost">α\n\n    </supplied>'
+        '<lb n="2" break="no"/>χμάς'
+        "</ab></div></body></text></TEI>"
+    ).encode()
+    doc = parse_ddbdp(xml, "1", ingest_cfg)
+    assert doc.edited_text == "δραχμάς"
+
+
+def test_ordinary_line_break_still_separates_words(ingest_cfg: IngestConfig) -> None:
+    xml = (
+        '<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body>'
+        '<div type="edition" xml:lang="grc"><ab>'
+        '<lb n="1"/>πυροῦ<lb n="2"/>ἀρτάβας'
+        "</ab></div></body></text></TEI>"
+    ).encode()
+    doc = parse_ddbdp(xml, "1", ingest_cfg)
+    assert doc.edited_text == "πυροῦ\nἀρτάβας"

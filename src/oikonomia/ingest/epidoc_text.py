@@ -96,6 +96,59 @@ def _child_by_local(el: _Element, names: tuple[str, ...]) -> _Element | None:
     return None
 
 
+def _rstrip_text_before(lb: _Element) -> None:
+    """Strip trailing whitespace from the text node immediately preceding ``lb``.
+
+    That whitespace is the source file's own indentation, not part of the
+    edition, and it sits in one of three places (measured over the corpus:
+    82% / 9% / 2% of ``break="no"`` line breaks respectively).
+    """
+    prev = lb.getprevious()
+    if prev is None:
+        parent = lb.getparent()
+        if parent is not None and parent.text:
+            parent.text = parent.text.rstrip()
+        return
+    if prev.tail:
+        prev.tail = prev.tail.rstrip()
+        return
+    # No tail: the preceding characters are the last text *inside* `prev`
+    # (e.g. `<supplied>ά\n    </supplied><lb break="no"/>`). Descend to it.
+    node = prev
+    while True:
+        last = node[-1] if len(node) else None
+        if last is None:
+            if node.text:
+                node.text = node.text.rstrip()
+            return
+        if last.tail:
+            last.tail = last.tail.rstrip()
+            return
+        node = last
+
+
+def _join_broken_words(div: _Element) -> None:
+    """Remove source indentation around every ``<lb break="no"/>`` in ``div``.
+
+    ``break="no"`` means the line break falls *inside* a word — the scribe ran
+    out of room and continued on the next line — so no separator belongs there.
+    The pretty-printed XML nonetheless puts a newline and indent before the
+    tag, and that whitespace lands in the text: ναύκληρος comes out as
+    "ναύκλη ρος", which no lexicon matches and no tokenizer handles well.
+    35% of DDbDP documents contain at least one.
+
+    Done as a pre-pass over the tree so that all offset accounting downstream
+    sees already-correct text. Whitespace only ever precedes the tag; the 9
+    corpus cases of a leading-whitespace tail are handled for safety.
+    """
+    for lb in div.iter(f"{{{TEI_NS}}}lb"):
+        if lb.get("break") != "no":
+            continue
+        _rstrip_text_before(lb)
+        if lb.tail:
+            lb.tail = lb.tail.lstrip()
+
+
 class _Builder:
     """Accumulates both views, aligned segments, markup spans, numerals, lines."""
 
@@ -137,8 +190,18 @@ class _Builder:
     def _emit_linebreak(self, el: _Element) -> None:
         n = el.get("n") or str(self._line_counter + 1)
         self._close_open_line()
+        # EpiDoc `<lb break="no"/>` marks a line break that falls *inside* a
+        # word — the scribe ran out of room and continued on the next line.
+        # Emitting a separator there splits the word in two, which is wrong in
+        # the text and wrong for every consumer of it: "ναύκληρος" becomes
+        # "ναύκλη ρος", which no lexicon matches and no tokenizer handles well.
+        # 35% of DDbDP documents contain at least one.
+        #
+        # The line boundary is still recorded in `lines` — the papyrus really
+        # did break there — but the character stream runs on unbroken.
+        word_continues = el.get("break") == "no"
         # Suppress a leading newline before any content has been emitted.
-        if self._ed_len > 0 or self._dp_len > 0:
+        if not word_continues and (self._ed_len > 0 or self._dp_len > 0):
             self._emit("\n", in_ed=True, in_dp=True)
         self._open_line = (n, self._ed_len, self._dp_len)
         self._line_counter += 1
@@ -281,6 +344,7 @@ def parse_ddbdp(xml_bytes: bytes, stem: str, cfg: IngestConfig) -> Document:
     if not divs:
         builder.flags.add("no_edition_div")
     for div in divs:
+        _join_broken_words(div)
         builder._walk(div, in_ed=True, in_dp=True)
 
     edited, diplomatic, offset_map = builder.finalize()

@@ -15,6 +15,7 @@ from oikonomia.config import Settings
 from oikonomia.dapt.pack import encode_documents, load_tokenizer, pack_blocks, write_shard
 from oikonomia.dapt.text import dapt_shard_dir, iter_dapt_texts
 from oikonomia.logging import get_logger
+from oikonomia.pipeline.manifest import upstream_key
 from oikonomia.pipeline.stage import StageContext
 
 logger = get_logger(__name__)
@@ -35,7 +36,10 @@ class BuildDaptShardsStage:
     version = "3"
 
     def inputs_key(self, s: Settings) -> str:
-        return f"idp@{s.ingest.idp_git_rev or 'UNPINNED'}"
+        # Shards are packed from the corpus table filtered by the split table,
+        # so both upstream artifacts are inputs. See `upstream_key` for why the
+        # corpus rev is not a sufficient fingerprint.
+        return upstream_key(s.paths.manifests, "build_corpus", "build_splits")
 
     def params(self, s: Settings) -> dict[str, Any]:
         cfg = s.dapt

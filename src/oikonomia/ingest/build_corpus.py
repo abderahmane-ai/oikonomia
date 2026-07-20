@@ -149,8 +149,11 @@ class BuildCorpusStage:
     """Pipeline stage: raw idp.data checkout → ``processed/corpus.parquet``."""
 
     name = "build_corpus"
+    # 3: honour <lb break="no"/>. v1-v2 emitted a newline at every line break,
+    #    splitting the 35% of documents whose words continue across a line
+    #    ("ναύκλη ρος" for ναύκληρος) — wrong text, unmatchable by the lexicon.
     # 2: parse with collect_ids=False, recovering the 512 duplicate-xml:id files.
-    version = "2"
+    version = "3"
 
     def inputs_key(self, s: Settings) -> str:
         # The pinned corpus rev is the exact, cheap fingerprint of all inputs.

@@ -93,9 +93,18 @@ come from `settings.paths.*`, so the same code runs locally and on Modal.
 
 The pipeline is a set of **deterministic, resumable stages** (`pipeline/`). Each
 stage writes a manifest (`data/.manifests/<stage>.json`) recording its input
-fingerprint (the pinned corpus git rev, not 68k file hashes), a params hash, and
-output sha256s. Freshness = `version + inputs_key + params`; a stage is skipped
-when that key is unchanged and its outputs are intact. **Bump a stage's
+fingerprint, a params hash, and output sha256s. Freshness =
+`version + inputs_key + params`; a stage is skipped when that key is unchanged
+and its outputs are intact.
+
+**`inputs_key` must name what the stage actually reads.** Stages that read the
+raw corpus fingerprint it with the pinned git rev (cheap and exact — not 68k
+file hashes). Stages that read *another stage's output* must use
+`pipeline.manifest.upstream_key(...)`, which hashes the upstream manifest's
+output sha256s. Keying a downstream stage on the corpus rev is a silent
+staleness bug: when the EpiDoc parser was fixed, `build_corpus` rewrote
+`corpus.parquet` from unchanged raw files and `build_splits` reported
+"skipped (fresh)" over text that no longer existed. **Bump a stage's
 `version` when you change its logic** (or just run with `--force` while
 iterating). Outputs are written temp-then-rename; the manifest is written last.
 
@@ -309,9 +318,12 @@ inspect it. `build_splits` is a versioned stage like everything else.
 - CLI `oik splits {build,report,check}`. 26 tests.
 
 **Results over the 61,249 documents with real text**
-- **399 duplicate clusters covering 1,553 docs (2.54%)**; largest cluster 454
-  documents. These would have leaked across a naive random split.
-- 59,720 atomic groups. Grouping unions two signals: shared TM id and
+- **475 duplicate clusters covering 1,769 docs (2.89%)**. These would have
+  leaked across a naive random split. *(Was 399 / 1,553 / 2.54% before the
+  `<lb break="no"/>` parser fix — see §7. Split words made near-duplicates look
+  different from each other, so the old figure understated leakage by 216
+  documents. Detected only because the fixed parser forced a rebuild.)*
+- 59,581 atomic groups. Grouping unions two signals: shared TM id and
   near-duplicate cluster.
 - `random`: 49,004 / 6,145 / 6,100. Max stratum drift **0.0078**, stratum TV
   distance 0.0023 — i.e. every stratum is split ~80/10/10, not just the corpus.
@@ -398,9 +410,11 @@ genuine starvation.
   the library, and the library never imports `modal_app`.
 - CLI `oik dapt {prepare,inspect}`. 190 tests total.
 
-**Built for real (GreBerta's actual tokenizer, not a mock):** train 16,217
-blocks x 512 = **8.30M tokens** from 46,179 docs; dev 2,064 blocks = 1.06M
-tokens; ~20s on a laptop.
+**Built for real (GreBerta's actual tokenizer, not a mock):** train 16,109
+blocks x 512 = **8.25M tokens** from 46,166 docs; dev 2,146 blocks = 1.10M
+tokens; ~15s on a laptop. *(Token count fell slightly after the
+`<lb break="no"/>` fix — a whole word costs fewer BPE pieces than two
+fragments, so this is the same text more efficiently encoded.)*
 
 **Verified live, not recalled:** `transformers` 5.14 removed
 `evaluation_strategy` for `eval_strategy` (image pins `>=5.0,<6`);
@@ -509,7 +523,7 @@ lexicon will reach — which is exactly what gold annotation is for.
 
 #### The batch is built — `oik gold sample`
 
-`data/gold/to_annotate.jsonl` — **150 documents, 94.6k characters**, plus
+`data/gold/to_annotate.jsonl` — **150 documents, 90.5k characters**, plus
 `data/gold/ANNOTATION.md` (format, labels, worked example, decision rules).
 Both tracked in git. Regenerate deterministically with
 `oik gold sample --n 150 --iaa 30 --blind 30`.
@@ -533,6 +547,43 @@ carries them; 3 were in the first draft at 0% Greek) and documents more than
 suggestions at all** (`suggested_entities: null`) — pre-annotation anchors the
 annotator, so the blind subset is the only honest basis for a later
 baseline-vs-gold comparison. Annotate those first, while unanchored.
+
+#### Interlude: the batch was rebuilt after a parser fix (2026-07-20)
+
+Reading a real document during annotation review surfaced `ναύκλη ρος` — a
+single word split by a space. The parser emitted a separator at every `<lb>`,
+ignoring `break="no"`, which marks a break *inside* a word. 35.28% of documents
+were affected, 96,323 occurrences. §7 has the full anatomy, including why the
+obvious one-line fix changes nothing visible (the space comes from the XML's
+indentation, not from the parser's newline).
+
+**Everything downstream was rebuilt**: `build_corpus` v2→v3, splits, DAPT
+shards, and the annotation batch (94.6k → 90.5k chars; `Ἡρά κλειαν` is now
+`Ἡράκλειαν`). Parse rate stayed 1.000 (67,980/67,980, 0 failures) and the
+HGV join rate stayed 0.9827.
+
+**The rebuild found a second, worse bug.** `build_splits` refused to re-run —
+"skipped (fresh)" — because its `inputs_key` was the pinned corpus rev, which
+had not changed. Forced through, the duplicate clusters moved **399 → 475**
+(1,553 → 1,769 documents, 2.54% → 2.89%): split words had been hiding real
+near-duplicates, i.e. real train/test leakage. Downstream stages now key on
+upstream output hashes (§3), with a regression test in
+`tests/test_pipeline_manifest.py`.
+
+**Worth internalising:** the text bug was cosmetic-looking and its damage was
+silent and structural. It was found by *reading actual output*, not by any
+test — parse rate, mypy and 300+ tests were all green throughout.
+
+#### Open: gold spans and stored spans use different coordinates
+
+`corpus.parquet` stores `edited_text` with the XML's pretty-print indentation
+intact; the gold sampler collapses whitespace before writing
+`to_annotate.jsonl`. So annotator spans index the collapsed string while
+`OffsetMap`, markup and numeral spans index the stored one. **Decide before
+Phase 7 reads gold spans.** The clean fix is to normalize once, in the parser,
+so every consumer shares one coordinate system — but that shifts every stored
+offset and invalidates the batch again, so do it *before* annotation starts,
+not after.
 
 #### Remaining choices
 
@@ -635,10 +686,35 @@ re-derive; if reality contradicts one, treat it as a finding and update here.
   i.e. editors tagged one and left the next bare. Do not treat `<num>` as a
   complete inventory of numbers; annotation guidelines say to read the number,
   not the tag.
-- **Near-duplication is real but modest: 2.54%** (1,553 of 61,249 texted docs
-  in 399 clusters, MinHash Jaccard >=0.8 over folded 5-grams). Largest cluster
-  454 documents. Enough to inflate a naive random split; not enough to distort
-  corpus statistics.
+- **`<lb break="no"/>` means the line break falls INSIDE a word — no separator
+  belongs there.** The scribe ran out of room and continued on the next line.
+  **23,982 of 67,980 documents (35.28%)** contain at least one; **96,323**
+  occurrences corpus-wide. The parser emitted a separator at every `<lb>`
+  regardless, so ναύκληρος came out as "ναύκλη ρος" — text no lexicon matches
+  and no tokenizer handles well.
+  **Two whitespace sources, and fixing only the first does nothing visible:**
+  (a) the newline the parser itself emits, and (b) the XML file's own
+  pretty-print indentation (`'\n\n    '`), which lands in the *preceding*
+  element's tail and is what actually produced the visible space. Measured
+  distribution of where (b) lives: `prev.tail` 82%, `parent.text` 9%, *inside*
+  the previous element (e.g. `<supplied>ά\n  </supplied>`) 2%. On the far side,
+  only `lb.tail` ever carries leading whitespace (0 of 705 cases where the tail
+  is empty and an element follows). Handled by `_join_broken_words`, a pre-pass
+  over the tree, so all offset accounting downstream sees correct text.
+- **Near-duplication: 2.89%** (1,769 of 61,249 texted docs in 475 clusters,
+  MinHash Jaccard >=0.8 over folded 5-grams). Enough to inflate a naive random
+  split; not enough to distort corpus statistics. **This number moved from
+  2.54% when the `break="no"` fix landed** — differently-broken words made two
+  copies of the same text look different. A text-quality bug upstream is a
+  leakage bug downstream.
+- **Whitespace is NOT normalized in `corpus.parquet`.** The stored
+  `edited_text` keeps the source's pretty-print indentation, so an ordinary
+  line break appears as `'\n\n    \n'`. Three consumers each collapse it
+  independently — `splits/dedup.py`, `dapt/text.py`, `gold/sample.py` (all
+  `" ".join(text.split())`). **Consequence: gold annotation spans are offsets
+  into the collapsed text, while `OffsetMap`, markup and numeral spans are
+  offsets into the stored text.** They do not correspond. Resolve before
+  Phase 7 consumes gold spans (see §6 Phase 5, open item).
 - **1,706 documents share a TM id with another** — the same papyrus edited or
   republished separately. A real leakage group, and cheap to detect.
 - Publication volume is far too coarse to group on: 1,025 volumes, largest
@@ -787,10 +863,11 @@ remains the scientific risk.
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-20 (Phase 4 corrected; Phase 5 briefed)._
+_Last updated: 2026-07-20 (`<lb break="no"/>` parser fix; all artifacts
+rebuilt; downstream stage staleness fixed)._
 
 ### Quality gate at last save
-**ruff PASS · mypy PASS · 130 tests PASS.** Caches cleared. All work is
+**ruff PASS · mypy PASS · 323 tests PASS.** Caches cleared. All work is
 committed to git (`main`).
 
 ### Corpus on disk — COMPLETE
@@ -810,19 +887,25 @@ re-downloading. `sync.py` now does exactly this, so it is genuinely idempotent
 and self-healing.
 
 ### Derived artifacts present (all gitignored, all re-derivable)
-- `data/processed/corpus.parquet` — **280 MB**, 67,980 rows, built at
-  `build_corpus` stage version **2**.
+- `data/processed/corpus.parquet` — **294 MB**, 67,980 rows, built at
+  `build_corpus` stage version **3** (honours `<lb break="no"/>`).
 - `data/processed/ingest_failures.json` — now an empty failure list.
 - `data/.manifests/build_corpus.json`.
 - `data/interim/numeral_context*.csv` — mined candidate vocabulary
   (17,540 tokens at `--min-docs 2`). Regenerate with `oik lexicon mine`.
 - `data/processed/splits.parquet` + `splits_report.json` — `build_splits`
   stage version **3**. 61,249 rows, both regimes in one table
-  (`split_random`, `split_chronological`).
+  (`split_random`, `split_chronological`). Rebuilt post-parser-fix: 475
+  duplicate clusters, 59,581 groups.
 - `data/processed/dapt/{train,dev}.bin` + `.json` — packed uint16 token
   shards, stage version **3**: case preserved, blocks framed `<s>…</s>`.
-  16,197 train blocks (8.29M tokens) + 2,060 dev (1.05M). **No test shard, by
+  16,109 train blocks (8.25M tokens) + 2,146 dev (1.10M). **No test shard, by
   design.**
+
+**All three were rebuilt this session** after the `<lb break="no"/>` parser fix.
+`build_corpus` needed `--force` (its version had already been bumped to 3 by the
+incomplete first attempt, so the freshness key was unchanged); splits and DAPT
+now invalidate correctly on their own via `upstream_key`.
 
 **`transformers` 5.14 was installed into the venv** (tokenizers only, no
 torch) to verify the packing pipeline against the real GreBerta tokenizer
@@ -853,6 +936,13 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/oik splits check
 .venv/bin/oik dapt inspect | tail -15
 ```
+
+**Decide this first — it is cheap now and expensive later.** Gold spans index
+whitespace-collapsed text; `OffsetMap`/markup/numeral spans index the stored
+text, which keeps the XML's indentation. Normalizing whitespace once in the
+parser would give every consumer one coordinate system, but it shifts every
+stored offset and forces the annotation batch to be regenerated — so it must
+happen *before* anyone annotates. See §6 Phase 5 "Open" and the §7 entry.
 
 **The work now is Phase 5 — gold annotation.** §6 has the full brief: a worked
 example of one real document with all 18 of its gold spans, the JSONL format,
