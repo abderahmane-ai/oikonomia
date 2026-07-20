@@ -405,8 +405,121 @@ Modal `gpu="A10"` not `"A10G"`; `Volume.from_name(create_if_missing=True)`;
 **`.map()`/`.starmap()` are positional-only and cannot vary kwargs — use
 `.spawn()` + `FunctionCall.get()`** for the sweep.
 
-**Next action:** `modal run modal_app/dapt.py::push`, then `::sweep`. Then run
-B0 (no DAPT) as a real control before believing any gain.
+**Corrections made after the first draft — all were wrong on inference, right
+only after testing:**
+- **Case is preserved now.** The first version lowercased everything, reasoning
+  from GreBerta's vocabulary file that capitals would shatter. Tokenising shows
+  the opposite (see §7): it keeps case, `Γεώργιος`≠`γεωργός`, and keeping case
+  is **−0.59% tokens**. Lowercasing discarded the best PERSON/PLACE cue.
+- **Blocks are framed `<s> … </s>`.** Raw packed streams are off-distribution
+  for RoBERTa at position 0 and the loss never reports it.
+- **LoRA is attention+FFN**, names qualified to exclude the tied LM head.
+  Attention-only was an over-correction; FFN is where domain content lives.
+- **Gap tokens excluded from masking.** `…` is 6.0% of the token stream and was
+  eating the masking budget *and* deflating the dev perplexity that early
+  stopping selects on.
+
+**Next action:** `modal run modal_app/dapt.py::push`, then `::sweep`.
+**But the honest recommendation is to do Phase 5 first** — every sweep result
+is a perplexity proxy for a task F1 that cannot be measured until gold exists.
+
+**Still not built:** the B0 (no-DAPT) control. Without it no DAPT gain is
+believable.
+
+### ⬜ Phase 5 — Gold annotation (NEXT — the critical path)
+
+**This is the bottleneck for the whole project.** There is zero entity markup
+upstream (verified 0% over 200 documents), so every label must be created by
+hand. Nothing in Phases 7–11 can be evaluated until this exists, and Phase 4's
+sweep is currently optimising *perplexity* as a proxy for a task F1 nobody can
+yet measure.
+
+#### What a document actually looks like
+
+Real example, `doc_id 134`, a receipt from the train split (394 chars):
+
+> ἔτους νβ Παχὼν κα. τέτακται ἐπὶ τὴν ἐν Κροκοδίλων πόλει τράπεζαν ἐφʼ ἧς
+> Ἀπολλώνις δεκάτης ἐνκυκλίου … παρὰ Πανίσκου καὶ Κεφάλωνος τελωνῶν … ὑπογράφει
+> Πολυδεύκης ὁ ἀντιγραφεὺς / Νεχούτης ὃς καὶ Εὔνομος Πατσεοῦτος οἰκίας
+> ᾠκοδομημένης … ἣν τέθεικεν Πατσεοῦς ὁ πατὴρ αὐτοῦ χαλκοῦ δραχμῶν Β, οὗ ἀλλαγὴ σ.
+
+*(Year 52, Pachon 21. Paid to the bank in Krokodilon Polis over which Apollonis
+presides, for the 10% sales tax … from Paniskos and Kephalon the tax-farmers …
+signed by Polydeukes the checking-clerk: Nechoutes also called Eunomos, son of
+Patseous, for a house … which his father Patseous deposited, of bronze drachmas
+2000, of which the exchange fee 200.)*
+
+#### What annotating it means, concretely
+
+Marking **character spans** into `edited_text` and typing them, then linking
+them. For this document, 18 entities:
+
+| span | label | text |
+|---|---|---|
+| 6:14 | DATE_REF | `ἔτους νβ` |
+| 15:23 | DATE_REF | `Παχὼν κα` |
+| 45:61 | PLACE | `Κροκοδίλων πόλει` |
+| 78:87 | PERSON | `Ἀπολλώνις` |
+| 88:105 | TAX_TERM | `δεκάτης ἐνκυκλίου` |
+| 127:135, 140:149 | PERSON | `Πανίσκου`, `Κεφάλωνος` |
+| 150:157 | OCCUPATION | `τελωνῶν` |
+| 185:195 | PERSON | `Πολυδεύκης` |
+| 198:209 | OCCUPATION | `ἀντιγραφεὺς` |
+| 217:225, 233:240, 241:251 | PERSON | `Νεχούτης`, `Εὔνομος`, `Πατσεοῦτος` |
+| 252:258 | COMMODITY | `οἰκίας` |
+| 340:348 | PERSON | `Πατσεοῦς` |
+| 363:369, 370:377 | CURRENCY | `χαλκοῦ`, `δραχμῶν` |
+| 378:379 | MONEY_AMOUNT | `Β` (=2000) |
+| 384:390 | PRICE_TERM | `ἀλλαγὴ` |
+| 391:392 | MONEY_AMOUNT | `σ` (=200) |
+
+…plus relations: `Β —HAS_CURRENCY→ δραχμῶν`, `οἰκίας —HAS_PRICE→ Β`,
+`Β —CHARGED_UNDER→ δεκάτης ἐνκυκλίου`, `Νεχούτης —PARTY_OF→` the transaction,
+`transaction —DATED_TO→ ἔτους νβ`.
+
+**The baseline finds 6 of those 18.** It gets the money right and misses every
+PERSON, PLACE and OCCUPATION. That gap is precisely the value gold annotation
+adds, and the reason Phase 5 gates everything.
+
+#### Two defects this example exposed (fix before annotating)
+
+1. **`DATE_REF` spans are incomplete.** The guidelines say a regnal-year
+   expression is one span covering numeral *and* year word (`ἔτους νβ`). The
+   baseline emits `ἔτους` alone and *suppresses* `νβ` entirely, so the numeral
+   is discarded rather than merged. Guidelines and code disagree; the
+   guidelines are right.
+2. **`τελωνῶν` and `ἀντιγραφεὺς` are not in `occupations.yaml`.** Mine
+   occupation vocabulary from *title positions* (after a personal name), not
+   only from numeral neighbourhoods — the current mining window never sees
+   them.
+
+#### How to run the annotation
+
+- **Sample from the train split only.** Annotating dev/test documents
+  contaminates them. `splits.parquet` → `split_random == "train"`.
+- **Stratify** by `stratum` (genre × date bucket) so the budget is not spent
+  entirely on the 15,465 receipts.
+- **Size:** 100–200 documents is the usable range in the literature for a first
+  gold set; 10–30 double-annotated for agreement. Target κ ≥ 0.80 on entities.
+- **Format:** JSONL, one document per line, character spans — matching
+  `CharSpan` exactly so it loads without a converter:
+  ```json
+  {"doc_id": "134", "text": "...", 
+   "entities": [{"start": 45, "end": 61, "label": "PLACE"}],
+   "relations": [{"head": 0, "tail": 3, "type": "HAS_CURRENCY"}]}
+  ```
+- **Tools:** INCEpTION (standard in DH/classics), Label Studio, or doccano. All
+  export character offsets.
+- **On pre-annotation:** loading the weak baseline's output as a starting point
+  roughly halves annotation time, but it **anchors the annotator to the
+  baseline's decisions and inflates the baseline's apparent agreement with
+  gold**. If used, do not report baseline-vs-gold numbers from pre-annotated
+  documents — keep an un-pre-annotated subset for that comparison.
+- **Store in `data/gold/`** — that tier is tracked in git, unlike the rest.
+
+Guidelines: [`resources/schema/annotation_guidelines.md`](resources/schema/annotation_guidelines.md).
+Expect §5 (hard cases) to grow fastest once real annotators hit real documents;
+that growth *is* the deliverable as much as the spans are.
 
 ---
 
@@ -614,8 +727,8 @@ architecture claim on our own data rather than on the literature's.
 
 ## 8. Progress
 
-**~33% of the full project.** Phases 0–3 complete; Phase 4 built but not yet
-run on GPU: foundation, a
+**~35% of the full project.** Phases 0–3 complete; Phase 4 built, corrected
+and priced but not yet run on GPU; Phase 5 is the next real work: foundation, a
 validated corpus-ingestion pipeline built over all 67,980 documents at parse
 rate 1.000, whole-corpus characterization, mined lexicons with measured recall,
 the annotation schema, a proximity baseline at a 74.50% numeral link rate, and
@@ -633,7 +746,7 @@ remains the scientific risk.
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-20 (Phase 4 infrastructure)._
+_Last updated: 2026-07-20 (Phase 4 corrected; Phase 5 briefed)._
 
 ### Quality gate at last save
 **ruff PASS · mypy PASS · 130 tests PASS.** Caches cleared. All work is
@@ -666,7 +779,9 @@ and self-healing.
   stage version **3**. 61,249 rows, both regimes in one table
   (`split_random`, `split_chronological`).
 - `data/processed/dapt/{train,dev}.bin` + `.json` — packed uint16 token
-  shards, 8.30M + 1.06M tokens. **No test shard, by design.**
+  shards, stage version **3**: case preserved, blocks framed `<s>…</s>`.
+  16,197 train blocks (8.29M tokens) + 2,060 dev (1.05M). **No test shard, by
+  design.**
 
 **`transformers` 5.14 was installed into the venv** (tokenizers only, no
 torch) to verify the packing pipeline against the real GreBerta tokenizer
@@ -689,38 +804,39 @@ Disk: watch headroom — corpus 6.1 GB + processed 280 MB.
 ```bash
 cd /Users/abdoumagico/Development/ACHATES
 
-# 1. Confirm the tree is green before changing anything
-.venv/bin/ruff check src tests && .venv/bin/python -m mypy src && .venv/bin/python -m pytest
+# 1. Green before changing anything
+.venv/bin/ruff check src tests modal_app && .venv/bin/python -m mypy src && .venv/bin/python -m pytest
 
-# 2. Confirm the derived artifacts still exist and still agree with §7.
-#    Rebuild if missing: `oik ingest build` (~85s), `oik splits build` (~25s).
-.venv/bin/oik corpus stats | head -30
+# 2. Artifacts intact? Rebuild if missing:
+#    oik ingest build (~85s) -> oik splits build (~25s) -> oik dapt prepare (~20s)
 .venv/bin/oik splits check
+.venv/bin/oik dapt inspect | tail -15
 ```
 
-Then start **Phase 4 — DAPT on Modal**. Order of business:
+**The work now is Phase 5 — gold annotation.** §6 has the full brief: a worked
+example of one real document with all 18 of its gold spans, the JSONL format,
+sampling rules (train split only, stratified), size targets, tool options, and
+the anchoring caveat on pre-annotation.
 
-1. **Re-verify every Modal API fact in §7 against `modal.com/docs` first.**
-   Those were checked during planning, Modal moves, and the standing rule is
-   never to write Modal syntax from memory. This is the first thing to do, not
-   a detail to confirm later.
-2. Install the extras that were deliberately deferred: `uv pip install -e
-   ".[modal,train]"`. The core library must stay importable without them —
-   `modal_app/` imports the library, never the reverse.
-3. Feed the GPU from the **train split only** (`split_random == "train"`, or
-   the chronological train set for the temporal arm). Domain-adaptive
-   pretraining on dev or test would contaminate every later evaluation, and
-   with 2.54% near-duplication already clustered, the split is the only thing
-   standing between DAPT and leakage.
-4. Preprocess offline into packed, tokenised, memory-mapped shards — the A10G
-   (24 GB) should never wait on CPU tokenisation. Prefer bf16 and packed
-   sequences.
-5. The ablation table is in §7. Primary arm is **B1 = GreBerta + papyri
-   DAPT** (apache-2.0). **Licence firewall: nothing releasable may descend
-   from an NC ancestor.**
-6. Checkpoint into a Modal Volume and use `retries=` +
-   `single_use_containers=True` + resume-from-checkpoint; A10G capacity is
-   preemptible.
+Two things to fix *before* annotating, both found by running the baseline on a
+real receipt (§6 Phase 5):
+1. `DATE_REF` spans are incomplete — code emits `ἔτους` and drops `νβ`, while
+   the guidelines require the single span `ἔτους νβ`. Guidelines are right.
+2. `τελωνῶν`, `ἀντιγραφεὺς` are missing from `occupations.yaml`; mine
+   occupation vocabulary from title position (after a personal name), not only
+   from numeral neighbourhoods.
+
+Not yet built and worth having: `oik gold sample` — a stratified export of
+train-split documents to JSONL for the annotation tool. Ask for it.
+
+**Phase 4 is built and can run any time** (`modal run modal_app/dapt.py::push`
+then `::sweep`, ~$0.25–0.80), but it optimises perplexity as a proxy. It will
+be far more informative once a gold set exists to score arms against, and the
+B0 no-DAPT control still needs building either way.
+
+**Before touching Modal:** re-verify its API against `modal.com/docs`. Facts
+verified this session are in §7, including that `.map()`/`.starmap()` are
+positional-only and the sweep needs `.spawn()`.
 
 **Reminder:** commit after each green unit of work, and update §6/§8/§9 of this
 file before ending a session.
