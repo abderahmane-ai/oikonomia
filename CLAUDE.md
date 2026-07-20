@@ -126,6 +126,12 @@ uv run oik splits build                     # dedup + assign (~25s)
 uv run oik splits report                    # sizes, drift, duplicate clusters
 uv run oik splits check                     # re-verify the artifact on disk
 
+# Phase 4 (needs the train extra for the tokenizer)
+uv run oik dapt prepare                     # pack train/dev shards (~20s)
+uv run oik dapt inspect                     # shard contents + derived schedule
+modal run modal_app/dapt.py::push           # upload shards to the Volume
+modal run modal_app/dapt.py::launch         # DAPT on an A10
+
 # Quality gate — run after ANY unit of work, in this order
 .venv/bin/ruff check src tests
 .venv/bin/python -m mypy src
@@ -324,6 +330,57 @@ to train. **The corpus-level 80/10/10 was exact throughout**, which is what
 made it invisible. Only a per-stratum assertion catches it; there is now a test
 that fails on the old algorithm and passes on the new one.
 
+### 🔶 Phase 4 — DAPT on Modal (infrastructure ready; TRAINING NOT YET RUN)
+
+**Status: everything up to the GPU is built, tested and verified. The training
+job has never been launched** — that costs money on a real Modal account and is
+the next action, not a completed one. Do not read a DAPT result into this.
+
+**Backbone changed from the original plan.** Primary arm is now **B1 =
+GreBerta + papyri DAPT**, not GreTa. Evidence in §7: encoder-only beats
+encoder-decoder on NER by ~15–17 F1, GreBerta is apache-2.0, half the size,
+512 context, and we would discard T5's decoder anyway. koine-t5-omni is out on
+four counts (NC licence, biblical-literary register, wrong architecture,
+256-token limit truncating ~25% of documents).
+
+**Deliverables**
+- `dapt/text.py` — the train-split-only text stream. Refuses to run without a
+  split table, because DAPT is unsupervised and would otherwise happily
+  language-model the test set with nothing complaining.
+- `dapt/pack.py` — tokenise + pack into fixed-length uint16 memmap shards.
+- `dapt/schedule.py` — derives the step count from the shard.
+- `dapt/stage.py` — `build_dapt_shards`. Packs **train and dev only**; test is
+  never written, which is the cheapest possible guarantee it is not read.
+- `modal_app/dapt.py` — Modal orchestration: image, Volume, A10 function,
+  full-FT MLM, checkpoint-resume on preemption. Library never imports it.
+- CLI `oik dapt {prepare,inspect}`. 23 tests.
+
+**Built and verified locally (real tokenizer, not a mock):**
+- train **16,217 blocks x 512 = 8.30M tokens** from 46,179 documents
+- dev **2,064 blocks = 1.06M tokens** from 5,865 documents
+- ~20s to pack the whole thing on a laptop.
+
+**The bug this phase nearly shipped.** `max_steps=12500` was copied from
+"Don't Stop Pretraining". Against an 8.3M-token shard at batch 32 x accum 2,
+that is **49 epochs** — the run would have looked healthy on every log line
+and simply memorised the train split. The schedule is now *derived from the
+shard*: 253 steps/epoch, **max_steps=2024** for 8 epochs. Published
+hyperparameters do not transfer without checking them against your own corpus
+size.
+
+**Verified against live sources, not memory:**
+- `transformers` 5.14: every `TrainingArguments` field used exists, and
+  `evaluation_strategy` is **gone** in 5.x (it is `eval_strategy`). The image
+  pins `>=5.0,<6` so a major bump cannot break the run on the GPU only.
+- `DataCollatorForLanguageModeling(tokenizer=, mlm=, mlm_probability=)` is
+  current.
+- Modal `gpu="A10"` (not `"A10G"`), `Volume.from_name(create_if_missing=True)`,
+  background commits, `add_local_python_source`.
+
+**Next action:** `modal run modal_app/dapt.py::push` then `::launch`. Watch dev
+perplexity; B0 (no DAPT) must be run as a real control before believing any
+gain.
+
 ---
 
 ## 7. Verified fact ledger
@@ -477,6 +534,20 @@ assumed:**
   designed (pipelines suffer error propagation) — but a badly designed joint
   model underperforms a pipeline.
 
+### Ablation plan (restructured 2026-07-20 on the evidence above)
+
+| Arm | Backbone | DAPT | Licence | Role |
+|---|---|---|---|---|
+| **B0** | GreBerta | none | apache-2.0 | **Control.** Isolates what DAPT buys. |
+| **B1** | GreBerta | papyri | apache-2.0 | **Primary. The released model.** |
+| **B2** | GreBerta | papyri + case feature | apache-2.0 | Does explicit capitalisation help? |
+| **A1** | GreTa | papyri | apache-2.0 | Architecture control: encoder vs encoder-decoder. |
+| **A3** | koine-t5-omni | — | **CC-BY-NC-SA** | Comparison only. **Never released.** |
+
+B0 is a real arm, not a formality: if DAPT does not clear it, that is the
+finding and there is no reason to ship a DAPT'd model. B1 vs A1 tests the
+architecture claim on our own data rather than on the literature's.
+
 ### Context length (measured against this corpus)
 - GreBerta's 512 tokens covers **~93%** of documents whole (median 267 chars,
   p90 1,228, p95 1,830; ~6.8% exceed ~512 tokens, 2.0% exceed ~1024).
@@ -505,7 +576,8 @@ assumed:**
 
 ## 8. Progress
 
-**~28% of the full project.** Phases 0, 1, 2 and 3 complete: foundation, a
+**~33% of the full project.** Phases 0–3 complete; Phase 4 built but not yet
+run on GPU: foundation, a
 validated corpus-ingestion pipeline built over all 67,980 documents at parse
 rate 1.000, whole-corpus characterization, mined lexicons with measured recall,
 the annotation schema, a proximity baseline at a 74.50% numeral link rate, and
@@ -523,7 +595,7 @@ remains the scientific risk.
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-20 (end of Phase 3)._
+_Last updated: 2026-07-20 (Phase 4 infrastructure)._
 
 ### Quality gate at last save
 **ruff PASS · mypy PASS · 130 tests PASS.** Caches cleared. All work is
@@ -555,6 +627,13 @@ and self-healing.
 - `data/processed/splits.parquet` + `splits_report.json` — `build_splits`
   stage version **3**. 61,249 rows, both regimes in one table
   (`split_random`, `split_chronological`).
+- `data/processed/dapt/{train,dev}.bin` + `.json` — packed uint16 token
+  shards, 8.30M + 1.06M tokens. **No test shard, by design.**
+
+**`transformers` 5.14 was installed into the venv** (tokenizers only, no
+torch) to verify the packing pipeline against the real GreBerta tokenizer
+rather than a mock. Tests do not depend on it — they use a fake tokenizer — so
+the suite still runs on a clean checkout.
 
 Disk: watch headroom — corpus 6.1 GB + processed 280 MB.
 
@@ -598,10 +677,9 @@ Then start **Phase 4 — DAPT on Modal**. Order of business:
 4. Preprocess offline into packed, tokenised, memory-mapped shards — the A10G
    (24 GB) should never wait on CPU tokenisation. Prefer bf16 and packed
    sequences.
-5. The 4-arm ablation is in §7: A0 GreTa · A1 GreTa+papyri-DAPT (primary,
-   apache-2.0) · A2 koineformer+papyri-DAPT (SA) · A3 koine-t5-omni (NC,
-   comparison only). **Licence firewall: nothing releasable may descend from
-   an NC ancestor.**
+5. The ablation table is in §7. Primary arm is **B1 = GreBerta + papyri
+   DAPT** (apache-2.0). **Licence firewall: nothing releasable may descend
+   from an NC ancestor.**
 6. Checkpoint into a Modal Volume and use `retries=` +
    `single_use_containers=True` + resume-from-checkpoint; A10G capacity is
    preemptible.

@@ -31,7 +31,7 @@ dependencies = [
 # core so `import oikonomia` never drags in a GPU stack.
 train = [
     "torch>=2.2",
-    "transformers>=4.44",
+    "transformers>=5.0,<6",   # Trainer API verified at 5.14; 4.x used evaluation_strategy
     "datasets>=2.20",
     "peft>=0.12",
     "accelerate>=0.33",
@@ -81,6 +81,13 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["N802", "N806"]  # allow non-snake-case in test helpers/fixtures
+
+[[tool.mypy.overrides]]
+# Optional extras: installed only in the Modal training image, never in the
+# dev environment. The library imports them lazily inside functions so it stays
+# importable on a laptop with no ML stack; mypy must not require them either.
+module = ["transformers.*", "torch.*", "modal.*", "datasets.*", "accelerate.*"]
+ignore_missing_imports = true
 
 [tool.mypy]
 python_version = "3.12"  # must match requires-python / the venv

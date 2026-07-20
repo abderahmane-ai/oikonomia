@@ -72,6 +72,33 @@ class SplitsConfig(BaseModel):
     test: float = 0.1
 
 
+class DaptConfig(BaseModel):
+    """Domain-adaptive pretraining parameters (Phase 4).
+
+    ``model_name`` is the backbone whose tokenizer defines the shards, so
+    changing it invalidates them — it is part of the stage's params hash.
+    """
+
+    # B1, the primary arm: encoder-only, apache-2.0, 512 context.
+    model_name: str = "bowphs/GreBerta"
+    seq_len: int = 512
+    regime: str = "split_random"
+    min_chars: int = 20
+    # Training hyperparameters, consumed by modal_app/ (not by the library).
+    mlm_probability: float = 0.15
+    learning_rate: float = 5e-5
+    warmup_ratio: float = 0.06
+    # Epochs, not a step count. 12,500 steps is the "Don't Stop Pretraining"
+    # setting, but on our 8.3M-token shard that is 49 epochs — the schedule is
+    # derived from the shard instead (see dapt/schedule.py). max_steps
+    # overrides it only for deliberate short runs.
+    num_epochs: float = 8.0
+    max_steps: int | None = None
+    per_device_batch_size: int = 32
+    grad_accum: int = 2
+    bf16: bool = True
+
+
 class Settings(BaseModel):
     """The fully-resolved, typed configuration for a run."""
 
@@ -81,6 +108,7 @@ class Settings(BaseModel):
     paths: Paths
     ingest: IngestConfig = IngestConfig()
     splits: SplitsConfig = SplitsConfig()
+    dapt: DaptConfig = DaptConfig()
 
 
 # ---------------------------------------------------------------------------

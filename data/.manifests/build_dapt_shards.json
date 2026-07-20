@@ -1,0 +1,25 @@
+{
+  "stage": "build_dapt_shards",
+  "version": "1",
+  "inputs_key": "idp@d7a34f302d1e44e271256092c2b780733187b478",
+  "params_hash": "30e085bf0e5bf2b0e905f607dfe08e1824254e73bc04b33c4cabb09d74282536",
+  "outputs": [
+    {
+      "path": "data/processed/dapt/train.bin",
+      "sha256": "82f9e80bc5c6fab752e5d1c195b15bde5234acfe9ee97028813aaabf086771ae",
+      "bytes": 16606208
+    },
+    {
+      "path": "data/processed/dapt/dev.bin",
+      "sha256": "5338d302058d067e0fbb1f6d3d4a2e01741ff639ae1ac9045f5e8f7e6fbbe504",
+      "bytes": 2113536
+    }
+  ],
+  "stats": {
+    "train_blocks": 16217,
+    "train_tokens": 8303104,
+    "dev_blocks": 2064,
+    "dev_tokens": 1056768
+  },
+  "created_at": "2026-07-20T18:46:12.686046+00:00"
+}
