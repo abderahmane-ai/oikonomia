@@ -658,9 +658,17 @@ attributes. This blocks nothing today but must be settled before Phase 8.
   documents — keep an un-pre-annotated subset for that comparison.
 - **Store in `data/gold/`** — that tier is tracked in git, unlike the rest.
 
-Guidelines: [`resources/schema/annotation_guidelines.md`](resources/schema/annotation_guidelines.md).
-Expect §5 (hard cases) to grow fastest once real annotators hit real documents;
-that growth *is* the deliverable as much as the spans are.
+Guidelines: [`resources/schema/annotation_guidelines.md`](resources/schema/annotation_guidelines.md)
+— now **v0.2**, led by a "§0 The ten rules" one-screen spine that resolves the
+recurring decisions; §5 records every case settled against real text. Three
+project-owner decisions are locked (2026-07-21): **full relation scope**
+(every transaction carries `PARTY_OF`/`DATED_TO`/`HAS_PRICE`, not just the
+measurable links), **one `PERSON` span including filiation**, and
+**genitive-named parcels are `PLACE`** (`Εἰρηναίου κλήρου`). The draft gold
+(`data/gold/annotated.jsonl`, 15 docs, 420 entities / 124 relations, `oik gold
+check` clean, `provenance: model_draft`) is calibrated to these; regenerate it
+from `tools/build_gold_draft.py`. Expect §5 to keep growing as real documents
+are annotated — that growth *is* the deliverable as much as the spans are.
 
 ---
 

@@ -1,4 +1,4 @@
-# OIKONOMIA annotation guidelines (v0.1, Phase 2 draft)
+# OIKONOMIA annotation guidelines (v0.2)
 
 Scope: entity and relation annotation over Greek documentary papyri from the
 DDbDP, at corpus rev `d7a34f302d1e44e271256092c2b780733187b478`.
@@ -6,6 +6,76 @@ DDbDP, at corpus rev `d7a34f302d1e44e271256092c2b780733187b478`.
 This is the contract between the gold annotation (Phase 5), the weak/silver
 labeling (Phase 6), and the models (Phases 7–8). Every example below is real
 text from the corpus, not invented.
+
+---
+
+## 0. The ten rules
+
+The whole method in one screen. Everything below §0 is the reasoning and the
+edge cases; if two parts of this document ever seem to disagree, **these ten
+win.** Each is stated as a rule because annotation needs rules, not
+preferences — the target is Cohen's κ ≥ 0.80 between annotators.
+
+**I. Annotate the transaction, not the prose.** The target is a database row
+that stands on its own — *who* moved *what*, *how much*, *to whom*, *when*,
+*under what heading*. If a span does not help build or trace such a row, it is
+not annotated. `ιϛ ἔτος πυροῦ ἀρτάβας τεσσαράκοντα` → commodity wheat, qty 40,
+unit artaba, dated to a regnal year.
+
+**II. Every span selects exactly its own text — and you prove it with the
+tool, not your eyes.** Offsets are half-open `[start, end)`, so `end` is one
+past the last character (`ἔτους` at 57 ends at **62**). Carry the `text`
+field, and run `oik gold check` (and `--fix`) after every session. Never count
+characters by hand.
+
+**III. Every numeral gets exactly one decision.** No numeral is left unlabelled
+by accident. It is `QUANTITY`, `MONEY_AMOUNT`, `FRACTION`, `AGE`, or part of a
+`DATE_REF` — or, rarely and *deliberately*, nothing (an isopsephism like `χμγ`,
+a sheet number like `κολλήματος μϛ`). "I didn't get to it" and "it is not a
+quantity" must never look the same in the data.
+
+**IV. A number's type is fixed by what it counts.** Governed by a `CURRENCY` →
+`MONEY_AMOUNT`; by a unit or good → `QUANTITY`; sitting in a date → *inside*
+the `DATE_REF`, not a separate span; a stated age → `AGE`. The shape of the
+numeral is irrelevant; its job decides.
+
+**V. Annotate the sense in context; the lexicon is a hint, never the
+authority.** `χαλκοῦν` the adjective ("bronze cup") is not `χαλκοῦ` the coin;
+`τιμή` the price is not a tax; `φορά` the donkey-load is a `UNIT`, `φόρος` the
+rent is a `TAX_TERM`; `Πύρων` is a man, not a commodity. Same stem, different
+word — read the word.
+
+**VI. People: one span, with three labels.** A personal name is a single
+`PERSON` including its filiation (`Θεόδωρος Ἱππίου` is one span). A trade or
+office is `OCCUPATION` (`Ἀρτεμίδωρος` **and** `ἰατρός`, two spans). A party
+named only by role — including an unnamed one — is `PERSON_ROLE`, **and its
+modality is inside the span**: `χωρὶς κυρίου`, never bare `κυρίου`.
+
+**VII. A `DATE_REF` is the time expression and nothing else.** The ruler named
+inside a dating formula is a `PERSON`; the iteration figure (`τὸ ι`) is its own
+`DATE_REF`. Keep date spans short and syntactically whole (`ἔτους ὀγδόου`,
+`Φαρμοῦθι ιδ`). An anaphora that only points back at a date (`ἐκείνου τοῦ
+ἔτους`, "of that year") is not one.
+
+**VIII. Anchor every transaction on its trigger word, and hang the full graph
+off it.** The word that names the deal — `ὁμολογία`, `μίσθωσις`, `δάνειον`,
+`ὁμολογεῖ`, `μισθώσασθαι` — is a `TRANSACTION` span. Every party gets
+`PARTY_OF → TRANSACTION`; the date gets `DATED_TO`; the price gets `HAS_PRICE`.
+A document with eight contracts has eight anchors. A bare account line with no
+trigger gets none — its `HAS_QUANTITY`/`HAS_UNIT` links need no anchor.
+
+**IX. Restored text is real; lost text is not invented; ellipsis is kept.**
+Annotate the `edited` view including `<supplied>` restorations. If a numeral is
+lost to a `<gap>`, annotate the good and leave the quantity unlinked — do not
+invent it. If the scribe elides the head noun (`μικρότερα α`, "smaller [ones]
+1"), annotate the surviving word as the `COMMODITY`; the value is real.
+
+**X. When genuinely torn, choose completeness of the row and agreement between
+annotators.** Prefer the shorter, reproducible span; never drop real value to
+avoid a hard call (half an aroura is half an aroura); and when a new case forces
+a decision, **write it into §5 in the same commit** so the next document is
+decided the same way. A rule you keep in your head is a rule the other
+annotator does not have.
 
 ---
 
@@ -80,7 +150,7 @@ number governed by a `CURRENCY` is a `MONEY_AMOUNT`, otherwise `QUANTITY`.
 
 | Label | Covers | Notes |
 |---|---|---|
-| `PERSON` | personal names | include patronymic (`Ἱππίου` in `Θεόδωρος Ἱππίου`) as part of the same mention |
+| `PERSON` | personal names | **one span incl. filiation** (`Θεόδωρος Ἱππίου` whole); person-linking across mentions is a later post-process, not annotated here |
 | `PERSON_ROLE` | transactional role | lessor, lessee, payer, payee — the role *word*, not the person |
 | `OCCUPATION` | trade or office | `βαφέως` (dyer), `σιτολόγος` (grain officer) |
 | `PLACE` | toponyms | `ἐν Διὸς πόλει μεγάληι` — include the qualifier |
@@ -168,8 +238,11 @@ transfer, so the database does not double-count.
 ### Decisions taken while annotating the first 15 documents
 
 Each of these recurred immediately and had to be settled to annotate at all.
-They are recorded as rules so a second annotator reaches the same answer; each
-is still open to being overturned, but not silently.
+They are recorded as rules so a second annotator reaches the same answer. Three
+were confirmed as project-owner decisions and are now **settled** (relation
+scope = full; names = one span with filiation; genitive-named parcels =
+`PLACE`); the rest stand until a real counter-example overturns one — and then
+it changes here, in the same commit, never silently.
 
 **A `DATE_REF` covers the temporal expression only; a ruler's name inside a
 dating formula is a `PERSON`.** So
@@ -204,12 +277,15 @@ label when its quantity is lost. But do **not** annotate an anaphoric mention
 that refers back to a date rather than stating one — `ἐκείνου τοῦ ἔτους`
 ("of that year") is not a `DATE_REF`.
 
-**A κλῆρος named after a person is a `PLACE`.** `ἐκ τοῦ Εἰρηναίου κλήρου`,
-`ἐκ τοῦ Φίλωνος κλήρου`, `ἐκ τοῦ Ἀνδρονίκου` — the holding is identified by
-its original allottee, but what is being referred to is a parcel of land.
-Annotate the name as `PLACE`. **This is the least certain rule here**; the
-alternative (PERSON) is defensible and it should be revisited once there are
-enough instances to see which way the model generalises.
+**A κλῆρος named after a person is a `PLACE`, and the span includes `κλήρου`.**
+`ἐκ τοῦ Εἰρηναίου κλήρου` → `PLACE` = `Εἰρηναίου κλήρου` (likewise `Φίλωνος
+κλήρου`, `Ἀνδρονίκου κλήρου`). The holding is identified by its original
+allottee, but the referent is a parcel of land, so it feeds the geographic
+analysis, not the prosopography. Including the structural word `κλήρου` in the
+span is what keeps the eponym from reading as a bare `PERSON`. Same treatment
+for other genitive-named places built on `κώμη`, `ἄμφοδον`, `ἐποίκιον`.
+*(Settled decision, not a provisional one — the model may learn that some
+person-looking strings are places, and that is correct.)*
 
 **Elliptical commodities are annotated.** Account lines drop the head noun:
 `χλαμύδες χρωμάτιναι γ / μικρότερα α / λευκὰ α` — the second and third entries
@@ -217,10 +293,12 @@ are "smaller [ones]" and "white [ones]". Annotate the surviving adjective as
 `COMMODITY`; the alternative is losing two thirds of the transactions on the
 page.
 
-**Counted people are not `HAS_QUANTITY`.** `ἱερεῖς β` ("two priests") is an
-`OCCUPATION` and a `QUANTITY`, but `HAS_QUANTITY` is defined `COMMODITY →
-QUANTITY`, so the two are left unlinked rather than mistyped. If counting
-people matters to the database, the schema needs a relation for it.
+**Counted people are linked with `HAS_QUANTITY`.** `ἱερεῖς β` ("two priests")
+is an `OCCUPATION` plus a `QUANTITY`, joined `ἱερεῖς → β`. `HAS_QUANTITY`
+therefore accepts `OCCUPATION` and `PERSON_ROLE` heads, not only `COMMODITY` —
+an allocation register that records *how many priests drew rations* is data,
+and discarding it to satisfy a narrow type constraint was the wrong trade. (The
+first draft left these unlinked; this supersedes it.)
 
 **Amounts link to the denomination, not the metal.** In `ἀργυρίου ταλάντου
 ἑνὸς καὶ δραχμῶν ἐνακοσίων`, both `ἀργυρίου` and `ταλάντου`/`δραχμῶν` are
@@ -279,24 +357,38 @@ is asked to find. Every numeral in a document should receive a decision —
 
 ## 7. Status
 
-v0.1 — drafted in Phase 2, before any gold annotation exists. Sections 3 and 4
-are stable enough to build the Phase 6 weak labeler against. Section 5 will
-grow fastest once real annotators hit real documents.
+v0.2 — the ten rules in §0 are now the spine, and §5 records every decision
+taken against real text. Calibrated against the first 15 annotated documents
+(`data/gold/annotated.jsonl`, 420 entities / 124 relations, `oik gold check`
+clean). Sections 3–4 are stable enough to build the Phase 6 weak labeler
+against; §5 grows fastest as real documents are annotated.
 
-Resolved since the first draft:
-- `τιμή` moved to its own `PRICE_TERM` category.
-- `φορά` moved from `TAX_TERM` to `UNIT`; `φυλακιτικόν` (guard tax) added to
-  `TAX_TERM`.
-- Adjectival metal forms dropped from `CURRENCY`.
-- `OCCUPATION` now has a mined lexicon (13 entries), covering the stem-sharing
-  false friends the guidelines warn about: `χαλκεύς`, `σιτολόγος`,
-  `ἐλαιουργός`, `κεραμεύς`.
+Settled by the project owner (2026-07-21):
+- **Relation scope is full** — every transaction carries `PARTY_OF` for all
+  parties, `DATED_TO`, and `HAS_PRICE`, not only the measurable
+  quantity/unit/currency links. This is what lets the DB answer "who", not just
+  "how much".
+- **A `PERSON` is one span including filiation**; cross-mention person-linking
+  is a later post-process, not part of gold.
+- **A genitive-named parcel is a `PLACE`** (`Εἰρηναίου κλήρου`), span including
+  the structural word.
 
-Still open before Phase 5:
+Resolved since v0.1:
+- `TRANSACTION` and `AGE` added as entity types; `PARTY_OF`/`DATED_TO` now
+  anchored on the `TRANSACTION` span (they previously had no anchor).
+- `FRACTION` documented in the §3 tables (it was emitted and used but never
+  defined).
+- `DATE_REF` no longer absorbs ruler titulature — the ruler is a `PERSON`.
+- `HAS_QUANTITY` widened to accept `OCCUPATION`/`PERSON_ROLE` heads (`ἱερεῖς β`).
+- `τιμή` → `PRICE_TERM`; `φορά` → `UNIT`; `φυλακιτικόν` → `TAX_TERM`; adjectival
+  metal dropped from `CURRENCY`.
+
+Still open:
 - No `PERSON`, `PERSON_ROLE` or `PLACE` lexicons. Personal names are the hard
   case — folding erases the capital that distinguishes `Γεώργιος` (a name)
-  from `γεωργός` (a farmer), and that collision is already handled by
-  exclusion in `occupations.yaml` rather than by any general rule.
-- `oik lexicon verify` guards attestation, not sense: it proves every form
-  occurs in the corpus, not that it is filed under the right category. Only
-  gold annotation settles sense.
+  from `γεωργός` (a farmer), handled by exclusion in `occupations.yaml`.
+- `PAID_BY`/`PAID_TO` are defined but not yet exercised on gold; their
+  direction is the hardest thing for annotators to agree on, and the first
+  documents used `PARTY_OF` instead. Introduce them only where a text states
+  direction of transfer unambiguously.
+- `oik lexicon verify` guards attestation, not sense.
