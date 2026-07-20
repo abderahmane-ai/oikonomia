@@ -58,6 +58,14 @@ end)`, as `CharSpan`.
 | `COMMODITY` | the good being counted | `πυροῦ`, `οἴνου`, `κριθῆς` |
 | `MONEY_AMOUNT` | a numeric amount of money | `μ` in `δραχμὰς μ` |
 | `CURRENCY` | the denomination or money-metal | `δραχμάς`, `ταλάντων`, `νομίσματος` |
+| `FRACTION` | a fractional part of a quantity or amount | `ἡμίσους`, `𐅵` (½), `𐅷` (⅔) |
+
+`FRACTION` is a separate span, not folded into the `QUANTITY`, because the two
+are separate tokens with separate lexica (`resources/lexicon/fractions.yaml`)
+and because the fraction frequently attaches to a *unit* rather than to the
+number (`ἀρούρης α 𐅵` = one and a half arouras). **Do not drop it:** half an
+aroura of land or half an artaba of wheat is real value, and a price series
+built from truncated quantities is wrong rather than merely incomplete.
 
 `QUANTITY` includes both alphabetic numerals (`ιϛ`) and spelled-out numbers
 (`τεσσαράκοντα`). **Do not assume `<num>` marks them all** — the corpus
@@ -163,12 +171,38 @@ Each of these recurred immediately and had to be settled to annotate at all.
 They are recorded as rules so a second annotator reaches the same answer; each
 is still open to being overturned, but not silently.
 
-**Emperors inside a dating formula are part of the `DATE_REF`, not a `PERSON`.**
-`ὑπατείας τοῦ δεσπότου ἡμῶν Μαξιμίνου τοῦ ἐπιφανεστάτου Καίσαρος` and
-`ἔτους ὀγδόου Τιβερίου Κλαυδίου Καίσαρος Σεβαστοῦ Γερμανικοῦ Φαρμοῦθι ιδ` are
-each **one** span. The regnal name is functioning as a calendar, not as a
-party to the transaction. Consequence to be aware of: PERSON recall on
-emperors is zero *by design*, and consular/regnal `DATE_REF` spans are long.
+**A `DATE_REF` covers the temporal expression only; a ruler's name inside a
+dating formula is a `PERSON`.** So
+
+> `ἔτους ὀγδόου` `[Τιβερίου Κλαυδίου Καίσαρος Σεβαστοῦ Γερμανικοῦ
+> Αὐτοκράτορος]` `Φαρμοῦθι ιδ`
+
+is `DATE_REF` + `PERSON` + `DATE_REF`, **not** one 130-character span.
+
+*This reverses the first draft of this rule,* which absorbed the titulature
+into the date. Two reasons to prefer splitting:
+
+- **Agreement.** The formula varies constantly, so annotators must agree
+  exactly where titulature begins and ends — on a span mostly made of proper
+  nouns. Short, syntactically coherent spans (`ἔτους ὀγδόου`, `Φαρμοῦθι ιδ`,
+  `Παχὼν κα`) are reproducible; the target is κ ≥ 0.80 and long variable spans
+  put it at risk. Splitting took the mean `DATE_REF` from 30 to **8.2**
+  characters.
+- **The original reason expired.** Absorbing rulers existed to keep emperors
+  out of the list of economic actors. Now that `TRANSACTION` exists, the
+  parties are whoever carries `PARTY_OF` — so `PERSON` can be complete, and a
+  ruler is simply a `PERSON` with no `PARTY_OF` edge. Ask "who were the
+  parties?" by following `PARTY_OF`, never by listing every `PERSON`.
+
+Consular dates work the same way: `ὑπατείας` is the `DATE_REF`, the consul is
+a `PERSON`, and an iteration figure (`τὸ ι`, "for the 10th time") is its own
+`DATE_REF`.
+
+**A date word whose numeral is lost still gets a `DATE_REF`.** `κλήρου … ἔτους`
+has the year in a lacuna; annotate `ἔτους`, exactly as a `COMMODITY` keeps its
+label when its quantity is lost. But do **not** annotate an anaphoric mention
+that refers back to a date rather than stating one — `ἐκείνου τοῦ ἔτους`
+("of that year") is not a `DATE_REF`.
 
 **A κλῆρος named after a person is a `PLACE`.** `ἐκ τοῦ Εἰρηναίου κλήρου`,
 `ἐκ τοῦ Φίλωνος κλήρου`, `ἐκ τοῦ Ἀνδρονίκου` — the holding is identified by
