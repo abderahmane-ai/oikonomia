@@ -346,7 +346,50 @@ inconsistent negative: a numeral that looks exactly like every `QUANTITY` it
 is asked to find. Every numeral in a document should receive a decision —
 `QUANTITY`, `MONEY_AMOUNT`, `DATE_REF`, `FRACTION` or `AGE`.
 
-## 6. Annotation unit and agreement
+## 6. The batch file, and how to work it
+
+The batch is **`data/gold/to_annotate.jsonl`** — one JSON object per line,
+regenerable with `oik gold sample --n 150 --iaa 30 --blind 30` (deterministic
+for a seed). Output goes to **`data/gold/annotated.jsonl`**, same schema with
+`entities` and `relations` filled in. Both live in `data/gold/`, which is
+tracked in git.
+
+```json
+{
+  "doc_id": "10067",
+  "text": "ἀντίγραφον διαγραφῆς διὰ τῆς Φανίου τραπέζης …",
+  "meta": { "genre": "loan", "split": "train", "corpus_rev": "d7a34f30…" },
+  "entities": [],
+  "relations": [],
+  "suggested_entities": [ {"start": 57, "end": 62, "label": "DATE_REF", "text": "ἔτους"} ],
+  "double_annotate": false
+}
+```
+
+| field | meaning |
+|---|---|
+| `text` | **The only thing you annotate.** Whitespace is already canonical (rule II), so offsets are stable. |
+| `entities` / `relations` | **You fill these.** Entity format `{"start","end","label","text"}`; relation format `{"head","tail","type"}` where `head`/`tail` index *your* `entities` in the order you wrote them. |
+| `suggested_entities` | A machine pre-annotation from the weak baseline. **Often wrong, and not gold** — delete what is wrong rather than working around it. `null` on blind documents. |
+| `double_annotate` | `true` → a second annotator does this document independently, for agreement. Do not compare notes first. |
+
+Three workflow rules, in order of how often they are broken:
+
+1. **Run `oik gold check` after every session** (and `--fix` to repair
+   offsets from the `text` field). This is rule II, and it is not optional —
+   it is the only thing standing between you and a silently corrupt gold set.
+2. **Annotate the ~30 blind documents (`suggested_entities: null`) first,
+   while unanchored.** Seeing a suggestion anchors you to it, so the blind
+   subset is the only honest basis for later measuring how good the baseline
+   was. If you annotate suggested documents first you contaminate that number.
+3. **Do the `double_annotate` documents independently** — no discussion
+   beforehand. Target Cohen's κ ≥ 0.80; disagreements resolve into §5 as new
+   rules.
+
+For fully worked, rule-conformant examples, read `data/gold/annotated.jsonl` —
+the first 15 documents are annotated to this guide and pass `oik gold check`.
+
+## 7. Annotation unit and agreement
 
 - The unit of annotation is the **document**.
 - Double-annotate a sample for inter-annotator agreement; report Cohen's κ on
@@ -355,7 +398,7 @@ is asked to find. Every numeral in a document should receive a decision —
 - Disagreements resolve into this file as new rules in §5. This document is
   expected to grow; version it when rules change.
 
-## 7. Status
+## 8. Status
 
 v0.2 — the ten rules in §0 are now the spine, and §5 records every decision
 taken against real text. Calibrated against the first 15 annotated documents

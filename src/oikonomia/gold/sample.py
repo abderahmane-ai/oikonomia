@@ -49,7 +49,6 @@ logger = get_logger(__name__)
 
 SAMPLE_COLUMNS = ("stem", "edited_text", "document_json", "n_numerals")
 OUTPUT_NAME = "to_annotate.jsonl"
-GUIDE_NAME = "ANNOTATION.md"
 
 MIN_CHARS = 120
 MAX_CHARS = 1600

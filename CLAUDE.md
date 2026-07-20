@@ -525,10 +525,12 @@ lexicon will reach — which is exactly what gold annotation is for.
 
 #### The batch is built — `oik gold sample`
 
-`data/gold/to_annotate.jsonl` — **150 documents, 90.5k characters**, plus
-`data/gold/ANNOTATION.md` (format, labels, worked example, decision rules).
-Both tracked in git. Regenerate deterministically with
-`oik gold sample --n 150 --iaa 30 --blind 30`.
+`data/gold/to_annotate.jsonl` — **150 documents, 90.5k characters**, tracked in
+git. Regenerate deterministically with
+`oik gold sample --n 150 --iaa 30 --blind 30`. Format, labels, workflow and all
+decision rules live in the single authority
+[`resources/schema/annotation_guidelines.md`](resources/schema/annotation_guidelines.md)
+(v0.2; §6 covers the batch file format and workflow, §0 the ten rules).
 
 The sampler enforces four things that are easy to get wrong by hand:
 - **train split only, one document per group** — near-duplicates and shared-TM
@@ -1007,8 +1009,10 @@ cd /Users/abdoumagico/Development/ACHATES
 
 **Everything is built and consistent — annotation can start immediately.**
 `data/gold/to_annotate.jsonl` (150 docs) is current, its text is byte-identical
-to `corpus.parquet`, and its spans are verified. Read `data/gold/ANNOTATION.md`
-and annotate into `data/gold/annotated.jsonl`, blind documents first.
+to `corpus.parquet`, and its spans are verified. Read
+`resources/schema/annotation_guidelines.md` (the single authority — §0 ten
+rules, §6 batch format/workflow) and annotate into
+`data/gold/annotated.jsonl`, blind documents first.
 
 **The work now is Phase 5 — gold annotation.** §6 has the full brief: a worked
 example of one real document with all 18 of its gold spans, the JSONL format,
@@ -1019,8 +1023,9 @@ Both defects found by running the baseline on a real receipt are **fixed**:
 `DATE_REF` now absorbs its numeral, and occupations are mined from title
 position via `oik lexicon mine-titles` (9 new entries). See §6 Phase 5.
 
-The annotation batch is built: `data/gold/to_annotate.jsonl` (150 docs) plus
-`data/gold/ANNOTATION.md`. Output goes to `data/gold/annotated.jsonl`.
+The annotation batch is built: `data/gold/to_annotate.jsonl` (150 docs).
+Output goes to `data/gold/annotated.jsonl`. All instructions are in
+`resources/schema/annotation_guidelines.md` (v0.2).
 
 **Phase 4 is built and can run any time** (`modal run modal_app/dapt.py::push`
 then `::sweep`, ~$0.25–0.80), but it optimises perplexity as a proxy. It will
