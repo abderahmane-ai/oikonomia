@@ -17,12 +17,16 @@ type:  ## Strict type check
 test:  ## Run the test suite
 	$(PY) -m pytest
 
-check: lint type test  ## Full quality gate (run before ending a phase)
+check: lint type test clean  ## Full quality gate: ruff -> mypy -> pytest -> clean
 
 ingest-build:  ## Build the processed corpus (requires a pinned rev synced first)
 	$(PY) -m oikonomia.cli.main ingest build
 
-clean:  ## Remove tool caches and compiled files
-	find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
-	find . -type d \( -name ".pytest_cache" -o -name ".ruff_cache" -o -name ".mypy_cache" \) -exec rm -rf {} + 2>/dev/null || true
-	find . -name "*.pyc" -delete 2>/dev/null || true
+# NOTE: use `-exec rm`, never `-delete`. `find -delete` implies `-depth`, which
+# silently disables `-prune` — the command would then walk into .venv and delete
+# its bytecode as well.
+clean:  ## Remove tool caches and compiled files (leaves .venv untouched)
+	find . -path ./.venv -prune -o -type d \
+	  \( -name "__pycache__" -o -name ".pytest_cache" \
+	     -o -name ".ruff_cache" -o -name ".mypy_cache" \) -exec rm -rf {} + 2>/dev/null || true
+	find . -path ./.venv -prune -o -name "*.pyc" -exec rm -f {} + 2>/dev/null || true

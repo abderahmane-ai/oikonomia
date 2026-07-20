@@ -44,8 +44,12 @@ These are standing instructions for any agent working in this repo.
   same change. Hand-crafted fixtures with hand-computed expected output are
   preferred over smoke tests for anything with subtle semantics (the EpiDoc
   parser especially).
-- **Always run ruff and pytest before considering work done**, and **clear their
-  caches** before moving to the next phase (see §5).
+- **Always run ruff, mypy and pytest before considering work done.**
+- **Always clean the caches afterwards — every time, not just at phase
+  boundaries.** `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache` and
+  stray `*.pyc` must never be left behind or committed. One command: `make clean`
+  (or the explicit form in §5). The quality gate is: ruff → mypy → pytest →
+  clean.
 - **Phase discipline.** Before starting the next phase, write a clean summary of
   the finished phase into §6: what was done, deliverables, % progress, what's
   next. Do not silently roll forward.
@@ -110,10 +114,11 @@ uv run oik ingest sync  --set ingest.idp_git_rev=<sha>   # clone/checkout corpus
 uv run oik ingest build                                   # → processed/corpus.parquet
 uv run oik ingest report                                  # coverage + failures
 
-# Quality gate (run before ending any phase)
+# Quality gate — run after ANY unit of work, in this order
 .venv/bin/ruff check src tests
 .venv/bin/python -m mypy src
 .venv/bin/python -m pytest
+make clean                        # always clear caches afterwards
 ```
 
 Modal extras (`.[modal]`, `.[train]`) are installed only when Phase 4 begins.
@@ -127,13 +132,17 @@ Run every time before declaring a phase done and moving on:
 1. `.venv/bin/ruff check src tests` — must pass with **All checks passed!**
 2. `.venv/bin/python -m mypy src` — must be **Success: no issues found**.
 3. `.venv/bin/python -m pytest` — all tests green.
-4. Clear caches:
+4. Clear caches — `make clean`, or explicitly:
    ```sh
-   find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null
-   find . -type d -name ".pytest_cache" -o -type d -name ".ruff_cache" -o -type d -name ".mypy_cache" | xargs rm -rf 2>/dev/null
-   find . -name "*.pyc" -delete 2>/dev/null
+   find . -path ./.venv -prune -o -type d \
+     \( -name "__pycache__" -o -name ".pytest_cache" \
+        -o -name ".ruff_cache" -o -name ".mypy_cache" \) -exec rm -rf {} + 2>/dev/null || true
+   find . -path ./.venv -prune -o -name "*.pyc" -exec rm -f {} + 2>/dev/null || true
    ```
-5. Update §6 (phase log) and §8 (progress %) of this file.
+   **Do not use `-delete` here.** `find -delete` implies `-depth`, which
+   silently disables `-prune` — the command then walks into `.venv` and deletes
+   its bytecode too. Use `-exec rm` as above.
+5. Update §6 (phase log), §8 (progress %) and §9 (machine state) of this file.
 
 ---
 
