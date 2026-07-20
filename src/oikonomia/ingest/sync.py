@@ -22,10 +22,18 @@ def _git(*args: str, cwd: Path | None = None) -> str:
     result = subprocess.run(
         ["git", *args],
         cwd=str(cwd) if cwd else None,
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
+    if result.returncode != 0:
+        # git puts the actionable message on stderr; CalledProcessError's repr
+        # shows only the exit status, which makes failures here unreadable.
+        msg = (
+            f"git {' '.join(args)} failed (exit {result.returncode})"
+            f"\n{result.stderr.strip()}"
+        )
+        raise RuntimeError(msg)
     return result.stdout.strip()
 
 
@@ -58,7 +66,17 @@ def ensure_corpus(raw_root: Path, repo_url: str, git_rev: str) -> str:
 
     logger.info(f"checking out corpus rev {git_rev}")
     _git("fetch", "origin", git_rev, cwd=target)
-    _git("checkout", git_rev, cwd=target)
+
+    # Two-step instead of a plain `checkout`, so an interrupted run is
+    # recoverable. A checkout killed partway leaves the index wiped and the
+    # already-written files untracked; `git checkout <rev>` then aborts with
+    # "untracked working tree files would be overwritten" and no amount of
+    # re-running clears it. `reset --mixed` rebuilds the index from the rev
+    # without touching the working tree, and `checkout -- .` materialises only
+    # the paths that are missing or altered. Both steps are no-ops once the
+    # tree is complete, so this stays idempotent and resumes in place.
+    _git("reset", "--mixed", git_rev, cwd=target)
+    _git("checkout", "--", ".", cwd=target)
     resolved = _git("rev-parse", "HEAD", cwd=target)
     logger.info(f"corpus ready at {resolved}")
     return resolved

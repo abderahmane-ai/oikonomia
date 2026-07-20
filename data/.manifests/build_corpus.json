@@ -1,0 +1,25 @@
+{
+  "stage": "build_corpus",
+  "version": "2",
+  "inputs_key": "idp@d7a34f302d1e44e271256092c2b780733187b478",
+  "params_hash": "1193cf9e22270f57f431beae47909418d2261e1116ff9f076a4930dd013dd69d",
+  "outputs": [
+    {
+      "path": "data/processed/corpus.parquet",
+      "sha256": "2fb30ed21781fa1017130bbf5133ce93316a79bb8214ddc55f030d9afaaf6760",
+      "bytes": 311000767
+    },
+    {
+      "path": "data/processed/ingest_failures.json",
+      "sha256": "33c19952f7bb3e1b2c2f1c34296494c277c643ad6e4f2eb0dfd088f43f015825",
+      "bytes": 149
+    }
+  ],
+  "stats": {
+    "n_parsed": 67980,
+    "n_failed": 0,
+    "parse_rate": 1.0,
+    "hgv_join_rate": 0.9827
+  },
+  "created_at": "2026-07-20T13:32:28.714151+00:00"
+}

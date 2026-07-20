@@ -7,6 +7,7 @@ from lxml import etree
 from oikonomia.ingest.hgv_dates import parse_dates
 from oikonomia.ingest.hgv_genre import map_terms, parse_terms
 from oikonomia.ingest.hgv_places import parse_origplace_text, parse_places
+from oikonomia.ingest.xml_parser import parse_xml
 from oikonomia.schemas.metadata import HgvMetadata
 
 TEI_NS = "http://www.tei-c.org/ns/1.0"
@@ -36,8 +37,7 @@ def parse_hgv(
     ``stem_numeric`` is the numeric TM id from the filename, used as a fallback
     when the XML lacks an explicit ``<idno type="TM">``.
     """
-    parser = etree.XMLParser(recover=False, resolve_entities=False, no_network=True)
-    tree = etree.ElementTree(etree.fromstring(xml_bytes, parser=parser))
+    tree = parse_xml(xml_bytes)
 
     dates = parse_dates(tree)
     places = parse_places(tree)

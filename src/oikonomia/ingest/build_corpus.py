@@ -149,7 +149,8 @@ class BuildCorpusStage:
     """Pipeline stage: raw idp.data checkout → ``processed/corpus.parquet``."""
 
     name = "build_corpus"
-    version = "1"
+    # 2: parse with collect_ids=False, recovering the 512 duplicate-xml:id files.
+    version = "2"
 
     def inputs_key(self, s: Settings) -> str:
         # The pinned corpus rev is the exact, cheap fingerprint of all inputs.

@@ -12,6 +12,8 @@ from __future__ import annotations
 from lxml import etree
 from pydantic import BaseModel
 
+from oikonomia.ingest.xml_parser import parse_xml
+
 TEI_NS = "http://www.tei-c.org/ns/1.0"
 XML_LANG = "{http://www.w3.org/XML/1998/namespace}lang"
 
@@ -33,8 +35,7 @@ def _collect_text(el: etree._Element) -> str:
 
 def parse_translation(xml_bytes: bytes, tm_id: int, seq: int) -> TranslationDoc | None:
     """Parse a translation file; return ``None`` if it holds no translation div."""
-    parser = etree.XMLParser(recover=False, resolve_entities=False, no_network=True)
-    tree = etree.ElementTree(etree.fromstring(xml_bytes, parser=parser))
+    tree = parse_xml(xml_bytes)
     div = tree.find(f'.//{{{TEI_NS}}}div[@type="translation"]')
     if div is None:
         return None

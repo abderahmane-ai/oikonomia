@@ -44,6 +44,7 @@ from lxml import etree
 
 from oikonomia.config import IngestConfig
 from oikonomia.ingest.numerals import parse_num_value
+from oikonomia.ingest.xml_parser import parse_xml
 from oikonomia.schemas.document import (
     Document,
     LineRef,
@@ -269,8 +270,7 @@ def parse_ddbdp(xml_bytes: bytes, stem: str, cfg: IngestConfig) -> Document:
     """
     from oikonomia.ingest.paths import parse_stem
 
-    parser = etree.XMLParser(recover=False, resolve_entities=False, no_network=True)
-    tree = etree.ElementTree(etree.fromstring(xml_bytes, parser=parser))
+    tree = parse_xml(xml_bytes)
 
     tm_str, ddb_hybrid = _text_idnos(tree)
     numeric_stem, _ = parse_stem(stem)
