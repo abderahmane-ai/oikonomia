@@ -155,6 +155,54 @@ figure that restates amounts already annotated above. Annotate the total's
 own entities, and mark the transaction as a summary rather than a distinct
 transfer, so the database does not double-count.
 
+### Decisions taken while annotating the first 15 documents
+
+Each of these recurred immediately and had to be settled to annotate at all.
+They are recorded as rules so a second annotator reaches the same answer; each
+is still open to being overturned, but not silently.
+
+**Emperors inside a dating formula are part of the `DATE_REF`, not a `PERSON`.**
+`ὑπατείας τοῦ δεσπότου ἡμῶν Μαξιμίνου τοῦ ἐπιφανεστάτου Καίσαρος` and
+`ἔτους ὀγδόου Τιβερίου Κλαυδίου Καίσαρος Σεβαστοῦ Γερμανικοῦ Φαρμοῦθι ιδ` are
+each **one** span. The regnal name is functioning as a calendar, not as a
+party to the transaction. Consequence to be aware of: PERSON recall on
+emperors is zero *by design*, and consular/regnal `DATE_REF` spans are long.
+
+**A κλῆρος named after a person is a `PLACE`.** `ἐκ τοῦ Εἰρηναίου κλήρου`,
+`ἐκ τοῦ Φίλωνος κλήρου`, `ἐκ τοῦ Ἀνδρονίκου` — the holding is identified by
+its original allottee, but what is being referred to is a parcel of land.
+Annotate the name as `PLACE`. **This is the least certain rule here**; the
+alternative (PERSON) is defensible and it should be revisited once there are
+enough instances to see which way the model generalises.
+
+**Elliptical commodities are annotated.** Account lines drop the head noun:
+`χλαμύδες χρωμάτιναι γ / μικρότερα α / λευκὰ α` — the second and third entries
+are "smaller [ones]" and "white [ones]". Annotate the surviving adjective as
+`COMMODITY`; the alternative is losing two thirds of the transactions on the
+page.
+
+**Counted people are not `HAS_QUANTITY`.** `ἱερεῖς β` ("two priests") is an
+`OCCUPATION` and a `QUANTITY`, but `HAS_QUANTITY` is defined `COMMODITY →
+QUANTITY`, so the two are left unlinked rather than mistyped. If counting
+people matters to the database, the schema needs a relation for it.
+
+**Amounts link to the denomination, not the metal.** In `ἀργυρίου ταλάντου
+ἑνὸς καὶ δραχμῶν ἐνακοσίων`, both `ἀργυρίου` and `ταλάντου`/`δραχμῶν` are
+`CURRENCY`, but `HAS_CURRENCY` goes from each amount to its *denomination*
+(`ἑνὸς → ταλάντου`, `ἐνακοσίων → δραχμῶν`). The metal qualifies the whole sum
+and is left unlinked.
+
+**Numbers that are not quantities are not annotated.** `χμγ` heading a
+Byzantine contract is an isopsephism (= ἀμήν), and `κολλήματος μϛ` is a papyrus
+sheet number. Neither is an economic quantity. Read the number's job, not its
+shape.
+
+**`PARTY_OF` / `DATED_TO` are omitted for now.** They are defined as pointing
+at "the transaction", which is not an entity in this schema, so there is
+nothing to point at (see §1). Rather than invent an anchor, these first
+documents record no such relations. **This must be settled before Phase 8** —
+either add a transaction/event entity, or make them document-level attributes.
+
 ## 6. Annotation unit and agreement
 
 - The unit of annotation is the **document**.
