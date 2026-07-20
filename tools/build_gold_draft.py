@@ -14,7 +14,7 @@ E = lambda label, surface, ctx=None, key=None: (label, surface, ctx, key)  # noq
 
 SPEC: dict[str, dict] = {}
 
-SPEC["110220"] = dict(entities=[
+SPEC["110220"] = {"entities": [
     E("PLACE", "Ῥώμης"),
     E("COMMODITY", "χλαμύδες χρωμάτιναι", None, "c1"),
     E("QUANTITY", "γ", "χρωμάτιναι γ", "q1"),
@@ -36,9 +36,9 @@ SPEC["110220"] = dict(entities=[
     E("QUANTITY", "α", "καλλάινος α", "q7"),
     E("COMMODITY", "κολόβια λευκὰ Λαδικηνὰ", None, "c8"),
     E("QUANTITY", "α", "Λαδικηνὰ α", "q8"),
-], relations=[(f"c{i}", f"q{i}", "HAS_QUANTITY") for i in range(1, 9)])
+], "relations": [(f"c{i}", f"q{i}", "HAS_QUANTITY") for i in range(1, 9)]}
 
-SPEC["11295"] = dict(entities=[
+SPEC["11295"] = {"entities": [
     E("DATE_REF", "ὑπατείας τοῦ δεσπότου ἡμῶν Μαξιμίνου τοῦ ἐπιφανεστάτου\nΚαίσαρος", None, "date"),
     E("PERSON", "Αὐρηλίων Γούνθου", None, "p_gounthos"),
     E("PERSON", "Αταρι", "καὶ Αταρι χωρὶς", "p_atari"),
@@ -76,16 +76,16 @@ SPEC["11295"] = dict(entities=[
     E("PERSON", "Σαμβαθοῦς"),
     E("PERSON", "Αὐρηλίᾳ Ταπαϊτι"),
     E("COMMODITY", "οἰκίδιον καὶ αὐλὴν"),
-], relations=[
+], "relations": [
     ("m1", "tal", "HAS_CURRENCY"), ("m2", "dr", "HAS_CURRENCY"),
     ("house", "m1", "HAS_PRICE"), ("house", "m2", "HAS_PRICE"),
     ("p_gounthos", "t1", "PARTY_OF"), ("p_atari", "t1", "PARTY_OF"),
     ("p_atreas", "t1", "PARTY_OF"), ("p_buyer", "t1", "PARTY_OF"),
     ("r_nokyrios", "t1", "PARTY_OF"),
     ("t1", "date", "DATED_TO"),
-])
+]}
 
-SPEC["114283"] = dict(entities=[
+SPEC["114283"] = {"entities": [
     E("DATE_REF", "ὑπατείας τῶν δεσποτῶν ἡμῶν Ὁνωρίου\nτὸ ι καὶ Θεοδοσίου τὸ ϛ τῶν αἰωνίων Αὐγούστων"),
     E("DATE_REF", "Φαῶφι κα", None, "date"),
     E("PERSON", "Φλαουΐῳ Ἀντωνίῳ"),
@@ -101,10 +101,10 @@ SPEC["114283"] = dict(entities=[
     E("MONEY_AMOUNT", "ἓν", None, "m1"),
     E("PERSON", "Αὐρήλιος Ἰωάννης"),
     E("OCCUPATION", "ἀναγνώστης"),
-], relations=[("m1", "nom", "HAS_CURRENCY"),
-    ("p1", "t1", "PARTY_OF"), ("t1", "date", "DATED_TO")])
+], "relations": [("m1", "nom", "HAS_CURRENCY"),
+    ("p1", "t1", "PARTY_OF"), ("t1", "date", "DATED_TO")]}
 
-SPEC["115553"] = dict(entities=[
+SPEC["115553"] = {"entities": [
     E("PLACE", "Κερκεῦρα"),
     E("PLACE", "Εἰρηναίου\nκλήρου"),
     E("DATE_REF", "ι ἔτους"),
@@ -128,9 +128,9 @@ SPEC["115553"] = dict(entities=[
     E("PERSON", "Ταθοωνᾶτος"),
     E("PERSON", "Σαραπίωνος"),
     E("PERSON", "Θοῶνις"),
-], relations=[])
+], "relations": []}
 
-SPEC["1183"] = dict(entities=[
+SPEC["1183"] = {"entities": [
     E("DATE_REF", "Ὑπερβερεταίου\nιη"),
     E("PERSON", "Ἀρτεμίδωρος"), E("OCCUPATION", "ἰατρός"),
     E("OCCUPATION", "ἱερεῖς", None, "occ1"), E("QUANTITY", "β", "ἱερεῖς β", "occq1"),
@@ -187,7 +187,7 @@ SPEC["1183"] = dict(entities=[
     E("COMMODITY", "χλαμὺς\nπροβατεία"),
     E("COMMODITY", "οἴνου Χίου", None, "c16"),
     E("UNIT", "κεράμια", None, "u16"), E("QUANTITY", "β", "κεράμια β", "q16"),
-], relations=[
+], "relations": [
     ("occ1", "occq1", "HAS_QUANTITY"), ("occ2", "occq2", "HAS_QUANTITY"),
     ("c1", "q1", "HAS_QUANTITY"), ("q1", "u1", "HAS_UNIT"),
     ("c2", "q2", "HAS_QUANTITY"), ("q2", "u2", "HAS_UNIT"),
@@ -201,9 +201,9 @@ SPEC["1183"] = dict(entities=[
     ("c13", "q13", "HAS_QUANTITY"), ("q13", "u13", "HAS_UNIT"),
     ("c14", "q14", "HAS_QUANTITY"), ("c15", "q15", "HAS_QUANTITY"),
     ("c16", "q16", "HAS_QUANTITY"), ("q16", "u16", "HAS_UNIT"),
-])
+]}
 
-SPEC["11974"] = dict(entities=[
+SPEC["11974"] = {"entities": [
     E("TRANSACTION", "ὁμολογία", None, "t1"),
     E("PERSON", "Παΰνχιος", None, "p1a"),
     E("PERSON_ROLE", "τῆς γυναικὸς", None, "p1b"),
@@ -255,7 +255,7 @@ SPEC["11974"] = dict(entities=[
     E("CURRENCY", "ἀργυρίου"),
     E("CURRENCY", "δραχμῶν", None, "d5"), E("MONEY_AMOUNT", "μϛ", None, "m7"),
     E("CURRENCY", "ὀβολοὶ", None, "o3"), E("MONEY_AMOUNT", "ιδ", None, "m8"),
-], relations=[
+], "relations": [
     ("p1a", "t1", "PARTY_OF"),
     ("p1b", "t1", "PARTY_OF"),
     ("p1c", "t1", "PARTY_OF"),
@@ -286,9 +286,9 @@ SPEC["11974"] = dict(entities=[
     ("c5", "q6", "HAS_QUANTITY"), ("q6", "u6", "HAS_UNIT"),
     ("q7", "u7", "HAS_UNIT"),
     ("m7", "d5", "HAS_CURRENCY"), ("m8", "o3", "HAS_CURRENCY"),
-])
+]}
 
-SPEC["12164"] = dict(entities=[
+SPEC["12164"] = {"entities": [
     E("PERSON", "Ἡρακλείδης Ἡρακλείδου", None, "p1"),
     E("PERSON", "Κρονίωνι Ἀπίωνος", None, "p2"), E("OCCUPATION", "νομογράφωι"),
     E("PLACE", "Τεβτύνεως"),
@@ -298,10 +298,10 @@ SPEC["12164"] = dict(entities=[
     E("FRACTION", "ἡμίσους"),
     E("PERSON", "Ἡρώδου τοῦ καὶ Ἡρακλείδου\nΛυσιμάχου"),
     E("DATE_REF", "ἔτους ὀγδόου\nΤιβερίου Κλαυδίου Καίσαρος\nΣεβαστοῦ Γερμανικοῦ\nΑὐτοκράτορος Φαρμοῦθι ιδ", None, "date"),
-], relations=[("q1", "u1", "HAS_UNIT"),
-    ("p1", "t1", "PARTY_OF"), ("p2", "t1", "PARTY_OF"), ("t1", "date", "DATED_TO")])
+], "relations": [("q1", "u1", "HAS_UNIT"),
+    ("p1", "t1", "PARTY_OF"), ("p2", "t1", "PARTY_OF"), ("t1", "date", "DATED_TO")]}
 
-SPEC["12583"] = dict(entities=[
+SPEC["12583"] = {"entities": [
     E("DATE_REF", "ἔτους τρεισκαιδεκάτου Αὐτοκράτορος Καίσαρος Τίτου Αἰλίου Ἁδριανοῦ Ἀντωνίνου Σεβαστοῦ\nΕὐσεβοῦς μηνὸς Σεβαστοῦ κζ Θὼθ κζ", None, "date"),
     E("PLACE", "Ἱερᾷ Νήσῳ"), E("PLACE", "Ἡρακλείδου μερίδος"), E("PLACE", "Ἀρσινοΐτου νομοῦ"),
     E("TRANSACTION", "ὁμολογεῖ", None, "t1"),
@@ -324,14 +324,14 @@ SPEC["12583"] = dict(entities=[
     E("PERSON", "Πτολεμαΐδα"),
     E("PERSON", "Ἰουλίῳ Μαξίμῳ"),
     E("UNIT", "ἀρούρας", None, "u3"), E("QUANTITY", "τέσσαρας", None, "q3"),
-], relations=[
+], "relations": [
     ("m1", "dr", "HAS_CURRENCY"),
     ("q1", "u1", "HAS_UNIT"), ("q2", "u2", "HAS_UNIT"), ("q3", "u3", "HAS_UNIT"),
     ("p_seller", "t1", "PARTY_OF"), ("p_lender", "t1", "PARTY_OF"),
     ("t1", "date", "DATED_TO"),
-])
+]}
 
-SPEC["12593"] = dict(entities=[
+SPEC["12593"] = {"entities": [
     E("COMMODITY", "νομῆς ὑπολόγων καὶ ῥαχοῦ", None, "c1"),
     E("PLACE", "Ψενύρεως"),
     E("CURRENCY", "δραχμῶν", None, "d1"), E("MONEY_AMOUNT", "κ", "δραχμῶν κ.", "m1"),
@@ -346,13 +346,13 @@ SPEC["12593"] = dict(entities=[
     E("PERSON", "Ἁρυώθης"),
     E("DATE_REF", "ἔτους ιζ\nΑὐτοκράτορος Καίσαρος Τραϊανοῦ\nἉδριανοῦ Σεβαστοῦ, Ἐπεὶφ η", None, "date"),
     E("PERSON", "Βησαρίων"), E("OCCUPATION", "ὑπηρέτης"),
-], relations=[
+], "relations": [
     ("m1", "d1", "HAS_CURRENCY"), ("c1", "m1", "HAS_PRICE"),
     ("m2", "d2", "HAS_CURRENCY"), ("c2", "m2", "HAS_PRICE"),
     ("p1", "t1", "PARTY_OF"), ("t1", "date", "DATED_TO"),
-])
+]}
 
-SPEC["12769"] = dict(entities=[
+SPEC["12769"] = {"entities": [
     E("PERSON", "Στοτοῆτι Στοτοήτεως", None, "p1"),
     E("PERSON", "Ὥρου τοῦ Τεσενούφεως τοῦ Τεσενούφεως", None, "p2"),
     E("TRANSACTION", "μισθώσασθαι", None, "t1"),
@@ -365,10 +365,10 @@ SPEC["12769"] = dict(entities=[
     E("UNIT", "μετρητῶν", None, "u1"), E("QUANTITY", "δύο", None, "q1"),
     E("COMMODITY", "ἐλαίου ῥαφανίνου"),
     E("PERSON", "Στοτοήτεως"),
-], relations=[("c1", "q1", "HAS_QUANTITY"), ("q1", "u1", "HAS_UNIT"),
-    ("p1", "t1", "PARTY_OF"), ("p2", "t1", "PARTY_OF"), ("t1", "date", "DATED_TO")])
+], "relations": [("c1", "q1", "HAS_QUANTITY"), ("q1", "u1", "HAS_UNIT"),
+    ("p1", "t1", "PARTY_OF"), ("p2", "t1", "PARTY_OF"), ("t1", "date", "DATED_TO")]}
 
-SPEC["128477"] = dict(entities=[
+SPEC["128477"] = {"entities": [
     E("DATE_REF", "Παῦνι κθ"),
     E("DATE_REF", "Ἐπὶφ θ"), E("PLACE", "Καμμέτος"),
     E("COMMODITY", "σίτου", None, "c1"), E("UNIT", "ἀρτάβαι", None, "u1"),
@@ -389,14 +389,14 @@ SPEC["128477"] = dict(entities=[
     E("PLACE", "Μοιρῶν"),
     E("COMMODITY", "σίτου", None, "c6"), E("UNIT", "ἀρτάβαι", None, "u6"),
     E("FRACTION", "𐅷"),
-], relations=[
+], "relations": [
     ("c1", "q1", "HAS_QUANTITY"), ("q1", "u1", "HAS_UNIT"),
     ("c3", "q3", "HAS_QUANTITY"), ("q3", "u3", "HAS_UNIT"),
     ("c4", "q4", "HAS_QUANTITY"), ("q4", "u4", "HAS_UNIT"),
     ("c5", "q5", "HAS_QUANTITY"), ("q5", "u5", "HAS_UNIT"),
-])
+]}
 
-SPEC["13473"] = dict(entities=[
+SPEC["13473"] = {"entities": [
     E("PERSON", "Τασεῦς"), E("OCCUPATION", "ἀρχιπροφήτης"),
     E("PLACE", "Ἡλίου πόλει"),
     E("PERSON", "Ὥρου Ἀρήιτος"), E("OCCUPATION", "ἱερέως"),
@@ -411,18 +411,18 @@ SPEC["13473"] = dict(entities=[
     E("COMMODITY", "βυσσοῦ", None, "c1"),
     E("UNIT", "πήχεις", None, "u1"), E("QUANTITY", "εἴκοσι", None, "q1"),
     E("DATE_REF", "ἔτους ιθ Αὐτοκρατόρων Καισάρων Μάρκου Αὐρηλίου\nἈντωνίνου καὶ Πουβλίου Σεπτιμίου Γέτα\nΒρεταννικῶν Μεγίστων Εὐσεβῶν Σεβαστῶν"),
-], relations=[("c1", "q1", "HAS_QUANTITY"), ("q1", "u1", "HAS_UNIT")])
+], "relations": [("c1", "q1", "HAS_QUANTITY"), ("q1", "u1", "HAS_UNIT")]}
 
-SPEC["13487"] = dict(entities=[
+SPEC["13487"] = {"entities": [
     E("PERSON", "Ἀντωνίωι Μοσχιανῶι Οὐλπιανῶι"), E("OCCUPATION", "ἐπιστρατηγῶι"),
     E("PERSON", "Θέωνος Μάρωνος"), E("PLACE", "Ἀρσινοίτου"),
     E("PERSON", "Ἰνσταντίου Μοδεράτου"),
     E("COMMODITY", "πυροῦ"),
     E("DATE_REF", "λα ἔτει μηνὶ Μεσορὴ"),
     E("OCCUPATION", "γραμματέων"),
-], relations=[])
+], "relations": []}
 
-SPEC["144620"] = dict(entities=[
+SPEC["144620"] = {"entities": [
     E("PERSON", "Ψενθώτης"), E("OCCUPATION", "κονδούκτωρι"),
     E("PLACE", "Διδύμου ὑδρεύματος"),
     E("PERSON", "Κάλβῳ"), E("PERSON", "Σιουῆτι"),
@@ -432,19 +432,19 @@ SPEC["144620"] = dict(entities=[
     E("COMMODITY", "ἄρτων", None, "c2"),
     E("UNIT", "ζεύγη", None, "u2"), E("QUANTITY", "ὀκτὼ", None, "q2"),
     E("QUANTITY", "η", "γίνεται η"),
-], relations=[
+], "relations": [
     ("c1", "q1", "HAS_QUANTITY"), ("q1", "u1", "HAS_UNIT"),
     ("c2", "q2", "HAS_QUANTITY"), ("q2", "u2", "HAS_UNIT"),
-])
+]}
 
-SPEC["144885"] = dict(entities=[
+SPEC["144885"] = {"entities": [
     E("PERSON", "Ἰούλιος"), E("PERSON", "Ἀντωνίωι"),
     E("CURRENCY", "στατῆρα"),
     E("PERSON", "Οὐαλερίου"),
     E("CURRENCY", "ὀβόλους", None, "ob"), E("MONEY_AMOUNT", "ε", "ὀβόλους ε", "m1"),
     E("PERSON", "Κέλερος"), E("OCCUPATION", "ἱππέως"),
     E("COMMODITY", "ἁλός"),
-], relations=[("m1", "ob", "HAS_CURRENCY")])
+], "relations": [("m1", "ob", "HAS_CURRENCY")]}
 
 
 def build(text: str, spec: dict, doc_id: str) -> tuple[list, list]:
@@ -474,8 +474,8 @@ def build(text: str, spec: dict, doc_id: str) -> tuple[list, list]:
 
 
 def main() -> None:
-    batch = {json.loads(l)["doc_id"]: json.loads(l)
-             for l in open("data/gold/to_annotate.jsonl", encoding="utf-8")}
+    with Path("data/gold/to_annotate.jsonl").open(encoding="utf-8") as fh:
+        batch = {json.loads(line)["doc_id"]: json.loads(line) for line in fh}
     out = []
     for doc_id, spec in SPEC.items():
         src = batch[doc_id]
