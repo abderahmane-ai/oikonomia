@@ -330,56 +330,82 @@ to train. **The corpus-level 80/10/10 was exact throughout**, which is what
 made it invisible. Only a per-stratum assertion catches it; there is now a test
 that fails on the old algorithm and passes on the new one.
 
-### 🔶 Phase 4 — DAPT on Modal (infrastructure ready; TRAINING NOT YET RUN)
+### 🔶 Phase 4 — DAPT on Modal (built and priced; TRAINING NOT YET RUN)
 
-**Status: everything up to the GPU is built, tested and verified. The training
-job has never been launched** — that costs money on a real Modal account and is
-the next action, not a completed one. Do not read a DAPT result into this.
+**Status: everything up to the GPU is built, tested and verified. No training
+has been launched.** Do not read a DAPT result into this.
 
-**Backbone changed from the original plan.** Primary arm is now **B1 =
-GreBerta + papyri DAPT**, not GreTa. Evidence in §7: encoder-only beats
-encoder-decoder on NER by ~15–17 F1, GreBerta is apache-2.0, half the size,
-512 context, and we would discard T5's decoder anyway. koine-t5-omni is out on
-four counts (NC licence, biblical-literary register, wrong architecture,
-256-token limit truncating ~25% of documents).
+**Backbone changed from the original plan.** Primary is **B1 = GreBerta +
+papyri DAPT**, not GreTa: encoder-only beats encoder-decoder on NER by ~15-17
+F1, GreBerta is apache-2.0, half the size, 512 context, and T5's decoder would
+be discarded anyway. koine-t5-omni is out on four counts (NC licence,
+biblical-literary register, wrong architecture, 256-token truncation of ~25%
+of documents).
+
+#### The number that governs every other decision here
+
+GreBerta is 110M params; the packed train shard is **8.3M tokens** — **0.075
+tokens per parameter**. The DAPT literature used 2.1–8.1 **billion**-token
+corpora: **250–1000x more**. Its recipe does not transfer, and this must be
+checked before importing any published hyperparameter.
+
+**There is no more in-domain data.** DCLP (literary papyri, already on disk,
+14,842 files) parses 300/300 with the existing parser but yields only ~1.4M
+tokens (+17%) and pulls the register *away* from documentary Greek — the same
+objection that ruled out koine-t5-omni. Rejected unless the dev curve shows
+genuine starvation.
+
+#### What was decided, and why
+
+1. **Epoch count is not guessed — the dev set ends the run.** Early stopping on
+   held-out perplexity (`load_best_model_at_end`, `metric_for_best_model=
+   eval_loss`, patience 5) with `max_steps` as a generous *ceiling* (4,048
+   ≈ 16 epochs). The earlier "12,500 vs 2,024 steps" argument was the wrong
+   argument: the dev curve knows the answer and we do not.
+2. **LoRA is the default; full fine-tuning is the challenger.** This reverses
+   the first draft. At 0.075 tokens/param the binding constraint is *data, not
+   capacity*, so "LoRA learns less and forgets less" costs nothing here — and
+   koineformer adapted this same backbone family with LoRA r=16 on 1.5M tokens.
+   **Falsifiable prediction: LoRA wins or ties.**
+3. **It is decided by measurement, because measuring is cheap.** A full run is
+   **15–45 min, ~$0.25–0.80** on an A10. `modal run modal_app/dapt.py::sweep`
+   runs LoRA and full in parallel and reports dev perplexity for both. Arguing
+   about it costs more than running it.
+4. **`hit_ceiling` in the sweep output is the data-starvation signal.** If a
+   run is still improving when the ceiling stops it, raise the ceiling — and
+   only then reconsider DCLP.
+5. **seq_len is a live variable, not a default.** Median papyrus ≈ 74 tokens,
+   so a 512-block packs ~7 unrelated documents and most attention is
+   cross-document noise. 256 halves that and doubles the block count.
 
 **Deliverables**
-- `dapt/text.py` — the train-split-only text stream. Refuses to run without a
-  split table, because DAPT is unsupervised and would otherwise happily
-  language-model the test set with nothing complaining.
-- `dapt/pack.py` — tokenise + pack into fixed-length uint16 memmap shards.
-- `dapt/schedule.py` — derives the step count from the shard.
-- `dapt/stage.py` — `build_dapt_shards`. Packs **train and dev only**; test is
-  never written, which is the cheapest possible guarantee it is not read.
-- `modal_app/dapt.py` — Modal orchestration: image, Volume, A10 function,
-  full-FT MLM, checkpoint-resume on preemption. Library never imports it.
-- CLI `oik dapt {prepare,inspect}`. 23 tests.
+- `dapt/text.py` — train-split-only stream; **refuses to run without a split
+  table**, since DAPT is unsupervised and would otherwise language-model the
+  test set with nothing complaining. Lowercases (GreBerta's BPE merges are
+  lowercase-only) while keeping accents (its vocabulary has them).
+- `dapt/pack.py` — uint16 memmap blocks, packed not padded.
+- `dapt/schedule.py` — derives steps from the shard.
+- `dapt/stage.py` — packs **train and dev only**; no test shard is ever
+  written, the cheapest possible guarantee it is not read.
+- `modal_app/dapt.py` — A10, LoRA/full, early stopping, Volume checkpoints
+  with retry+resume, `push` / `launch` / `sweep` entrypoints.
+- `tests/test_architecture.py` — enforces §3: no heavy module-level imports in
+  the library, and the library never imports `modal_app`.
+- CLI `oik dapt {prepare,inspect}`. 190 tests total.
 
-**Built and verified locally (real tokenizer, not a mock):**
-- train **16,217 blocks x 512 = 8.30M tokens** from 46,179 documents
-- dev **2,064 blocks = 1.06M tokens** from 5,865 documents
-- ~20s to pack the whole thing on a laptop.
+**Built for real (GreBerta's actual tokenizer, not a mock):** train 16,217
+blocks x 512 = **8.30M tokens** from 46,179 docs; dev 2,064 blocks = 1.06M
+tokens; ~20s on a laptop.
 
-**The bug this phase nearly shipped.** `max_steps=12500` was copied from
-"Don't Stop Pretraining". Against an 8.3M-token shard at batch 32 x accum 2,
-that is **49 epochs** — the run would have looked healthy on every log line
-and simply memorised the train split. The schedule is now *derived from the
-shard*: 253 steps/epoch, **max_steps=2024** for 8 epochs. Published
-hyperparameters do not transfer without checking them against your own corpus
-size.
+**Verified live, not recalled:** `transformers` 5.14 removed
+`evaluation_strategy` for `eval_strategy` (image pins `>=5.0,<6`);
+`DataCollatorForLanguageModeling(tokenizer=, mlm=, mlm_probability=)` current;
+Modal `gpu="A10"` not `"A10G"`; `Volume.from_name(create_if_missing=True)`;
+**`.map()`/`.starmap()` are positional-only and cannot vary kwargs — use
+`.spawn()` + `FunctionCall.get()`** for the sweep.
 
-**Verified against live sources, not memory:**
-- `transformers` 5.14: every `TrainingArguments` field used exists, and
-  `evaluation_strategy` is **gone** in 5.x (it is `eval_strategy`). The image
-  pins `>=5.0,<6` so a major bump cannot break the run on the GPU only.
-- `DataCollatorForLanguageModeling(tokenizer=, mlm=, mlm_probability=)` is
-  current.
-- Modal `gpu="A10"` (not `"A10G"`), `Volume.from_name(create_if_missing=True)`,
-  background commits, `add_local_python_source`.
-
-**Next action:** `modal run modal_app/dapt.py::push` then `::launch`. Watch dev
-perplexity; B0 (no DAPT) must be run as a real control before believing any
-gain.
+**Next action:** `modal run modal_app/dapt.py::push`, then `::sweep`. Then run
+B0 (no DAPT) as a real control before believing any gain.
 
 ---
 

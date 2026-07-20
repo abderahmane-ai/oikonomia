@@ -88,12 +88,19 @@ class DaptConfig(BaseModel):
     mlm_probability: float = 0.15
     learning_rate: float = 5e-5
     warmup_ratio: float = 0.06
-    # Epochs, not a step count. 12,500 steps is the "Don't Stop Pretraining"
-    # setting, but on our 8.3M-token shard that is 49 epochs — the schedule is
-    # derived from the shard instead (see dapt/schedule.py). max_steps
-    # overrides it only for deliberate short runs.
-    num_epochs: float = 8.0
+    # A *ceiling*, not a target. Early stopping on dev loss ends the run, so
+    # the dev curve decides the epoch count rather than a number copied from a
+    # paper whose corpus was 250-1000x larger. Set generously (~16 epochs).
+    num_epochs: float = 16.0
     max_steps: int | None = None
+    patience: int = 5
+    eval_every: int = 100
+    # LoRA by default: at 0.075 tokens/param the binding constraint is data,
+    # not capacity, and koineformer adapted this backbone family with LoRA r=16
+    # on even less. "full" is the challenger, decided by `modal run ...::sweep`.
+    adapter: str = "lora"
+    lora_r: int = 16
+    lora_alpha: int = 32
     per_device_batch_size: int = 32
     grad_accum: int = 2
     bf16: bool = True
