@@ -557,7 +557,12 @@ were affected, 96,323 occurrences. §7 has the full anatomy, including why the
 obvious one-line fix changes nothing visible (the space comes from the XML's
 indentation, not from the parser's newline).
 
-**Everything downstream was rebuilt**: `build_corpus` v2→v3, splits, DAPT
+Fixing it exposed that the stored text was full of the XML's indentation
+anyway (a line boundary read `'\n\n    \n'`), which each consumer was quietly
+collapsing on its own — so the parser now canonicalises whitespace and remaps
+every span (v4; see "Resolved" below).
+
+**Everything downstream was rebuilt**: `build_corpus` v2→v4, splits, DAPT
 shards, and the annotation batch (94.6k → 90.5k chars; `Ἡρά κλειαν` is now
 `Ἡράκλειαν`). Parse rate stayed 1.000 (67,980/67,980, 0 failures) and the
 HGV join rate stayed 0.9827.
@@ -574,16 +579,29 @@ upstream output hashes (§3), with a regression test in
 silent and structural. It was found by *reading actual output*, not by any
 test — parse rate, mypy and 300+ tests were all green throughout.
 
-#### Open: gold spans and stored spans use different coordinates
+#### ✅ Resolved: there is now exactly one coordinate system
 
-`corpus.parquet` stores `edited_text` with the XML's pretty-print indentation
-intact; the gold sampler collapses whitespace before writing
-`to_annotate.jsonl`. So annotator spans index the collapsed string while
-`OffsetMap`, markup and numeral spans index the stored one. **Decide before
-Phase 7 reads gold spans.** The clean fix is to normalize once, in the parser,
-so every consumer shares one coordinate system — but that shifts every stored
-offset and invalidates the batch again, so do it *before* annotation starts,
-not after.
+Previously `corpus.parquet` stored `edited_text` with the XML's indentation
+intact while three consumers each re-collapsed whitespace independently, so
+gold spans indexed a *different string* from `OffsetMap`, markup and numeral
+spans. Fixed at the source: **the parser is the only component that decides
+whitespace** (`build_corpus` v4).
+
+`finalize()` canonicalises both views — a whitespace run collapses to one
+character, leading/trailing padding goes — and **remaps every span through the
+same index table**: markup, numerals, lines and the aligned segments. Because
+canonicalisation only ever *deletes*, an old span `[i, j)` becomes
+`[prefix[i], prefix[j])` where `prefix[i]` counts survivors before `i`.
+
+Aligned segments are the subtle case and are split, not just shifted: a
+character can survive in one view and not the other (the space after an
+edited-only `<supplied>` may end a run in the edited view while the diplomatic
+view still needs it). Such a character is left uncovered — exactly as
+view-specific text already is — and the segment splits around it.
+
+`gold/sample.py` now uses `edited_text` **verbatim**. Verified over the built
+artifacts: all 150 batch documents are byte-identical to the stored text, and
+all 1,127 suggested spans select exactly the text they claim.
 
 #### Remaining choices
 
@@ -707,14 +725,22 @@ re-derive; if reality contradicts one, treat it as a finding and update here.
   2.54% when the `break="no"` fix landed** — differently-broken words made two
   copies of the same text look different. A text-quality bug upstream is a
   leakage bug downstream.
-- **Whitespace is NOT normalized in `corpus.parquet`.** The stored
-  `edited_text` keeps the source's pretty-print indentation, so an ordinary
-  line break appears as `'\n\n    \n'`. Three consumers each collapse it
-  independently — `splits/dedup.py`, `dapt/text.py`, `gold/sample.py` (all
-  `" ".join(text.split())`). **Consequence: gold annotation spans are offsets
-  into the collapsed text, while `OffsetMap`, markup and numeral spans are
-  offsets into the stored text.** They do not correspond. Resolve before
-  Phase 7 consumes gold spans (see §6 Phase 5, open item).
+- **Whitespace is canonical in `corpus.parquet`, and the parser is the only
+  thing that decides it** (since `build_corpus` v4). Within a line, single
+  spaces; one `\n` per real line break; nothing at a `break="no"` break; no
+  leading or trailing padding. **Do not re-collapse it in a consumer** — that
+  shifts every offset and silently decouples your spans from the stored text,
+  which is exactly the bug v4 fixed. Verified over 1,500 random documents:
+  0 occurrences of `'  '`, `' \n'`, `'\n '`, `'\n\n'`, or edge padding.
+- **`<space>` is a *vacat*** — blank space deliberately left on the papyrus —
+  and emits a space of its own. The source also puts literal spaces around it,
+  so all three used to collide (`'Ποκῶτος   δραχμὰς'`). It is not a
+  `MarkupKind`, so it produces no markup span.
+- **Canonicalising text after spans exist requires remapping the spans**, and
+  aligned segments must be *split*, not merely shifted: a character can survive
+  in the edited view but not the diplomatic one (or vice versa), since each
+  view's whitespace runs differ. Corpus-scale check: for every segment,
+  `edited[e0:e1] == diplomatic[d0:d1]` — 0 mismatches over 1,500 documents.
 - **1,706 documents share a TM id with another** — the same papyrus edited or
   republished separately. A real leakage group, and cheap to detect.
 - Publication volume is far too coarse to group on: 1,025 volumes, largest
@@ -863,8 +889,9 @@ remains the scientific risk.
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-20 (`<lb break="no"/>` parser fix; all artifacts
-rebuilt; downstream stage staleness fixed)._
+_Last updated: 2026-07-20 (`<lb break="no"/>` + canonical-whitespace parser
+fixes, one coordinate system for all spans; downstream stage staleness fixed;
+all artifacts rebuilt; annotation batch ready)._
 
 ### Quality gate at last save
 **ruff PASS · mypy PASS · 323 tests PASS.** Caches cleared. All work is
@@ -887,8 +914,9 @@ re-downloading. `sync.py` now does exactly this, so it is genuinely idempotent
 and self-healing.
 
 ### Derived artifacts present (all gitignored, all re-derivable)
-- `data/processed/corpus.parquet` — **294 MB**, 67,980 rows, built at
-  `build_corpus` stage version **3** (honours `<lb break="no"/>`).
+- `data/processed/corpus.parquet` — **293 MB**, 67,980 rows, built at
+  `build_corpus` stage version **4** (honours `<lb break="no"/>`; canonical
+  whitespace with all spans remapped).
 - `data/processed/ingest_failures.json` — now an empty failure list.
 - `data/.manifests/build_corpus.json`.
 - `data/interim/numeral_context*.csv` — mined candidate vocabulary
@@ -902,10 +930,11 @@ and self-healing.
   16,109 train blocks (8.25M tokens) + 2,146 dev (1.10M). **No test shard, by
   design.**
 
-**All three were rebuilt this session** after the `<lb break="no"/>` parser fix.
-`build_corpus` needed `--force` (its version had already been bumped to 3 by the
-incomplete first attempt, so the freshness key was unchanged); splits and DAPT
-now invalidate correctly on their own via `upstream_key`.
+**All three were rebuilt this session** after the parser fixes. Splits and DAPT
+shards came out **byte-identical** to their pre-canonicalisation versions —
+expected, and a useful confirmation, since both already collapsed whitespace
+themselves. Only the stored text, its spans, and the gold batch changed.
+Downstream stages now invalidate correctly on their own via `upstream_key`.
 
 **`transformers` 5.14 was installed into the venv** (tokenizers only, no
 torch) to verify the packing pipeline against the real GreBerta tokenizer
@@ -937,12 +966,10 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/oik dapt inspect | tail -15
 ```
 
-**Decide this first — it is cheap now and expensive later.** Gold spans index
-whitespace-collapsed text; `OffsetMap`/markup/numeral spans index the stored
-text, which keeps the XML's indentation. Normalizing whitespace once in the
-parser would give every consumer one coordinate system, but it shifts every
-stored offset and forces the annotation batch to be regenerated — so it must
-happen *before* anyone annotates. See §6 Phase 5 "Open" and the §7 entry.
+**Everything is built and consistent — annotation can start immediately.**
+`data/gold/to_annotate.jsonl` (150 docs) is current, its text is byte-identical
+to `corpus.parquet`, and its spans are verified. Read `data/gold/ANNOTATION.md`
+and annotate into `data/gold/annotated.jsonl`, blind documents first.
 
 **The work now is Phase 5 — gold annotation.** §6 has the full brief: a worked
 example of one real document with all 18 of its gold spans, the JSONL format,

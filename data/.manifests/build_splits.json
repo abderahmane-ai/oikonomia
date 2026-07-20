@@ -1,7 +1,7 @@
 {
   "stage": "build_splits",
   "version": "3",
-  "inputs_key": "build_corpus@a0fc90355630ac9e",
+  "inputs_key": "build_corpus@4b132c08c5f1d772",
   "params_hash": "5703f2fcd8d6b5420c8fe5799c812c67998b0dadd5f9c0471279cc815b2c41e2",
   "outputs": [
     {
@@ -23,5 +23,5 @@
     "stratum_tv_train": 0.0023,
     "temporal_overlap_rate": 0.0007
   },
-  "created_at": "2026-07-20T20:23:00.060719+00:00"
+  "created_at": "2026-07-20T21:51:24.975274+00:00"
 }

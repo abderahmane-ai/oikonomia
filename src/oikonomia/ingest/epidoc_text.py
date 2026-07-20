@@ -38,6 +38,7 @@ segments of the :class:`~oikonomia.schemas.spans.OffsetMap`.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from lxml import etree
@@ -82,6 +83,9 @@ _MARKUP_KIND = {
 _KEEP_ATTRS = ("reason", "quantity", "unit", "extent", "cert", "evidence")
 
 
+_WS_RUN = re.compile(r"\s+")
+
+
 def _localname(el: _Element) -> str:
     tag = el.tag
     if not isinstance(tag, str):  # comments / PIs
@@ -101,7 +105,7 @@ def _rstrip_text_before(lb: _Element) -> None:
 
     That whitespace is the source file's own indentation, not part of the
     edition, and it sits in one of three places (measured over the corpus:
-    82% / 9% / 2% of ``break="no"`` line breaks respectively).
+    82% / 9% / 2% of line breaks respectively).
     """
     prev = lb.getprevious()
     if prev is None:
@@ -114,7 +118,12 @@ def _rstrip_text_before(lb: _Element) -> None:
         return
     # No tail: the preceding characters are the last text *inside* `prev`
     # (e.g. `<supplied>ά\n    </supplied><lb break="no"/>`). Descend to it.
-    node = prev
+    _rstrip_last_text_in(prev)
+
+
+def _rstrip_last_text_in(el: _Element) -> None:
+    """Strip trailing whitespace from the last text node inside ``el``."""
+    node = el
     while True:
         last = node[-1] if len(node) else None
         if last is None:
@@ -127,19 +136,113 @@ def _rstrip_text_before(lb: _Element) -> None:
         node = last
 
 
-def _join_broken_words(div: _Element) -> None:
-    """Remove source indentation around every ``<lb break="no"/>`` in ``div``.
+def _canonical_ws_mask(text: str) -> list[bool]:
+    """Mark which characters survive canonicalisation. Deletions only.
 
-    ``break="no"`` means the line break falls *inside* a word — the scribe ran
-    out of room and continued on the next line — so no separator belongs there.
-    The pretty-printed XML nonetheless puts a newline and indent before the
-    tag, and that whitespace lands in the text: ναύκληρος comes out as
-    "ναύκλη ρος", which no lexicon matches and no tokenizer handles well.
-    35% of DDbDP documents contain at least one.
+    A run of whitespace collapses to a single character — the newline if the
+    run contains one, else its first space — and leading/trailing runs vanish
+    entirely. Nothing is ever substituted, so the surviving characters keep
+    their relative order and a span can be remapped by counting deletions.
+    """
+    keep = [True] * len(text)
+    for m in _WS_RUN.finditer(text):
+        start, end = m.span()
+        if start == 0 or end == len(text):
+            chosen = -1  # leading/trailing padding: drop the run outright
+        else:
+            nl = text.find("\n", start, end)
+            chosen = nl if nl >= 0 else start
+        for i in range(start, end):
+            keep[i] = i == chosen
+    return keep
 
-    Done as a pre-pass over the tree so that all offset accounting downstream
-    sees already-correct text. Whitespace only ever precedes the tag; the 9
-    corpus cases of a leading-whitespace tail are handled for safety.
+
+def _apply_mask(text: str, keep: list[bool]) -> tuple[str, list[int]]:
+    """Return the canonical text and a prefix table for remapping offsets.
+
+    ``prefix[i]`` is the number of surviving characters before old index ``i``,
+    which is exactly the new index of the first survivor at or after ``i``. So
+    an old span ``[i, j)`` becomes ``[prefix[i], prefix[j])``.
+    """
+    prefix = [0] * (len(text) + 1)
+    total = 0
+    for i, k in enumerate(keep):
+        prefix[i] = total
+        total += k
+    prefix[len(text)] = total
+    new_text = "".join(c for c, k in zip(text, keep, strict=True) if k)
+    return new_text, prefix
+
+
+def _remap(span: CharSpan | None, prefix: list[int]) -> CharSpan | None:
+    """Move a span onto canonical coordinates, or drop it if nothing survives."""
+    if span is None:
+        return None
+    start, end = prefix[span.start], prefix[span.end]
+    return CharSpan(start=start, end=end) if end > start else None
+
+
+def _remap_segments(
+    segments: list[AlignedSegment],
+    ed_keep: list[bool],
+    dp_keep: list[bool],
+    ed_prefix: list[int],
+    dp_prefix: list[int],
+) -> list[AlignedSegment]:
+    """Remap aligned segments, splitting where the two views diverge.
+
+    A segment covers the same characters in both views, but a character can
+    survive in one and not the other — the space after an edited-only
+    ``<supplied>`` may end a run in the edited view while the diplomatic view
+    still needs it. Such a character is simply left uncovered, exactly as
+    view-specific text already is, and the segment splits around it.
+    """
+    out: list[AlignedSegment] = []
+    for seg in segments:
+        length = seg.e1 - seg.e0
+        # Fast path: nothing inside was dropped in either view, so the whole
+        # segment maps across unchanged. This is the overwhelming majority.
+        if all(ed_keep[seg.e0 : seg.e1]) and all(dp_keep[seg.d0 : seg.d1]):
+            e0, d0 = ed_prefix[seg.e0], dp_prefix[seg.d0]
+            out.append(AlignedSegment(e0=e0, e1=e0 + length, d0=d0, d1=d0 + length))
+            continue
+        run = 0
+        for k in range(length + 1):
+            both = k < length and ed_keep[seg.e0 + k] and dp_keep[seg.d0 + k]
+            if both:
+                run += 1
+                continue
+            if run:
+                e_end, d_end = ed_prefix[seg.e0 + k], dp_prefix[seg.d0 + k]
+                out.append(
+                    AlignedSegment(e0=e_end - run, e1=e_end, d0=d_end - run, d1=d_end)
+                )
+                run = 0
+    return out
+
+
+def normalize_edition_whitespace(div: _Element) -> None:
+    """Strip the XML's own layout whitespace from an edition, in place.
+
+    DDbDP files are pretty-printed, so every tag is preceded by a newline and
+    an indent. That whitespace is markup formatting, not text, but it lands in
+    the character stream and produced two distinct defects:
+
+    * ``<lb break="no"/>`` marks a break falling *inside* a word — the scribe
+      ran out of room and continued on the next line — so no separator belongs
+      there at all. ναύκληρος came out as "ναύκλη ρος": text no lexicon matches
+      and no tokenizer handles well. 35.28% of documents contain at least one.
+    * At an ordinary ``<lb>``, the indent survived alongside the newline the
+      parser emits, so a line boundary read ``'\\n\\n    \\n'`` instead of
+      ``'\\n'``.
+
+    Only the ``break="no"`` case is handled here, because only it is
+    *semantic*: the two halves must touch, and no later pass can infer that
+    from the character stream alone. Every other whitespace defect — doubled
+    spaces, a space before a newline, leading and trailing padding — is
+    resolved by :func:`canonicalize_whitespace` in ``finalize``, which also
+    remaps the spans. Doing it there rather than here keeps this pass from
+    having to anticipate every shape the XML takes.
     """
     for lb in div.iter(f"{{{TEI_NS}}}lb"):
         if lb.get("break") != "no":
@@ -199,9 +302,11 @@ class _Builder:
         #
         # The line boundary is still recorded in `lines` — the papyrus really
         # did break there — but the character stream runs on unbroken.
+        # Any doubling with neighbouring whitespace is resolved by the
+        # canonicalisation pass in `finalize`; only the *absence* of a
+        # separator is semantic and has to be decided here.
         word_continues = el.get("break") == "no"
-        # Suppress a leading newline before any content has been emitted.
-        if not word_continues and (self._ed_len > 0 or self._dp_len > 0):
+        if not word_continues:
             self._emit("\n", in_ed=True, in_dp=True)
         self._open_line = (n, self._ed_len, self._dp_len)
         self._line_counter += 1
@@ -303,8 +408,52 @@ class _Builder:
 
     # -- finalisation -------------------------------------------------------
     def finalize(self) -> tuple[str, str, OffsetMap]:
+        """Close the last line, canonicalise whitespace, and remap every span.
+
+        The XML is pretty-printed, so its indentation lands in the character
+        stream: a line boundary read ``'\\n\\n    \\n'`` and vacats collided
+        with the spaces around them. Canonicalising here — after the text is
+        built but before anything outside sees it — means one component decides
+        whitespace, and the stored text, the `OffsetMap`, markup, numeral and
+        line spans, and gold annotation offsets all index the same string.
+        """
         self._close_open_line()
-        return "".join(self._ed), "".join(self._dp), OffsetMap(segments=self.segments)
+        ed, dp = "".join(self._ed), "".join(self._dp)
+        ed_keep, dp_keep = _canonical_ws_mask(ed), _canonical_ws_mask(dp)
+        new_ed, ed_prefix = _apply_mask(ed, ed_keep)
+        new_dp, dp_prefix = _apply_mask(dp, dp_keep)
+
+        self.markup = [
+            m.model_copy(
+                update={
+                    "edited": _remap(m.edited, ed_prefix),
+                    "diplomatic": _remap(m.diplomatic, dp_prefix),
+                }
+            )
+            for m in self.markup
+        ]
+        self.numerals = [
+            n.model_copy(
+                update={
+                    "edited": (e := _remap(n.edited, ed_prefix)),
+                    "diplomatic": _remap(n.diplomatic, dp_prefix),
+                    "text": new_ed[e.start : e.end] if e else "",
+                }
+            )
+            for n in self.numerals
+        ]
+        self.lines = [
+            line.model_copy(
+                update={
+                    "edited": _remap(line.edited, ed_prefix),
+                    "diplomatic": _remap(line.diplomatic, dp_prefix),
+                }
+            )
+            for line in self.lines
+        ]
+        segments = _remap_segments(self.segments, ed_keep, dp_keep, ed_prefix, dp_prefix)
+        self.segments = segments
+        return new_ed, new_dp, OffsetMap(segments=segments)
 
 
 def _edition_divs(tree: etree._ElementTree) -> list[_Element]:
@@ -344,7 +493,7 @@ def parse_ddbdp(xml_bytes: bytes, stem: str, cfg: IngestConfig) -> Document:
     if not divs:
         builder.flags.add("no_edition_div")
     for div in divs:
-        _join_broken_words(div)
+        normalize_edition_whitespace(div)
         builder._walk(div, in_ed=True, in_dp=True)
 
     edited, diplomatic, offset_map = builder.finalize()

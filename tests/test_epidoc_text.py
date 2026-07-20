@@ -155,6 +155,78 @@ def test_line_break_inside_a_word_emits_no_separator(ingest_cfg: IngestConfig) -
     assert len(doc.lines) == 2
 
 
+def test_edited_text_whitespace_is_canonical(ingest_cfg: IngestConfig) -> None:
+    """Text comes out with no trace of the XML's own layout.
+
+    DDbDP files are pretty-printed, so every tag carries a newline and indent
+    that used to survive into the text: a line boundary read '\\n\\n    \\n'.
+    Offsets are only shared across consumers if exactly one component decides
+    whitespace, and that component is the parser.
+    """
+    xml = (
+        '<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body>'
+        '<div type="edition" xml:lang="grc"><ab>\n\n    '
+        '<lb n="1"/>πυροῦ   ἀρτάβας\n\n    '
+        '<lb n="2"/>δραχμὰς ιβ\n\n  '
+        "</ab></div></body></text></TEI>"
+    ).encode()
+    doc = parse_ddbdp(xml, "1", ingest_cfg)
+    assert doc.edited_text == "πυροῦ ἀρτάβας\nδραχμὰς ιβ"
+    # No leading/trailing whitespace, no doubled space, no blank line.
+    assert doc.edited_text == doc.edited_text.strip()
+    assert "  " not in doc.edited_text
+    assert "\n\n" not in doc.edited_text
+    assert " \n" not in doc.edited_text and "\n " not in doc.edited_text
+
+
+def test_vacat_beside_source_spaces_yields_one_separator(ingest_cfg: IngestConfig) -> None:
+    """`<space>` is a vacat and emits a space of its own.
+
+    The source puts literal spaces around it too, so the three collided:
+    'Ποκῶτος   δραχμὰς'. A vacat meeting a line break must not leave ' \\n'.
+    """
+    xml = (
+        '<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body>'
+        '<div type="edition" xml:lang="grc"><ab>'
+        '<lb n="1"/>Ποκῶτος  <space extent="unknown" unit="character"/>  δραχμὰς'
+        '  <space extent="unknown" unit="character"/> \n\n    '
+        '<lb n="2"/>ιδ'
+        "</ab></div></body></text></TEI>"
+    ).encode()
+    doc = parse_ddbdp(xml, "1", ingest_cfg)
+    assert doc.edited_text == "Ποκῶτος δραχμὰς\nιδ"
+
+
+def test_spans_survive_whitespace_canonicalisation(ingest_cfg: IngestConfig) -> None:
+    """Canonicalisation deletes characters, so every span must be remapped.
+
+    This is the whole point of doing it inside the parser: a consumer that
+    collapsed whitespace afterwards would leave every offset pointing at the
+    wrong character.
+    """
+    xml = (
+        '<TEI xmlns="http://www.tei-c.org/ns/1.0"><text><body>'
+        '<div type="edition" xml:lang="grc"><ab>\n\n    '
+        '<lb n="1"/>πυροῦ   <supplied reason="lost">ἀρτάβας</supplied>\n\n    '
+        '<lb n="2"/>δραχμὰς <num value="14">ιδ</num>\n\n  '
+        "</ab></div></body></text></TEI>"
+    ).encode()
+    doc = parse_ddbdp(xml, "1", ingest_cfg)
+    text = doc.edited_text
+    assert text == "πυροῦ ἀρτάβας\nδραχμὰς ιδ"
+
+    # Every span still selects the text it was recorded for.
+    num = doc.numerals[0]
+    assert num.edited is not None
+    assert text[num.edited.start : num.edited.end] == "ιδ" == num.text
+    supplied = next(m for m in doc.markup if m.kind is MarkupKind.SUPPLIED)
+    assert supplied.edited is not None
+    assert text[supplied.edited.start : supplied.edited.end] == "ἀρτάβας"
+    # Aligned segments still describe the same characters in both views.
+    for seg in doc.offset_map.segments:
+        assert text[seg.e0 : seg.e1] == doc.diplomatic_text[seg.d0 : seg.d1]
+
+
 def test_word_join_strips_whitespace_held_inside_the_previous_element(
     ingest_cfg: IngestConfig,
 ) -> None:

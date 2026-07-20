@@ -225,7 +225,11 @@ def build_sample(
             meta = meta_by_id.get(doc_id)
             if meta is None:
                 continue
-            text = " ".join(str(row.edited_text).split())
+            # Used verbatim. The parser already emits canonical whitespace, and
+            # re-collapsing it here would shift every character offset — the
+            # annotator's spans would then no longer index the same string as
+            # the stored `edited_text`, `OffsetMap`, markup and numeral spans.
+            text = str(row.edited_text)
             if not is_annotatable(text):
                 continue
             rows.append(
