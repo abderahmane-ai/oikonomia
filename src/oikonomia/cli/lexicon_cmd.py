@@ -15,6 +15,7 @@ from oikonomia.labeling.evaluate import EVAL_COLUMNS, evaluate_coverage
 from oikonomia.labeling.lexicon import load_lexicon
 from oikonomia.labeling.matcher import Matcher
 from oikonomia.labeling.mine import MINE_COLUMNS, mine_batches
+from oikonomia.labeling.weak_rules import BASELINE_COLUMNS, run_baseline
 
 lexicon_app = typer.Typer(help="Lexicon mining and evaluation (Phase 2).", no_args_is_help=True)
 
@@ -67,3 +68,17 @@ def evaluate(
     payload = report.model_dump()
     payload["by_genre"] = payload["by_genre"][:top_genres]
     typer.echo(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+@lexicon_app.command("baseline")
+def baseline(
+    env: EnvOpt = "local",
+    set_: SetOpt = None,
+    window: Annotated[int, typer.Option(help="Max characters between an amount and a term.")] = 40,
+) -> None:
+    """Run the Phase 2 proximity baseline — the bar the models must beat."""
+    s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    matcher = Matcher(load_lexicon(s.paths.resources))
+    batches = iter_batches(corpus_path(s.paths.processed), BASELINE_COLUMNS)
+    report = run_baseline(batches, matcher, window=window)
+    typer.echo(json.dumps(report.model_dump(), ensure_ascii=False, indent=2))
