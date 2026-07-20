@@ -130,6 +130,8 @@ uv run oik lexicon mine-titles > titles.csv  # occupations (after a NAME)
 
 # Phase 5
 uv run oik gold sample --n 150 --iaa 30 --blind 30   # -> data/gold/
+uv run oik gold check                       # every span selects its own text?
+uv run oik gold check --fix                 # repair offsets from the text field
 uv run oik lexicon verify                   # every form corpus-attested? (~26s)
 uv run oik lexicon eval                     # lexicon attachment rate (~45s)
 uv run oik lexicon baseline                 # proximity baseline (~40s)
@@ -602,6 +604,35 @@ view-specific text already is — and the segment splits around it.
 `gold/sample.py` now uses `edited_text` **verbatim**. Verified over the built
 artifacts: all 150 batch documents are byte-identical to the stored text, and
 all 1,127 suggested spans select exactly the text they claim.
+
+#### Annotation is validated mechanically — `oik gold check`
+
+The first hand-annotated documents exposed three defects that no other check
+would have caught, and all three are mechanical:
+
+1. **`end` treated as inclusive.** Every span came out one character short
+   (`Ῥώμη` for `Ῥώμης`), and one-character spans — `QUANTITY` "β", the single
+   commonest label in an account — collapsed to `start == end`, i.e. an empty
+   span that trains on nothing and scores as nothing.
+2. **Annotating a stale batch.** Offsets drifted further out the deeper into
+   the document you read (+0, +1, +2 …) — the signature of annotating the
+   pre-`break="no"` text, where each joined word later removed a character.
+3. **Reversed relations.** `HAS_QUANTITY` written `QUANTITY → COMMODITY`.
+
+`gold/validate.py` + `oik gold check` verify that every span selects the text
+it claims, that relation endpoints match the signatures in the guidelines, and
+that indices are in range. **`--fix` repairs offsets from the `text` field**,
+which is exactly why every span carries its own text — the text is ground
+truth, the offset is only a pointer to it. Spans whose text is absent from the
+document are left failing for a human. Relation *direction* is never
+auto-fixed: that is a judgment call against the guidelines.
+
+**Open schema gap this surfaced.** `PARTY_OF`, `DATED_TO`, `PAID_BY`, `PAID_TO`
+are defined as pointing at "the transaction" — which is not an entity, so there
+is nothing to point at. Real annotation pointed them at the good or the amount
+instead. Reported as `relation_unanchored`. Decide with real examples in hand:
+either add a transaction/event entity, or redefine these as document-level
+attributes. This blocks nothing today but must be settled before Phase 8.
 
 #### Remaining choices
 

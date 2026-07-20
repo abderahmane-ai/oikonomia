@@ -11,6 +11,7 @@ import typer
 
 from oikonomia.config import load_settings
 from oikonomia.gold.sample import OUTPUT_NAME, build_sample, write_jsonl
+from oikonomia.gold.validate import validate_file
 from oikonomia.labeling.lexicon import load_lexicon
 from oikonomia.labeling.matcher import Matcher
 
@@ -56,3 +57,47 @@ def sample(
             indent=2,
         )
     )
+
+
+@gold_app.command("check")
+def check(
+    env: EnvOpt = "local",
+    set_: SetOpt = None,
+    path: Annotated[
+        Path | None, typer.Option("--path", help="Annotated JSONL (default: data/gold/annotated.jsonl).")
+    ] = None,
+    fix: Annotated[
+        bool, typer.Option("--fix", help="Rewrite offsets to match each span's own text.")
+    ] = False,
+    limit: Annotated[int, typer.Option(help="Problems to print.")] = 40,
+) -> None:
+    """Verify every annotated span selects the text it claims, and relations point the right way."""
+    s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    target = path or Path(s.paths.gold) / "annotated.jsonl"
+    if not target.is_file():
+        typer.echo(f"no annotations at {target}", err=True)
+        raise typer.Exit(code=1)
+
+    report = validate_file(target, fix=fix)
+    for problem in report.problems[:limit]:
+        typer.echo(f"  [{problem.kind}] doc {problem.doc_id} #{problem.index}: {problem.detail}")
+    if len(report.problems) > limit:
+        typer.echo(f"  ... and {len(report.problems) - limit} more")
+
+    typer.echo(
+        json.dumps(
+            {
+                "path": str(target),
+                "n_docs": report.n_docs,
+                "n_entities": report.n_entities,
+                "n_relations": report.n_relations,
+                "n_repaired": report.n_repaired,
+                "n_problems": len(report.problems),
+                "by_kind": report.by_kind(),
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
+    if not report.ok:
+        raise typer.Exit(code=1)

@@ -47,6 +47,26 @@ else should change.**
 `text[start:end]` is exactly the annotated string. Include `text` — it is
 redundant, and that redundancy is the check that catches off-by-one errors.
 
+> **`end` is exclusive — it is one past the last character.** This is the
+> single commonest annotation error. `ἔτους` at position 57 ends at **62**,
+> not 61. A one-character span like `QUANTITY` "β" at 43 is `43:44`; writing
+> `43:43` selects *nothing at all* and the entity silently vanishes.
+>
+> Do not count characters by hand. **Run the checker after every session:**
+>
+> ```sh
+> uv run oik gold check              # every span must select its own text
+> uv run oik gold check --fix        # move offsets onto the text they claim
+> ```
+>
+> `--fix` trusts the `text` field and repairs the offset, which is why `text`
+> is required. A span whose text is not in the document is left alone and keeps
+> failing — that one needs you. Relation *direction* is never auto-fixed.
+>
+> If offsets are drifting further out the deeper into a document you go, you
+> are annotating an **outdated `to_annotate.jsonl`**. Re-export it
+> (`oik gold sample --n 150 --iaa 30 --blind 30`) and re-run `--fix`.
+
 ### Relation format
 
 Indices into **your** `entities` array (0-based, in the order you wrote them):
@@ -54,6 +74,27 @@ Indices into **your** `entities` array (0-based, in the order you wrote them):
 ```json
 {"head": 4, "tail": 2, "type": "HAS_CURRENCY"}
 ```
+
+**Direction is fixed by the relation's name — head first, tail second:**
+
+| Relation | head → tail |
+|---|---|
+| `HAS_QUANTITY` | `COMMODITY` → `QUANTITY` |
+| `HAS_UNIT` | `QUANTITY` → `UNIT` |
+| `HAS_CURRENCY` | `MONEY_AMOUNT` → `CURRENCY` |
+| `HAS_PRICE` | `COMMODITY` → `MONEY_AMOUNT` |
+| `CHARGED_UNDER` | `MONEY_AMOUNT` → `TAX_TERM` |
+
+Read it as a sentence: *the commodity has quantity twelve*, so the commodity is
+the head. `oik gold check` enforces this and tells you when endpoints are
+reversed.
+
+`PARTY_OF`, `DATED_TO`, `PAID_BY` and `PAID_TO` are defined as pointing at
+"the transaction" — **which is not an entity**, so there is currently nothing
+to point at. The checker flags them as `relation_unanchored`. Record them
+however is natural for now (pointing at the good or the amount is reasonable)
+and flag the document; the schema needs a decision here, and it is better made
+against real examples than in the abstract.
 
 ---
 
