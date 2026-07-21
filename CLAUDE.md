@@ -446,7 +446,20 @@ is a perplexity proxy for a task F1 that cannot be measured until gold exists.
 **Still not built:** the B0 (no-DAPT) control. Without it no DAPT gain is
 believable.
 
-### ⬜ Phase 5 — Gold annotation (NEXT — the critical path)
+### 🔶 Phase 5 — Gold annotation (IN PROGRESS — 50 of 150 documents drafted)
+
+**Status: 50/150 documents annotated as a reviewable model draft**
+(`data/gold/annotated.jsonl`, 1,127 entities / 258 relations, `oik gold check`
+clean, every text byte-identical to `corpus.parquet`). All carry
+`provenance: model_draft` / `annotator: claude-opus-4-8` — they are a draft for
+human review, **not** human gold, and must not be used to score a model or as
+one side of an inter-annotator κ without review. The generating spec is
+`tools/build_gold_draft.py` (offsets are computed from surface strings, never
+written by hand), so the draft is reproducible and reviewable as source.
+Guidelines are now **v0.2** (§0 ten rules); every decision taken against real
+text is recorded in §5. Next: documents 51–150.
+
+
 
 **This is the bottleneck for the whole project.** There is zero entity markup
 upstream (verified 0% over 200 documents), so every label must be created by
@@ -667,7 +680,7 @@ project-owner decisions are locked (2026-07-21): **full relation scope**
 (every transaction carries `PARTY_OF`/`DATED_TO`/`HAS_PRICE`, not just the
 measurable links), **one `PERSON` span including filiation**, and
 **genitive-named parcels are `PLACE`** (`Εἰρηναίου κλήρου`). The draft gold
-(`data/gold/annotated.jsonl`, 15 docs, 420 entities / 124 relations, `oik gold
+(`data/gold/annotated.jsonl`, 50 docs, 1,127 entities / 258 relations, `oik gold
 check` clean, `provenance: model_draft`) is calibrated to these; regenerate it
 from `tools/build_gold_draft.py`. Expect §5 to keep growing as real documents
 are annotated — that growth *is* the deliverable as much as the spans are.
@@ -911,11 +924,13 @@ architecture claim on our own data rather than on the literature's.
 
 ## 8. Progress
 
-**~35% of the full project.** Phases 0–3 complete; Phase 4 built, corrected
-and priced but not yet run on GPU; Phase 5 is the next real work: foundation, a
+**~40% of the full project.** Phases 0–3 complete; Phase 4 built, corrected
+and priced but not yet run on GPU; **Phase 5 underway — 50 of 150 gold
+documents drafted** (model draft, awaiting human review). Foundation: a
 validated corpus-ingestion pipeline built over all 67,980 documents at parse
 rate 1.000, whole-corpus characterization, mined lexicons with measured recall,
-the annotation schema, a proximity baseline at a 74.50% numeral link rate, and
+the annotation schema (guidelines v0.2, ten rules), a mechanical span validator
+(`oik gold check`), a proximity baseline at a 74.50% numeral link rate, and
 leak-free stratified + chronological splits.
 
 Remaining: Phase 4 DAPT (Modal) · Phase 5 gold annotation ·
@@ -930,12 +945,12 @@ remains the scientific risk.
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-20 (`<lb break="no"/>` + canonical-whitespace parser
-fixes, one coordinate system for all spans; downstream stage staleness fixed;
-all artifacts rebuilt; annotation batch ready)._
+_Last updated: 2026-07-21 (Phase 5 underway: `oik gold check` validator built,
+guidelines rewritten to v0.2 with the §0 ten rules, `ANNOTATION.md` removed and
+folded in, 50/150 documents drafted into `annotated.jsonl`)._
 
 ### Quality gate at last save
-**ruff PASS · mypy PASS · 323 tests PASS.** Caches cleared. All work is
+**ruff PASS · mypy PASS · 340 tests PASS.** Caches cleared. All work is
 committed to git (`main`).
 
 ### Corpus on disk — COMPLETE
@@ -984,6 +999,21 @@ the suite still runs on a clean checkout.
 
 Disk: watch headroom — corpus 6.1 GB + processed 280 MB.
 
+### Gold annotation state (git-TRACKED, not derived)
+- `data/gold/to_annotate.jsonl` — the 150-doc batch (unchanged this session).
+- `data/gold/annotated.jsonl` — **50 documents drafted**, 1,127 entities / 258
+  relations, `provenance: model_draft`. Regenerate with
+  `.venv/bin/python tools/build_gold_draft.py` (idempotent; writes all docs
+  currently in the SPEC dict).
+- `tools/build_gold_draft.py` — the spec that produces the draft; documents are
+  listed as surface strings in reading order and the builder computes offsets,
+  so an off-by-one is structurally impossible. Add docs 51+ here.
+- `resources/schema/annotation_guidelines.md` — **v0.2**, the single authority
+  (§0 ten rules, §5 all decisions, §6 batch format). `ANNOTATION.md` was
+  deleted; do not recreate it.
+- `src/oikonomia/gold/validate.py` + `oik gold check [--fix]` — the mechanical
+  span/relation validator. Run it after any edit to `annotated.jsonl`.
+
 ### Notes for the next session
 - The lexicon build used a one-off curation script that lived in the scratchpad
   and is **gone**. The reviewed artifacts are `resources/lexicon/*.yaml`; to
@@ -1005,27 +1035,22 @@ cd /Users/abdoumagico/Development/ACHATES
 #    oik ingest build (~85s) -> oik splits build (~25s) -> oik dapt prepare (~20s)
 .venv/bin/oik splits check
 .venv/bin/oik dapt inspect | tail -15
+
+# 3. Gold draft intact? (50/150 docs, must be 0 problems)
+.venv/bin/oik gold check
 ```
 
-**Everything is built and consistent — annotation can start immediately.**
-`data/gold/to_annotate.jsonl` (150 docs) is current, its text is byte-identical
-to `corpus.parquet`, and its spans are verified. Read
-`resources/schema/annotation_guidelines.md` (the single authority — §0 ten
-rules, §6 batch format/workflow) and annotate into
-`data/gold/annotated.jsonl`, blind documents first.
+**Phase 5 is underway — 50 of 150 documents drafted.** Continue at document 51
+(index 50) of `data/gold/to_annotate.jsonl`. Add each doc's spans to
+`tools/build_gold_draft.py` as surface strings in reading order, run
+`.venv/bin/python tools/build_gold_draft.py`, then `oik gold check` (must be
+0 problems). After building, verify: text byte-identical to `corpus.parquet`,
+0 overlapping spans, and every `TRANSACTION` carries a `PARTY_OF` (unless the
+parties are genuinely lost to a lacuna). The full method and every decision are
+in `resources/schema/annotation_guidelines.md` v0.2 (§0 ten rules).
 
-**The work now is Phase 5 — gold annotation.** §6 has the full brief: a worked
-example of one real document with all 18 of its gold spans, the JSONL format,
-sampling rules (train split only, stratified), size targets, tool options, and
-the anchoring caveat on pre-annotation.
-
-Both defects found by running the baseline on a real receipt are **fixed**:
-`DATE_REF` now absorbs its numeral, and occupations are mined from title
-position via `oik lexicon mine-titles` (9 new entries). See §6 Phase 5.
-
-The annotation batch is built: `data/gold/to_annotate.jsonl` (150 docs).
-Output goes to `data/gold/annotated.jsonl`. All instructions are in
-`resources/schema/annotation_guidelines.md` (v0.2).
+**These are a model draft, not human gold** (`provenance: model_draft`). They
+still need a human pass before any Phase 7 model is scored against them.
 
 **Phase 4 is built and can run any time** (`modal run modal_app/dapt.py::push`
 then `::sweep`, ~$0.25–0.80), but it optimises perplexity as a proxy. It will
