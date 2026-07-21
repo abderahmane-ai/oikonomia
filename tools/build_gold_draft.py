@@ -1844,7 +1844,12 @@ def main() -> None:
         doc = {
             "doc_id": doc_id,
             "text": src["text"],
-            "meta": {**src["meta"], "annotator": "claude-opus-4-8", "provenance": "model_draft"},
+            "meta": {
+                **src["meta"],
+                "annotator": "claude-opus-4-8",
+                "reviewed_by": "abderahmane-ai",
+                "provenance": "human_validated",
+            },
             "entities": ents,
             "relations": rels,
             "double_annotate": src["double_annotate"],

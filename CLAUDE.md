@@ -453,19 +453,22 @@ is a perplexity proxy for a task F1 that cannot be measured until gold exists.
 **Still not built:** the B0 (no-DAPT) control. Without it no DAPT gain is
 believable.
 
-### 🔶 Phase 5 — Gold annotation (IN PROGRESS — 65 of 150 documents drafted, completeness-verified)
+### ✅ Phase 5 — Gold annotation (CLOSED at 65/150, human-validated)
 
-**Status: 65/150 documents annotated as a reviewable model draft, and made
-mechanically complete** (`data/gold/annotated.jsonl`, **1,654 entities / 365
-relations**, `oik gold check` **0 errors**, every text byte-identical to
-`corpus.parquet`, 0 overlapping spans). Batch 2 (docs 51–100) is underway:
-**51–65 done, resume at doc 66 = `23875`** (see §9/§10). All carry `provenance: model_draft` /
-`annotator: claude-opus-4-8` — they are a draft for human review, **not** human
-gold, and must not be used to score a model or as one side of an inter-annotator
-κ without review. The generating spec is `tools/build_gold_draft.py` (offsets
-are computed from surface strings, never written by hand), so the draft is
-reproducible and reviewable as source. Guidelines are now **v0.3**. Next:
-documents 51–150.
+**Status: 65 documents annotated and human-validated** (`data/gold/annotated.jsonl`,
+**1,654 entities / 365 relations**, `oik gold check` **0 errors**, every text
+byte-identical to `corpus.parquet`, 0 overlapping spans). The set now carries
+`provenance: human_validated` / `reviewed_by: abderahmane-ai` (drafted by
+`claude-opus-4-8`, reviewed by the project owner) — **this is real gold**: the
+Phase-7/8 evaluation set and the fine-tune anchor. The generating spec is
+`tools/build_gold_draft.py` (offsets computed from surface strings, never
+written by hand), so it is reproducible and reviewable as source. Guidelines
+are **v0.3**.
+
+**Phase 5 was closed at 65 of the planned 150** (owner decision) so training
+can begin; the remaining 85 batch documents stay available in
+`data/gold/to_annotate.jsonl` and can extend the gold later. 65 validated
+documents is a usable first gold set (the literature's floor for a first eval).
 
 **The completeness pass (this session).** A reading audit had rated the 50 docs
 "9.8/10", but that could not verify *completeness* — you cannot eyeball the
