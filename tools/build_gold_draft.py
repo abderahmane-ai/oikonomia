@@ -11,6 +11,9 @@ from pathlib import Path
 
 # (label, surface, context|None, key|None) — document order, no overlaps.
 E = lambda label, surface, ctx=None, key=None: (label, surface, ctx, key)  # noqa: E731
+# (surface, reason, context|None) — a numeral deliberately left unlabelled.
+# reason ∈ {isopsephism, sheet_number, line_reference, non_referential}.
+S = lambda surface, reason, ctx=None: (surface, reason, ctx)  # noqa: E731
 
 SPEC: dict[str, dict] = {}
 
@@ -131,7 +134,9 @@ SPEC["115553"] = {"entities": [
     E("PERSON", "Ταθοωνᾶτος"),
     E("PERSON", "Σαραπίωνος"),
     E("PERSON", "Θοῶνις"),
-], "relations": []}
+], "relations": [],
+    # bare δ opening the fragment, no governing noun survives the lacuna
+    "skips": [S("δ", "non_referential", "…δ")]}
 
 SPEC["1183"] = {"entities": [
     E("DATE_REF", "Ὑπερβερεταίου\nιη"),
@@ -170,11 +175,13 @@ SPEC["1183"] = {"entities": [
     E("UNIT", "κοτύλαι", None, "u9"), E("QUANTITY", "β", "κοτύλαι β", "q9"),
     E("DATE_REF", "κϛ"),
     E("DATE_REF", "κζ", "κζ Δημητρίωι"), E("PERSON", "Δημητρίωι"),
+    E("DATE_REF", "κζ", "κζ κη Ἀρτεμιδώρωι"),  # second day-marker in the diary
     E("DATE_REF", "κη", "κη Ἀρτεμιδώρωι"),
     E("PERSON", "Ἀρτεμιδώρωι"), E("OCCUPATION", "ἐπιστολογράφωι"),
     E("OCCUPATION", "ἱερεῦσι"), E("PERSON", "Ἑρμοφάντωι"),
     E("COMMODITY", "Κνιδίου", None, "c10"),
     E("UNIT", "κοτύλαι", None, "u10"), E("QUANTITY", "ϛ", "κοτύλαι ϛ", "q10"),
+    E("DATE_REF", "κη", "κη κθ"),  # day-marker preceding κθ
     E("DATE_REF", "κθ", "κη κθ"),
     E("PERSON", "Πύρων"), E("PERSON", "Ἀμύντας"), E("PERSON", "Πάτρων"),
     E("COMMODITY", "κυβίων", None, "c11"),
@@ -317,6 +324,8 @@ SPEC["12583"] = {"entities": [
     E("AGE", "πεντήκοντα ὀκτὼ"),
     E("PERSON", "Κέλερος Ἀφροδισίου"),
     E("PERSON", "Ἰουλίῳ Μαξίμῳ", None, "p_lender"),
+    # civic origin: an Antinoite of the Osirantinoeus deme (feeds geography)
+    E("PLACE", "Ἀντινοεῖ", "καὶ Ἀντινοεῖ"), E("PLACE", "Ὀσιραντινοείῳ"),
     E("PERSON", "Πτολεμαΐδα"),
     E("PERSON", "Ἰουλίου Μαξίμου"),
     E("CURRENCY", "ἀργυρίου"),
@@ -361,7 +370,7 @@ SPEC["12593"] = {"entities": [
     ("m1", "d1", "HAS_CURRENCY"), ("c1", "m1", "HAS_PRICE"),
     ("m2", "d2", "HAS_CURRENCY"), ("c2", "m2", "HAS_PRICE"),
     ("p1", "t1", "PARTY_OF"), ("t1", "date", "DATED_TO"),
-]}
+], "skips": [S("μϛ", "sheet_number", "κολλήματος μϛ")]}
 
 SPEC["12769"] = {"entities": [
     E("PERSON", "Στοτοῆτι Στοτοήτεως", None, "p1"),
@@ -396,6 +405,7 @@ SPEC["128477"] = {"entities": [
     E("COMMODITY", "σίτου", None, "c4"), E("UNIT", "ἀρτάβαι", None, "u4"),
     E("QUANTITY", "δ", "ἀρτάβαι δ", "q4"),
     E("DATE_REF", "Ἐπὶφ κθ"),
+    E("PLACE", "Νέου", "τόπου Νέου"),  # place-name (partly lost: Νέου … Λάκκου)
     E("COMMODITY", "σίτου", None, "c5"), E("UNIT", "ἀρτάβαι", None, "u5"),
     E("QUANTITY", "β", "ἀρτάβαι β", "q5"),
     E("PLACE", "Μοιρῶν"),
@@ -472,8 +482,11 @@ SPEC["14562"] = {"entities": [  # census/epikrisis age-list
     E("DATE_REF", "ια ἔτους", "ια ἔτους. οἱ"),
     E("DATE_REF", "τὸ η ἔτος"),
     E("AGE", "ιβ", "ἐτῶν ιβ"),
+    # tally of how many were aged 12 (counted head — ephebes — elided)
+    E("QUANTITY", "β", "ἐτῶν ιβ β"),
     E("AGE", "ιδ", "ἐτῶν ιδ"),
     E("PERSON", "Ὀννῶφρις Τιθοήους"), E("PERSON", "Ἐσενεῦτος"),
+    E("PERSON", "Νεστνηώρου", "Νεστνηώρου μητρὸς"),  # father of a damaged-name registrant
     E("PERSON", "Ταακείους"),
     E("PERSON", "Παποντῶς Νεφερῶτος"), E("PERSON", "Ἡρῶτος"),
     E("DATE_REF", "θ ἔτει"),
@@ -554,6 +567,8 @@ SPEC["15362"] = {"entities": [  # lease of an oil-press
     E("OCCUPATION", "ἐλαιουργοῦ"),
     E("TRANSACTION", "μισθώσασθαι", None, "t1"),
     E("DATE_REF", "Θὼθ", "μηνὸς Θὼθ τοῦ"),
+    # Oxyrhynchite double era-year (89 = 58)
+    E("DATE_REF", "ἔτους\nπθ νη", "ἐνεστῶτος ἔτους\nπθ νη"),
     E("DATE_REF", "ἑνδεκάτης ἰνδικτίωνος"),
     E("PLACE", "Παρεμβολῆς"),
     E("COMMODITY", "ἐλαιούργιον"),
@@ -569,6 +584,7 @@ SPEC["15362"] = {"entities": [  # lease of an oil-press
 ]}
 
 SPEC["15382"] = {"entities": [  # list of councillors present
+    E("PERSON", "Ἑρμαίου"), E("PERSON", "Μοσχίων"),  # names in the damaged preamble
     E("DATE_REF", "λ τοῦ ὄντος μηνὸς Θὼθ"),
     E("DATE_REF", "ιδ ἔτους"),
     E("PERSON", "Ἀντωνίνου Καίσαρος"),
@@ -577,10 +593,12 @@ SPEC["15382"] = {"entities": [  # list of councillors present
     E("PERSON", "Ἀνδρέας Ἀσκληπιάδου"),
     E("PERSON", "Ἰούλιος Νουμισιανὸς"),
     E("PERSON", "Ἡρακλείδης Γαίου"),
-    E("PERSON", "Σωτάδης Διοδώρου"),
+    E("PERSON", "Σωτάδης Διοδώρου υἱοῦ\nἈπολλωνίου"),
     E("PERSON", "Ἀθηνόδωρος ὁ καὶ Τούρβων"),
     E("PERSON", "Ἡρακλείου Ἀπολλοδώρου"),
     E("PERSON", "Εὐτυχίδης Σαραπίωνος"),
+    E("PERSON", "Ἰούλιος", "Λο…\nἸούλιος"),  # damaged tail of the councillor list
+    E("PERSON", "Ἰούλιος"),
 ], "relations": []}
 
 SPEC["15454"] = {"entities": [  # loan / release (homologia)
@@ -600,6 +618,9 @@ SPEC["15454"] = {"entities": [  # loan / release (homologia)
     E("CURRENCY", "νομίσματα", "ἐδεξάμην\nτὰ νομίσματα β", "cur3"), E("MONEY_AMOUNT", "β", "τὰ νομίσματα β καὶ", "m3"),
     E("PERSON", "Αὐρήλιος\nἌεις Κουαντίνου"),
     E("PERSON", "Ἄειτος Κουαντίνου"),
+    # closing recap restates the two parties by name
+    E("PERSON", "Ἀβραὰμ υἱὸς Εὐδαίμονος", "ἀμεριμνία Ἀβραὰμ υἱὸς Εὐδαίμονος"),
+    E("PERSON", "Δωρόθεον υἱῷ Ψίωλ"),
     E("DATE_REF", "α ἰνδικτίονος"),
 ], "relations": [
     ("m1", "cur1", "HAS_CURRENCY"), ("m2", "cur2", "HAS_CURRENCY"),
@@ -632,10 +653,13 @@ SPEC["15887"] = {"entities": [  # payment order (blind)
     E("PERSON", "Θέωνος τοῦ καὶ\nΤρύφωνος"),
     E("TAX_TERM", "ὀψωνίου"),
     E("DATE_REF", "μηνὸς Ἁδριανοῦ"), E("DATE_REF", "Μεχείρ", "ἕως Μεχείρ"),
+    # salary for a duration of 3 months
+    E("UNIT", "μηνῶν", None, "um"), E("QUANTITY", "γ", "μηνῶν γ", "qm"),
     E("CURRENCY", "δραχμὰς", None, "cur1"), E("MONEY_AMOUNT", "ἑκατὸν εἴκοσι", None, "m1"),
     E("CURRENCY", "δραχμαὶ", None, "cur2"), E("MONEY_AMOUNT", "ρκ", "δραχμαὶ ρκ", "m2"),
     E("CURRENCY", "δραχμὰς", "τὰς δραχμὰς", "cur3"), E("MONEY_AMOUNT", "ρκ", "δραχμὰς ρκ", "m3"),
 ], "relations": [
+    ("qm", "um", "HAS_UNIT"),
     ("m1", "cur1", "HAS_CURRENCY"), ("m2", "cur2", "HAS_CURRENCY"),
     ("m3", "cur3", "HAS_CURRENCY"),
 ]}
@@ -644,6 +668,7 @@ SPEC["16001"] = {"entities": [  # lease / sworn cultivation undertaking (blind)
     E("DATE_REF", "ὑπατείαν"),
     E("PERSON", "Λικινίου Σεβαστοῦ"), E("DATE_REF", "τὸ ϛ"),
     E("PERSON", "Λικινίου\nτοῦ ἐπιφανεστάτου Καίσαρος"), E("DATE_REF", "τὸ β"),
+    E("DATE_REF", "τὸ β", "ὑπάτοις τὸ β"),  # post-consular iteration figure
     E("PERSON", "Οὐάλεντι"),
     E("PERSON", "Αὐρήλιοι Πανοτβέως Ὀρσενούφιος", None, "p1"), E("PERSON", "Ταᾶτος"),
     E("PERSON", "Ἀφύγχις Ἀφυγχίου", None, "p2"), E("PERSON", "Θαήσιος"),
@@ -663,10 +688,13 @@ SPEC["16001"] = {"entities": [  # lease / sworn cultivation undertaking (blind)
     E("PERSON", "Κορνηλίου"),
     E("PERSON", "Θερμούτιον"), E("PERSON", "Θαισοῦν"),
     E("TAX_TERM", "φόρῳ"),
+    E("PERSON", "Κοπρεὺς", "καὶ Κοπρεὺς"),  # second mention in the damaged closing
+    E("PERSON", "Αὐρήλιος", "ὡμολογήσαμεν. Αὐρήλιος"),  # subscription writer
 ], "relations": [
     ("q1", "u1", "HAS_UNIT"), ("q2", "u2", "HAS_UNIT"), ("q3", "u3", "HAS_UNIT"),
     ("p1", "t1", "PARTY_OF"), ("p2", "t1", "PARTY_OF"), ("p3", "t1", "PARTY_OF"),
-]}
+    # "ε πάγου" — the 5th pagus, an administrative-district ordinal, not a quantity
+], "skips": [S("ε", "non_referential", "Ποσόμπους ε πάγου")]}
 
 SPEC["16015"] = {"entities": [  # census/epikrisis petition (girl's age)
     E("PERSON", "Αὐρηλίαν Ἀπίαν", None, "girl"),
@@ -702,21 +730,54 @@ SPEC["16219"] = {"entities": [  # Byzantine/Arab-era gold account
     E("CURRENCY", "νομισμάτων", None, "cur3"), E("MONEY_AMOUNT", "ϛ", "νομισμάτων ϛ", "m3"),
     E("CURRENCY", "κεράτια", "ϛ κεράτια ιζ", "cur4"),
     E("MONEY_AMOUNT", "ιζ", "κεράτια ιζ 𐅵", "m4"), E("FRACTION", "𐅵", "ιζ 𐅵 κεράτια"),
+    # "κεράτια δεκαεπτὰ ἥμισυ" restates ιζ 𐅵 in words (same 17½ carats); annotate
+    # the value once (the figures above), keep the place qualifier here.
+    E("PLACE", "Ἀλεξανδρείας", "ἥμισυ Ἀλεξανδρείας"),
     E("CURRENCY", "νομίσματα", "ὁμοῦ νομίσματα ζ", "cur5"),
     E("MONEY_AMOUNT", "ζ", "νομίσματα ζ κεράτια", "m5"),
     E("CURRENCY", "κεράτια", "νομίσματα ζ κεράτια ιϛ", "cur6"),
     E("MONEY_AMOUNT", "ιϛ", "κεράτια ιϛ 𐅵 Ἀλεξανδρείας\nἀφʼ", "m6"), E("FRACTION", "𐅵", "ιϛ 𐅵 Ἀλεξανδρείας\nἀφʼ"),
+    E("PLACE", "Ἀλεξανδρείας", "𐅵 Ἀλεξανδρείας\nἀφʼ"),
     E("PERSON", "Μηνᾷ"), E("OCCUPATION", "ὑποδέκτῃ"),
     E("CURRENCY", "νόμισμα", None, "cur7"), E("MONEY_AMOUNT", "α", "νόμισμα α εὔσταθμον", "m7"),
+    E("PLACE", "Ἀλεξανδρείας", "εὔσταθμον Ἀλεξανδρείας"),
+    # remainder line: 6 solidi 16½ carats
+    E("CURRENCY", "νομίσματα", "λοιπόν νομίσματα ϛ", "cur8"),
+    E("MONEY_AMOUNT", "ϛ", "λοιπόν νομίσματα ϛ κεράτια", "m8"),
+    E("CURRENCY", "κεράτια", "λοιπόν νομίσματα ϛ κεράτια", "cur9"),
+    E("MONEY_AMOUNT", "ιϛ", "ϛ κεράτια ιϛ 𐅵 Ἀλεξανδρείας\nὑπὲρ", "m9"),
+    E("FRACTION", "𐅵", "ιϛ 𐅵 Ἀλεξανδρείας\nὑπὲρ"),
+    E("PLACE", "Ἀλεξανδρείας", "𐅵 Ἀλεξανδρείας\nὑπὲρ"),
+    E("DATE_REF", "β ἰνδικτίονος", "αὐτῆς β ἰνδικτίονος"),
+    E("DATE_REF", "Τῦβι ε ἰνδικτίονος β", "ἐγράφη Τῦβι ε ἰνδικτίονος β"),
     E("PERSON", "Μαγίστωρ", "… Μαγίστωρ σὺν"),
     E("OCCUPATION", "βοηθὸς λογιστηρίου", "θεῷ βοηθὸς λογιστηρίου ἐπιδέδωκα"),
+    # "ἐπιδέδωκα" payment: 6 solidi 16½ carats
+    E("CURRENCY", "χρυσοῦ", "ἐπιδέδωκα χρυσοῦ νομίσματα"),
+    E("CURRENCY", "νομίσματα", "ἐπιδέδωκα χρυσοῦ νομίσματα ϛ", "cur10"),
+    E("MONEY_AMOUNT", "ϛ", "χρυσοῦ νομίσματα ϛ κεράτια", "m10"),
+    E("CURRENCY", "κεράτια", "νομίσματα ϛ κεράτια ιϛ 𐅵 Ἀλεξανδρείας\nἐντάγιον", "cur11"),
+    E("MONEY_AMOUNT", "ιϛ", "ϛ κεράτια ιϛ 𐅵 Ἀλεξανδρείας\nἐντάγιον", "m11"),
+    E("FRACTION", "𐅵", "ιϛ 𐅵 Ἀλεξανδρείας\nἐντάγιον"),
+    E("PLACE", "Ἀλεξανδρείας", "𐅵 Ἀλεξανδρείας\nἐντάγιον"),
     E("PERSON", "Μαγίστωρος"),
     E("DATE_REF", "β ἰνδικτίονος", "Μαγίστωρος β ἰνδικτίονος"),
+    # last line: 7 solidi 16½ carats
+    E("CURRENCY", "χρυσοῦ", "ἰνδικτίονος χρυσοῦ νομίσματα ζ"),
+    E("CURRENCY", "νομίσματα", "χρυσοῦ νομίσματα ζ κεράτια", "cur12"),
+    E("MONEY_AMOUNT", "ζ", "νομίσματα ζ κεράτια ιϛ 𐅵 Ἀλεξανδρείας", "m12"),
+    E("CURRENCY", "κεράτια", "ζ κεράτια ιϛ 𐅵 Ἀλεξανδρείας", "cur13"),
+    E("MONEY_AMOUNT", "ιϛ", "κεράτια ιϛ 𐅵 Ἀλεξανδρείας", "m13"),
+    E("FRACTION", "𐅵", "ιϛ 𐅵 Ἀλεξανδρείας"),
+    E("PLACE", "Ἀλεξανδρείας", "𐅵 Ἀλεξανδρείας"),
 ], "relations": [
     ("m1", "cur1b", "HAS_CURRENCY"), ("m2", "cur2", "HAS_CURRENCY"),
     ("m3", "cur3", "HAS_CURRENCY"), ("m4", "cur4", "HAS_CURRENCY"),
     ("m5", "cur5", "HAS_CURRENCY"), ("m6", "cur6", "HAS_CURRENCY"),
-    ("m7", "cur7", "HAS_CURRENCY"),
+    ("m7", "cur7", "HAS_CURRENCY"), ("m8", "cur8", "HAS_CURRENCY"),
+    ("m9", "cur9", "HAS_CURRENCY"), ("m10", "cur10", "HAS_CURRENCY"),
+    ("m11", "cur11", "HAS_CURRENCY"), ("m12", "cur12", "HAS_CURRENCY"),
+    ("m13", "cur13", "HAS_CURRENCY"),
 ]}
 
 SPEC["16396"] = {"entities": [  # order to grain-officials to release wheat
@@ -757,6 +818,7 @@ SPEC["16499"] = {"entities": [  # account of purchases/prices (damaged)
     E("PRICE_TERM", "τιμὴ", "Παῦνι τιμὴ δραχμαὶ ιδ"),
     E("CURRENCY", "δραχμαὶ", "τιμὴ δραχμαὶ ιδ", "cur2"), E("MONEY_AMOUNT", "ιδ", "δραχμαὶ ιδ", "m2"),
     E("CURRENCY", "δραχμαὶ", "δραχμαὶ υμ", "cur3"), E("MONEY_AMOUNT", "υμ", "δραχμαὶ υμ", "m3"),
+    E("QUANTITY", "ζ", "ζ δραχμαὶ ιϛ"),  # count of a lost commodity priced at 16 dr
     E("CURRENCY", "δραχμαὶ", "ζ δραχμαὶ ιϛ", "cur4"), E("MONEY_AMOUNT", "ιϛ", "δραχμαὶ ιϛ", "m4"),
     E("CURRENCY", "δραχμαὶ", "ἀγαθων δραχμαὶ λϛ", "cur5"), E("MONEY_AMOUNT", "λϛ", "δραχμαὶ λϛ", "m5"),
     E("CURRENCY", "δραχμαὶ", "λϛ\nδραχμαὶ ιγ", "cur6"), E("MONEY_AMOUNT", "ιγ", "δραχμαὶ ιγ\n", "m6"),
@@ -794,6 +856,7 @@ SPEC["16690"] = {"entities": [  # land lease
     E("COMMODITY", "πυροῦ", "ἐκφορίου\nἀποτάκτου κατʼ ἔτος πυροῦ", "c1"),
     E("UNIT", "ἀρταβῶν", None, "u2"),
     E("QUANTITY", "δέκα τεσσάρων", "ἀρταβῶν\nδέκα τεσσάρων", "q2"),
+    E("DATE_REF", "Παῦνι", "μηνὶ Παῦνι"),  # delivery month
     E("COMMODITY", "πυρὸν νέον καθαρὸν ἄδολον"),
     E("DATE_REF", "ἔτους ιγ", "μίσθωσις. ἔτους ιγ"),
     E("PERSON", "Λουκίου Σεπτιμίου\nΣεουήρου"),
@@ -880,6 +943,7 @@ SPEC["17290"] = {"entities": [  # loan acknowledgement, huge sum
 ]}
 
 SPEC["17329"] = {"entities": [  # petition over a house (heavily damaged)
+    E("FRACTION", "ἡμίσους", "ἡγεμονίᾳ ἡμίσους"),  # governed noun lost to the lacuna
     E("COMMODITY", "οἶνος"), E("COMMODITY", "οἰκία"),
     E("COMMODITY", "μέρος τῆς οἰκίας"),
     E("PERSON", "Αὐρήλιος Πατερμοῦθις"),
@@ -958,7 +1022,7 @@ SPEC["1842"] = {"entities": [  # Ptolemaic wage receipt (dyke labourers)
     E("DATE_REF", "ἔτους κθ Θῶυτ κε", "ἔτους κθ Θῶυτ κε.\nἔχει"),
     E("PERSON", "Νικίας", "ἔχει Νικίας εἰς τὴν"),
     E("COMMODITY", "γῆν", "τὴν\nγῆν"),
-    E("OCCUPATION", "ἐργάτας", "εἰς\nἐργάτας ι"),
+    E("OCCUPATION", "ἐργάτας", "εἰς\nἐργάτας ι", "erg1"),
     E("QUANTITY", "ι", "ἐργάτας ι ἀνὰ", "q1"),
     E("CURRENCY", "ὀβολὸν", "ἀνὰ ὀβολὸν·"),
     E("CURRENCY", "δραχμὴν", None, "cur2"), E("MONEY_AMOUNT", "α", "δραχμὴν α", "m2"),
@@ -966,7 +1030,7 @@ SPEC["1842"] = {"entities": [  # Ptolemaic wage receipt (dyke labourers)
     E("DATE_REF", "ἔτους κθ Θῶυτ κε"),
     E("PERSON", "Νικίας", "ἔχει Νικίας εἰς\nτὴν"),
     E("COMMODITY", "γῆν", "τὴν γῆν ἣν"),
-    E("OCCUPATION", "ἐργάτας", "εἰς ἐργάτας\nι"),
+    E("OCCUPATION", "ἐργάτας", "εἰς ἐργάτας\nι", "erg3"),
     E("QUANTITY", "ι", "ἐργάτας\nι ἀνὰ", "q3"),
     E("CURRENCY", "ὀβολὸν", "ἀνὰ ὀβολὸν· δεκόβολον"),
     E("MONEY_AMOUNT", "δεκόβολον"),
@@ -974,6 +1038,8 @@ SPEC["1842"] = {"entities": [  # Ptolemaic wage receipt (dyke labourers)
     E("DATE_REF", "Θῶυτ κε", "Ἀργυρικά.\nΘῶυτ κε"),
 ], "relations": [
     ("m2", "cur2", "HAS_CURRENCY"),
+    # 10 workers at 1 obol each (§5: HAS_QUANTITY accepts an OCCUPATION head)
+    ("erg1", "q1", "HAS_QUANTITY"), ("erg3", "q3", "HAS_QUANTITY"),
 ]}
 
 SPEC["18505"] = {"entities": [  # petition over a kleros (blind)
@@ -1011,7 +1077,10 @@ SPEC["18620"] = {"entities": [  # cancellation of a loan
     E("CURRENCY", "δραχμὰς", "Πτολεμαικοῦ δραχμὰς", "cur1"),
     E("MONEY_AMOUNT", "τετρακοσίας", None, "m1"),
     E("PERSON", "Καλάθωι"),
+    E("PERSON", "Μᾶρκον Τιγέλλιον Ἰάλυσον"),  # second mention of the debtor
+    E("PERSON", "Κάλαθον\nτὸν καὶ Φιλήμονα"),  # second mention of the creditor (alias)
     E("DATE_REF", "ἔτους κ", "ἔτους κ Καίσαρος"), E("PERSON", "Καίσαρος", "ἔτους κ Καίσαρος"),
+    E("DATE_REF", "κθ", "Καίσαρος … κθ"),  # day figure, month lost to the lacuna
 ], "relations": [
     ("m1", "cur1", "HAS_CURRENCY"),
     ("p1", "t1", "PARTY_OF"), ("p2", "t1", "PARTY_OF"), ("p3", "t1", "PARTY_OF"),
@@ -1034,6 +1103,10 @@ SPEC["18621"] = {"entities": [  # cancellation of a loan, woman with guardian
     E("PERSON", "Τακονσομιν Νώχεος"),
     E("DATE_REF", "ἑβδόμῳ ἔτει", None, "date"),
     E("PERSON", "Καίσαρος"), E("DATE_REF", "Ἁθύρ"),
+    # closing clause restates the three parties
+    E("PERSON", "Τιθοήους", "αὐτοῦ Τιθοήους δανειστικὰς"),
+    E("PERSON", "Ἀλέξανδρον", "τὸν Ἀλέξανδρον"),
+    E("PERSON", "Ἀθήνιον", "καὶ Ἀθήνιον μηδʼ"),
     E("PERSON", "Τιθοῆν"),
 ], "relations": [
     ("m1", "cur1", "HAS_CURRENCY"),
@@ -1077,6 +1150,7 @@ SPEC["18920"] = {"entities": [  # debt acknowledgement in gold carats
     E("CURRENCY", "χρυσοῦ κεράτια", "γίνεται χρυσοῦ κεράτια θ", "cur2"),
     E("MONEY_AMOUNT", "θ", "κεράτια θ 𐅵", "m2"), E("FRACTION", "𐅵", "θ 𐅵 ζυγῷ"),
     E("PLACE", "Ἀντινόου", "δημοσίῳ Ἀντινόου"),
+    E("PLACE", "Ἀντινόου", "τῇ πόλει Ἀντινόου"),  # second mention (Antinoopolis)
     E("CURRENCY", "κερατίων", "αὐτῶν κερατίων θ", "cur3"),
     E("MONEY_AMOUNT", "θ", "κερατίων θ 𐅵·", "m3"), E("FRACTION", "𐅵", "θ 𐅵·"),
     E("CURRENCY", "χρυσοῦ νομισμάτιον", "παρέξω σοι δίχα κρίσεως καὶ δίκης χρυσοῦ νομισμάτιον", "cur4"),
@@ -1104,6 +1178,8 @@ SPEC["19306"] = {"entities": [  # house-room lease by a woman
     E("PERSON", "Αὐρηλία Νόννα\nθυγάτηρ Ἀπολλω", None, "lessee"), E("PERSON", "Ἄννας"),
     E("TRANSACTION", "μισθώσασθαι", None, "t1"),
     E("DATE_REF", "μηνὸς Θὼθ"),
+    # Oxyrhynchite double era-year (195 = 164): one date expression, two figures.
+    E("DATE_REF", "ἔτους ρϙε ρξδ"),
     E("DATE_REF", "δωδεκάτης ἰνδικτίονος"),
     E("PLACE", "ἀμφόδου Δρόμου Σαραπίου"),
     E("COMMODITY", "οἰκίας"),
@@ -1165,21 +1241,28 @@ SPEC["20335"] = {"entities": [  # loan of wheat, repayment in kind (blind)
     E("PLACE", "κώμης Τερύθεως"),
     E("COMMODITY", "πυρὸν νέον καθαρὸν ἄδολον"),
     E("DATE_REF", "ἔτους ε", None, "date"),
-    E("PERSON", "Μάρκου Αὐρηλίου Σεουήρου Ἀλεξάνδρου"),
+    # full imperial titulature is one PERSON span (Severus Alexander)
+    E("PERSON", "Αὐτοκράτορος Καίσαρος\nΜάρκου Αὐρηλίου Σεουήρου Ἀλεξάνδρου\nΕὐσεβοῦς Εὐτυχοῦς Σεβαστοῦ"),
     E("DATE_REF", "Ἁθὺρ η"),
     E("PERSON", "Αὐρήλιοι Πεκῦσις\nΠαυσείριος", "Ἁθὺρ η. Αὐρήλιοι Πεκῦσις\nΠαυσείριος"),
     E("PERSON", "Πετενοῦφις", "υἱὸς Πετενοῦφις παραμεμετρήμεθα"),
     E("PERSON", "Αὐρηλίου Θέωνος"),
     E("COMMODITY", "πυροῦ", "τὰς τοῦ πυροῦ ἀρτάβας"),
     E("UNIT", "ἀρτάβας", "τοῦ πυροῦ ἀρτάβας\nτέσσαρας"),
+    # subscription docket: Pekysis, 4 artabas (of wheat)
+    E("PERSON", "Αὐρήλιος Πετρώνιος\nΜάρκου"),
+    E("PERSON", "Πεκύσιος", "χειρόγραφον Πεκύσιος"),
+    E("UNIT", "ἀρταβῶν", None, "ud"), E("QUANTITY", "δ", "ἀρταβῶν δ", "qd"),
 ], "relations": [
     ("c1", "q1", "HAS_QUANTITY"), ("q1", "u1", "HAS_UNIT"),
     ("c2", "q2", "HAS_QUANTITY"), ("q2", "u2", "HAS_UNIT"),
+    ("qd", "ud", "HAS_UNIT"),
     ("p1", "t1", "PARTY_OF"), ("p2", "t1", "PARTY_OF"), ("p3", "t1", "PARTY_OF"),
     ("t1", "date", "DATED_TO"),
 ]}
 
 SPEC["20799"] = {"entities": [  # official letter, land registration
+    E("DATE_REF", "ιη", "ιη τῷ ἐνεστῶτι"),  # day figure opening the fragment
     E("DATE_REF", "μηνὶ Φαῶφι", "ἐνεστῶτι\nμηνὶ Φαῶφι"),
     E("PLACE", "Σύρων κώμην"),
     E("PLACE", "Φιλίππου\nσὺν τῷ Ἀνθι… κλήρου"),
@@ -1200,16 +1283,22 @@ SPEC["20815"] = {"entities": [  # sale of a prophetship (office), damaged
     E("CURRENCY", "ταλάντου", "τάξεις ταλάντου α", "cur1"), E("MONEY_AMOUNT", "α", "ταλάντου α\n", "m1"),
     E("PERSON", "Σεκούνδῳ"), E("OCCUPATION", "οἰκονόμῳ"),
     E("CURRENCY", "δραχμὰς", "οἰκονόμῳ δραχμὰς φ", "cur2"), E("MONEY_AMOUNT", "φ", "δραχμὰς φ", "m2"),
+    # prepayment of 1500 (drachmas elided, same denomination as δραχμὰς φ above)
+    E("MONEY_AMOUNT", "Αφ", "προαποδεδωκέναι Αφ"),
     E("PRICE_TERM", "τιμῆς"),
     E("DATE_REF", "ἔτους ζ", None, "date"),
     E("PERSON", "Ἁδριανοῦ Καίσαρος"),
-    E("DATE_REF", "Μεχεὶρ", "χυ Μεχεὶρ"),
+    E("DATE_REF", "Μεχεὶραεχ ιε", "χυ Μεχεὶραεχ ιε"),
     E("PERSON", "Ἁρθώτῃ Ἁρθώτου"),
     E("COMMODITY", "προφητείας", "Ἁρθώτου προφητείας"),
     E("CURRENCY", "ταλάντου", "ἀπὸ ταλάντου α", "cur3"), E("MONEY_AMOUNT", "α", "ταλάντου α\n", "m3"),
     E("DATE_REF", "τῇ κ Μεσορὴ τοῦ ε ἔτους"),
+    E("MONEY_AMOUNT", "Αφ", "ε ἔτους Αφ"),
     E("DATE_REF", "ϛ ἔτει"),
     E("PLACE", "Μαρσισούχῳ"),
+    E("PLACE", "Πακήβκεως"),
+    E("MONEY_AMOUNT", "Αφ", "ἄλλας Αφ"),
+    E("MONEY_AMOUNT", "Γ", "τὰς λοιπὰς Γ"),
 ], "relations": [
     ("m1", "cur1", "HAS_CURRENCY"), ("m2", "cur2", "HAS_CURRENCY"),
     ("m3", "cur3", "HAS_CURRENCY"),
@@ -1263,7 +1352,21 @@ SPEC["20983"] = {"entities": [  # petition to dissolve a will
 ]}
 
 
-def build(text: str, spec: dict, doc_id: str) -> tuple[list, list]:
+def _locate(text: str, surface: str, ctx: str | None, doc_id: str) -> int:
+    """Find a surface string, disambiguated by an optional wider context."""
+    if ctx:
+        c = text.find(ctx)
+        if c == -1:
+            raise SystemExit(f"{doc_id}: context {ctx!r} not found")
+        start = text.find(surface, c, c + len(ctx))
+    else:
+        start = text.find(surface)
+    if start == -1:
+        raise SystemExit(f"{doc_id}: surface {surface!r} not found")
+    return start
+
+
+def build(text: str, spec: dict, doc_id: str) -> tuple[list, list, list]:
     entities, keys, pos = [], {}, 0
     for label, surface, ctx, key in spec["entities"]:
         if ctx:
@@ -1286,7 +1389,13 @@ def build(text: str, spec: dict, doc_id: str) -> tuple[list, list]:
     relations = [
         {"head": keys[h], "tail": keys[t], "type": ty} for h, t, ty in spec["relations"]
     ]
-    return entities, relations
+    skips = []
+    for surface, reason, ctx in spec.get("skips", []):
+        start = _locate(text, surface, ctx, doc_id)
+        skips.append(
+            {"start": start, "end": start + len(surface), "text": surface, "reason": reason}
+        )
+    return entities, relations, skips
 
 
 def main() -> None:
@@ -1295,15 +1404,18 @@ def main() -> None:
     out = []
     for doc_id, spec in SPEC.items():
         src = batch[doc_id]
-        ents, rels = build(src["text"], spec, doc_id)
-        out.append({
+        ents, rels, skips = build(src["text"], spec, doc_id)
+        doc = {
             "doc_id": doc_id,
             "text": src["text"],
             "meta": {**src["meta"], "annotator": "claude-opus-4-8", "provenance": "model_draft"},
             "entities": ents,
             "relations": rels,
             "double_annotate": src["double_annotate"],
-        })
+        }
+        if skips:
+            doc["skipped_numerals"] = skips
+        out.append(doc)
     path = Path("data/gold/annotated.jsonl")
     path.write_text("\n".join(json.dumps(d, ensure_ascii=False) for d in out) + "\n",
                     encoding="utf-8")

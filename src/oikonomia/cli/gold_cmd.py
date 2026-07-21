@@ -10,8 +10,9 @@ from typing import Annotated
 import typer
 
 from oikonomia.config import load_settings
+from oikonomia.corpus.io import corpus_path, iter_batches
 from oikonomia.gold.sample import OUTPUT_NAME, build_sample, write_jsonl
-from oikonomia.gold.validate import validate_file
+from oikonomia.gold.validate import read_jsonl, validate_file
 from oikonomia.labeling.lexicon import load_lexicon
 from oikonomia.labeling.matcher import Matcher
 
@@ -59,6 +60,34 @@ def sample(
     )
 
 
+def _load_gold_numerals(
+    processed_root: Path, wanted_texts: set[str]
+) -> dict[str, list[tuple[int, int, str]]]:
+    """Corpus ``<num>`` tags (edited-view offsets) for the gold documents only.
+
+    Keyed by ``edited_text`` and stopped as soon as every wanted text is found,
+    so the 280 MB ``document_json`` column is only partially scanned.
+    """
+    out: dict[str, list[tuple[int, int, str]]] = {}
+    for frame in iter_batches(corpus_path(processed_root), ["document_json"]):
+        for blob in frame["document_json"]:
+            doc = json.loads(blob)
+            text = doc.get("edited_text")
+            if text not in wanted_texts or text in out:
+                continue
+            numerals: list[tuple[int, int, str]] = []
+            for num in doc.get("numerals", []):
+                edited = num.get("edited")
+                if edited:
+                    numerals.append(
+                        (int(edited["start"]), int(edited["end"]), str(num.get("text", "")))
+                    )
+            out[text] = numerals
+        if len(out) == len(wanted_texts):
+            break
+    return out
+
+
 @gold_app.command("check")
 def check(
     env: EnvOpt = "local",
@@ -69,20 +98,38 @@ def check(
     fix: Annotated[
         bool, typer.Option("--fix", help="Rewrite offsets to match each span's own text.")
     ] = False,
-    limit: Annotated[int, typer.Option(help="Problems to print.")] = 40,
+    limit: Annotated[int, typer.Option(help="Problems to print.")] = 60,
 ) -> None:
-    """Verify every annotated span selects the text it claims, and relations point the right way."""
+    """Verify spans select their text, relations point the right way, and every numeral is decided."""
     s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
     target = path or Path(s.paths.gold) / "annotated.jsonl"
     if not target.is_file():
         typer.echo(f"no annotations at {target}", err=True)
         raise typer.Exit(code=1)
 
-    report = validate_file(target, fix=fix)
-    for problem in report.problems[:limit]:
+    # The numeral-coverage gate needs the corpus's own <num> tags. If the
+    # processed corpus is absent (clean checkout), fall back to the offset and
+    # relation checks and say so, rather than failing.
+    wanted = {str(d.get("text", "")) for d in read_jsonl(target)}
+    numerals_by_text = None
+    if corpus_path(s.paths.processed).is_file():
+        numerals_by_text = _load_gold_numerals(s.paths.processed, wanted)
+    else:
+        typer.echo("  (corpus.parquet absent — numeral-coverage gate skipped)", err=True)
+
+    report = validate_file(target, fix=fix, numerals_by_text=numerals_by_text)
+
+    errors, advisories = report.errors, report.advisories
+    for problem in errors[:limit]:
         typer.echo(f"  [{problem.kind}] doc {problem.doc_id} #{problem.index}: {problem.detail}")
-    if len(report.problems) > limit:
-        typer.echo(f"  ... and {len(report.problems) - limit} more")
+    if len(errors) > limit:
+        typer.echo(f"  ... and {len(errors) - limit} more errors")
+    if advisories:
+        typer.echo(f"  --- {len(advisories)} advisories (review, not failures) ---")
+        for problem in advisories[:limit]:
+            typer.echo(f"  [{problem.kind}] doc {problem.doc_id} #{problem.index}: {problem.detail}")
+        if len(advisories) > limit:
+            typer.echo(f"  ... and {len(advisories) - limit} more advisories")
 
     typer.echo(
         json.dumps(
@@ -92,7 +139,9 @@ def check(
                 "n_entities": report.n_entities,
                 "n_relations": report.n_relations,
                 "n_repaired": report.n_repaired,
-                "n_problems": len(report.problems),
+                "numerals_checked": report.numerals_checked,
+                "n_errors": len(errors),
+                "n_advisories": len(advisories),
                 "by_kind": report.by_kind(),
             },
             ensure_ascii=False,

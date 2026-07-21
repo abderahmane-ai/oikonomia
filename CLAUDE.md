@@ -446,18 +446,38 @@ is a perplexity proxy for a task F1 that cannot be measured until gold exists.
 **Still not built:** the B0 (no-DAPT) control. Without it no DAPT gain is
 believable.
 
-### 🔶 Phase 5 — Gold annotation (IN PROGRESS — 50 of 150 documents drafted)
+### 🔶 Phase 5 — Gold annotation (IN PROGRESS — 50 of 150 documents drafted, now completeness-verified)
 
-**Status: 50/150 documents annotated as a reviewable model draft**
-(`data/gold/annotated.jsonl`, 1,127 entities / 258 relations, `oik gold check`
-clean, every text byte-identical to `corpus.parquet`). All carry
-`provenance: model_draft` / `annotator: claude-opus-4-8` — they are a draft for
-human review, **not** human gold, and must not be used to score a model or as
-one side of an inter-annotator κ without review. The generating spec is
-`tools/build_gold_draft.py` (offsets are computed from surface strings, never
-written by hand), so the draft is reproducible and reviewable as source.
-Guidelines are now **v0.2** (§0 ten rules); every decision taken against real
-text is recorded in §5. Next: documents 51–150.
+**Status: 50/150 documents annotated as a reviewable model draft, and made
+mechanically complete** (`data/gold/annotated.jsonl`, **1,192 entities / 268
+relations**, `oik gold check` **0 errors**, every text byte-identical to
+`corpus.parquet`, 0 overlapping spans). All carry `provenance: model_draft` /
+`annotator: claude-opus-4-8` — they are a draft for human review, **not** human
+gold, and must not be used to score a model or as one side of an inter-annotator
+κ without review. The generating spec is `tools/build_gold_draft.py` (offsets
+are computed from surface strings, never written by hand), so the draft is
+reproducible and reviewable as source. Guidelines are now **v0.3**. Next:
+documents 51–150.
+
+**The completeness pass (this session).** A reading audit had rated the 50 docs
+"9.8/10", but that could not verify *completeness* — you cannot eyeball the
+absence of a span you never wrote. Cross-referencing the corpus's own `<num>`
+tags against the gold found **34 tagged numerals with no decision** across 15
+docs — including real money (the account doc 16219 left 12 solidi/carat figures
+unlabelled; the sale 20815 left the `Αφ`=1500 / `Γ`=3000 sums). All 34 are now
+fixed. To make this a standing guarantee, `oik gold check` gained a
+**numeral-coverage gate**: it loads the corpus `<num>` offsets (keyed by text,
+which also re-proves byte-identity) and **fails** on any numeral neither inside
+a span nor in a new per-document `skipped_numerals` list (reasons:
+`isopsephism` / `sheet_number` / `line_reference` / `non_referential`). It also
+prints non-fatal **advisories** (capitalised tokens with no span → candidate
+missed names; lone money amounts; unlinked quantities; party-less
+transactions). Advisory count was driven 48 → 27; the residue is theonyms,
+damaged name-fragments, fused money-words (`τετρώβολον`) and `γίνεται` summary
+totals — each reviewed and deliberately left (guidelines §5 "completeness
+pass", v0.3). **Lesson reinforced: the numeral gate is now the mechanical
+backstop the reading audit could not be — run it, and honour its advisories,
+before every batch.**
 
 
 
@@ -926,12 +946,13 @@ architecture claim on our own data rather than on the literature's.
 
 **~40% of the full project.** Phases 0–3 complete; Phase 4 built, corrected
 and priced but not yet run on GPU; **Phase 5 underway — 50 of 150 gold
-documents drafted** (model draft, awaiting human review). Foundation: a
-validated corpus-ingestion pipeline built over all 67,980 documents at parse
-rate 1.000, whole-corpus characterization, mined lexicons with measured recall,
-the annotation schema (guidelines v0.2, ten rules), a mechanical span validator
-(`oik gold check`), a proximity baseline at a 74.50% numeral link rate, and
-leak-free stratified + chronological splits.
+documents drafted and completeness-verified** (model draft, awaiting human
+review). Foundation: a validated corpus-ingestion pipeline built over all
+67,980 documents at parse rate 1.000, whole-corpus characterization, mined
+lexicons with measured recall, the annotation schema (guidelines v0.3, ten
+rules), a mechanical span + **numeral-coverage** validator (`oik gold check`),
+a proximity baseline at a 74.50% numeral link rate, and leak-free stratified +
+chronological splits.
 
 Remaining: Phase 4 DAPT (Modal) · Phase 5 gold annotation ·
 Phase 6 weak/silver labeling · Phase 7 entity model · Phase 8 relation model ·
@@ -945,13 +966,14 @@ remains the scientific risk.
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-21 (Phase 5 underway: `oik gold check` validator built,
-guidelines rewritten to v0.2 with the §0 ten rules, `ANNOTATION.md` removed and
-folded in, 50/150 documents drafted into `annotated.jsonl`)._
+_Last updated: 2026-07-21 (Phase 5 completeness pass: `oik gold check` gained a
+numeral-coverage gate + name/relation advisories; all 34 uncovered numerals
+fixed; guidelines → v0.3; 50/150 docs now complete at 1,192 entities / 268
+relations)._
 
 ### Quality gate at last save
-**ruff PASS · mypy PASS · 340 tests PASS.** Caches cleared. All work is
-committed to git (`main`).
+**ruff PASS · mypy PASS · 348 tests PASS · `oik gold check` 0 errors / 27
+reviewed advisories.** Caches cleared. All work is committed to git (`main`).
 
 ### Corpus on disk — COMPLETE
 `data/raw/idp.data` — **6.1 GB**, working tree clean, HEAD at the pinned rev
@@ -1001,18 +1023,22 @@ Disk: watch headroom — corpus 6.1 GB + processed 280 MB.
 
 ### Gold annotation state (git-TRACKED, not derived)
 - `data/gold/to_annotate.jsonl` — the 150-doc batch (unchanged this session).
-- `data/gold/annotated.jsonl` — **50 documents drafted**, 1,127 entities / 258
-  relations, `provenance: model_draft`. Regenerate with
+- `data/gold/annotated.jsonl` — **50 documents drafted + completeness-verified**,
+  **1,192 entities / 268 relations**, `provenance: model_draft`. Regenerate with
   `.venv/bin/python tools/build_gold_draft.py` (idempotent; writes all docs
-  currently in the SPEC dict).
-- `tools/build_gold_draft.py` — the spec that produces the draft; documents are
-  listed as surface strings in reading order and the builder computes offsets,
-  so an off-by-one is structurally impossible. Add docs 51+ here.
-- `resources/schema/annotation_guidelines.md` — **v0.2**, the single authority
-  (§0 ten rules, §5 all decisions, §6 batch format). `ANNOTATION.md` was
-  deleted; do not recreate it.
+  currently in the SPEC dict). Some docs now carry a `skipped_numerals` field.
+- `tools/build_gold_draft.py` — the spec that produces the draft; entities are
+  surface strings in reading order (builder computes offsets, so an off-by-one
+  is structurally impossible), and `skips=[S(surface, reason, ctx)]` records
+  deliberately-unlabelled numerals. Add docs 51+ here.
+- `resources/schema/annotation_guidelines.md` — **v0.3**, the single authority
+  (§0 ten rules, §5 all decisions incl. the "completeness pass" block, §6 batch
+  format with `skipped_numerals`). `ANNOTATION.md` was deleted; do not recreate.
 - `src/oikonomia/gold/validate.py` + `oik gold check [--fix]` — the mechanical
-  span/relation validator. Run it after any edit to `annotated.jsonl`.
+  validator. It now cross-references corpus `<num>` tags (numeral-coverage gate,
+  a hard failure) and prints name/relation advisories. Run after any edit to
+  `annotated.jsonl`. Needs `data/processed/corpus.parquet` for the numeral gate;
+  without it, that gate is skipped (offset/relation checks still run).
 
 ### Notes for the next session
 - The lexicon build used a one-off curation script that lived in the scratchpad
@@ -1040,14 +1066,17 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/oik gold check
 ```
 
-**Phase 5 is underway — 50 of 150 documents drafted.** Continue at document 51
-(index 50) of `data/gold/to_annotate.jsonl`. Add each doc's spans to
-`tools/build_gold_draft.py` as surface strings in reading order, run
-`.venv/bin/python tools/build_gold_draft.py`, then `oik gold check` (must be
-0 problems). After building, verify: text byte-identical to `corpus.parquet`,
-0 overlapping spans, and every `TRANSACTION` carries a `PARTY_OF` (unless the
-parties are genuinely lost to a lacuna). The full method and every decision are
-in `resources/schema/annotation_guidelines.md` v0.2 (§0 ten rules).
+**Phase 5 is underway — 50 of 150 documents drafted and completeness-verified.**
+Continue at document 51 (index 50) of `data/gold/to_annotate.jsonl`. Add each
+doc's spans to `tools/build_gold_draft.py` as surface strings in reading order
+(and `skips=[S(...)]` for any deliberately-unlabelled numeral), run
+`.venv/bin/python tools/build_gold_draft.py`, then `oik gold check` — it must
+report **0 errors** (the numeral-coverage gate is now a hard failure) and its
+**advisories** must all be genuine residue (theonyms, damaged fragments), not
+real misses. Every `TRANSACTION` carries a `PARTY_OF` unless the parties are
+genuinely lost to a lacuna. The full method and every decision are in
+`resources/schema/annotation_guidelines.md` **v0.3** (§0 ten rules; §5
+"completeness pass").
 
 **These are a model draft, not human gold** (`provenance: model_draft`). They
 still need a human pass before any Phase 7 model is scored against them.

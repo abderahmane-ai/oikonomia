@@ -1,4 +1,4 @@
-# OIKONOMIA annotation guidelines (v0.2)
+# OIKONOMIA annotation guidelines (v0.3)
 
 Scope: entity and relation annotation over Greek documentary papyri from the
 DDbDP, at corpus rev `d7a34f302d1e44e271256092c2b780733187b478`.
@@ -28,11 +28,14 @@ past the last character (`ἔτους` at 57 ends at **62**). Carry the `text`
 field, and run `oik gold check` (and `--fix`) after every session. Never count
 characters by hand.
 
-**III. Every numeral gets exactly one decision.** No numeral is left unlabelled
-by accident. It is `QUANTITY`, `MONEY_AMOUNT`, `FRACTION`, `AGE`, or part of a
-`DATE_REF` — or, rarely and *deliberately*, nothing (an isopsephism like `χμγ`,
-a sheet number like `κολλήματος μϛ`). "I didn't get to it" and "it is not a
-quantity" must never look the same in the data.
+**III. Every numeral gets exactly one decision — and this is now checked.** No
+numeral is left unlabelled by accident. It is `QUANTITY`, `MONEY_AMOUNT`,
+`FRACTION`, `AGE`, or part of a `DATE_REF` — or, rarely and *deliberately*,
+listed in `skipped_numerals` with a reason (an isopsephism like `χμγ`, a sheet
+number like `κολλήματος μϛ`, a pagus ordinal). `oik gold check` compares your
+spans against the corpus's own `<num>` tags and **fails** on any numeral that is
+neither covered nor skipped, so "I didn't get to it" and "it is not a quantity"
+can no longer look the same in the data.
 
 **IV. A number's type is fixed by what it counts.** Governed by a `CURRENCY` →
 `MONEY_AMOUNT`; by a unit or good → `QUANTITY`; sitting in a date → *inside*
@@ -400,6 +403,87 @@ inconsistent negative: a numeral that looks exactly like every `QUANTITY` it
 is asked to find. Every numeral in a document should receive a decision —
 `QUANTITY`, `MONEY_AMOUNT`, `DATE_REF`, `FRACTION` or `AGE`.
 
+### Decisions from the completeness pass (v0.3)
+
+These were settled while making the first 50 documents *complete* — i.e. while
+closing every gap the new `oik gold check` numeral gate found. The gate
+compares each document's spans against the corpus's own `<num>` tags (an
+independent ground truth the annotator cannot see while reading), so "I didn't
+get to it" and "it is not a quantity" can no longer look the same in the data.
+
+**A numeral you deliberately leave unlabelled is recorded, with a reason.**
+Not every tagged `<num>` is an economic quantity. The ones that are *not* go in
+a per-document `skipped_numerals` list (§6), each with one of four reasons:
+
+- `isopsephism` — a gematria/symbolic number, e.g. `χμγ` heading a Christian
+  contract (= ἀμήν).
+- `sheet_number` — an archival papyrus reference, `κολλήματος μϛ` ("sheet 46").
+- `line_reference` — a column/line index used to locate text, not to count goods.
+- `non_referential` — an administrative ordinal or a bare figure with no
+  governing noun surviving the lacuna: the pagus number in `κώμης Ποσόμπους
+  ε πάγου` ("the 5th pagus"), or a stray `δ` opening a broken fragment.
+
+Everything else must sit inside a span. A skip is a claim, checked mechanically:
+its offsets must match a real `<num>` and its text.
+
+**Dating numerals live inside a `DATE_REF`, never skipped.** An indiction figure
+(`β ἰνδικτίονος`), a regnal or era year (`ἔτους ιγ`), a consular iteration
+(`τὸ β`, "for the 2nd time"), a month-day (`Τῦβι ε`) — the number is absorbed
+into the date span. Byzantine Oxyrhynchus double-dates by two era-year figures
+at once (`ἔτους ρϙε ρξδ` = "year 195 = 164"); both go in the one `DATE_REF`.
+This is the single largest source of "missed" numerals in dated documents.
+
+**Byzantine gold accounts: the carat is a `CURRENCY`.** In `νομίσματα ϛ κεράτια
+ιϛ 𐅵` ("6 solidi, 16½ carats") both `νομίσματα` (solidi) and `κεράτια` (carats,
+a 1/24 subdivision of the solidus) are `CURRENCY`; `ϛ` and `ιϛ` are each a
+`MONEY_AMOUNT` linked to its own denomination, and `𐅵` a `FRACTION`. The mint
+qualifier `Ἀλεξανδρείας` ("of the Alexandrian standard") is a `PLACE`. Where the
+scribe restates a figure in words (`κεράτια ιζ 𐅵` then `κεράτια δεκαεπτὰ
+ἥμισυ`), annotate the value **once** — the figures — and leave the word-form
+restatement, so the ledger does not count 17½ carats twice.
+
+**A money-word that fuses number and denomination is one `MONEY_AMOUNT`, with no
+`HAS_CURRENCY`.** `τετρώβολον` ("a four-obol amount"), `δεκόβολον`
+("ten-obol") — the denomination is inside the word, so there is no separate
+`CURRENCY` to link. Likewise a bare sum whose denomination is elided (`Αφ` =
+1500, standing for 1500 drachmas already named on the line above) is a
+`MONEY_AMOUNT` with no currency link. A lone `MONEY_AMOUNT` is therefore
+legitimate; the checker only *flags* it for review.
+
+**A `γίνεται` summary figure is annotated but left unlinked.** `κριθῆς μάτια
+τέσσαρα γίνεται δ` ("4 matia of barley, total 4") — annotate `δ` as `QUANTITY`
+(it is a numeral, and skipping it would train an inconsistent negative), but
+do **not** re-link it to the unit, or the database double-counts. The primary
+figure carries the `HAS_UNIT`/`HAS_QUANTITY` edges; the total restates it.
+
+**The imperial titulature is part of the ruler's `PERSON` span, and its trailing
+epithets are never annotated on their own.** The emperor's full styling in a
+dating formula — `Αὐτοκράτορος Καίσαρος Νέρουα Τραιανοῦ Σεβαστοῦ Γερμανικοῦ` —
+is a single `PERSON`, bounded by the date words on either side. Standalone
+victory and virtue epithets (`Γερμανικοῦ`, `Παρθικοῦ`, `Εὐσεβοῦς`, `Εὐτυχοῦς`,
+`Μεγίστων`, `Σεβαστῶν`…) are not separate entities. Extending the span to
+include them is encouraged where they are contiguous but not required — the
+checker filters these stems, so it neither demands nor forbids them, keeping
+span-agreement (κ) off a long, variable target.
+
+**Civic origin and demotic identifiers are `PLACE`.** `Ἀντινοεῖ Ὀσιραντινοείῳ`
+("an Antinoite, of the Osirantinoeus deme") identifies where a party belongs,
+so it feeds the geography, exactly like the `κλῆρος` eponyms. `Ἀντινόου` in
+`τῇ πόλει Ἀντινόου` is the city Antinoopolis — a `PLACE`.
+
+**Divine names in a cult context are not annotated.** `ἱερεῖς Ἡλίου καὶ
+Μνεύιδος` ("priests of Helios and Mnevis"), `Ἀφροδίτης ἱερῶν` ("temples of
+Aphrodite") — the deity is neither an economic party nor a place, so it carries
+no label. Annotate the priesthood or temple, leave the theonym. (Where a
+theonym is *part* of a toponym — `Ἡλίου πόλει`, Heliopolis — it is inside the
+`PLACE` span.) These surface as review advisories, correctly unlabelled.
+
+**A name too damaged to read is left unlabelled, and that is not a defect.**
+`Πετοσο…`, `Ὀσορθα…`, `Διδυ…`, a bare `Ἀ…` — where the lacuna eats enough of a
+proper name that its identity is genuinely uncertain, leave it (rule IX). The
+name-coverage check will list it as an advisory; a residue of such advisories on
+damaged documents is expected and is *reviewed*, not *cleared by guessing*.
+
 ## 6. The batch file, and how to work it
 
 The batch is **`data/gold/to_annotate.jsonl`** — one JSON object per line,
@@ -415,6 +499,7 @@ tracked in git.
   "meta": { "genre": "loan", "split": "train", "corpus_rev": "d7a34f30…" },
   "entities": [],
   "relations": [],
+  "skipped_numerals": [ {"start": 61, "end": 63, "text": "μϛ", "reason": "sheet_number"} ],
   "suggested_entities": [ {"start": 57, "end": 62, "label": "DATE_REF", "text": "ἔτους"} ],
   "double_annotate": false
 }
@@ -424,6 +509,7 @@ tracked in git.
 |---|---|
 | `text` | **The only thing you annotate.** Whitespace is already canonical (rule II), so offsets are stable. |
 | `entities` / `relations` | **You fill these.** Entity format `{"start","end","label","text"}`; relation format `{"head","tail","type"}` where `head`/`tail` index *your* `entities` in the order you wrote them. |
+| `skipped_numerals` | Numerals you deliberately leave unlabelled, each `{"start","end","text","reason"}` with `reason` ∈ `isopsephism` / `sheet_number` / `line_reference` / `non_referential` (§5). Omit if there are none. This is what keeps a deliberate skip distinct from an oversight. |
 | `suggested_entities` | A machine pre-annotation from the weak baseline. **Often wrong, and not gold** — delete what is wrong rather than working around it. `null` on blind documents. |
 | `double_annotate` | `true` → a second annotator does this document independently, for agreement. Do not compare notes first. |
 
@@ -432,6 +518,12 @@ Three workflow rules, in order of how often they are broken:
 1. **Run `oik gold check` after every session** (and `--fix` to repair
    offsets from the `text` field). This is rule II, and it is not optional —
    it is the only thing standing between you and a silently corrupt gold set.
+   It now also runs the **numeral-coverage gate** (rule III — a hard failure on
+   any undecided `<num>`) and prints **advisories**: capitalised tokens with no
+   span (candidate missed names), lone money amounts, unlinked quantities, and
+   party-less transactions. Advisories do not fail the run — they are a review
+   list. Drive the real ones to zero; a residue on theonyms and damaged
+   fragments is expected and reviewed, not cleared by guessing (§5).
 2. **Annotate the ~30 blind documents (`suggested_entities: null`) first,
    while unanchored.** Seeing a suggestion anchors you to it, so the blind
    subset is the only honest basis for later measuring how good the baseline
@@ -454,11 +546,19 @@ the first 15 documents are annotated to this guide and pass `oik gold check`.
 
 ## 8. Status
 
-v0.2 — the ten rules in §0 are now the spine, and §5 records every decision
-taken against real text. Calibrated against the first 50 annotated documents
-(`data/gold/annotated.jsonl`, 1,127 entities / 258 relations, `oik gold check`
-clean). Sections 3–4 are stable enough to build the Phase 6 weak labeler
-against; §5 grows fastest as real documents are annotated.
+v0.3 — the first 50 documents are now **completeness-verified**: `oik gold
+check` runs a mechanical numeral-coverage gate (every corpus `<num>` is labelled
+or in `skipped_numerals`) and it passes with **0 errors** over 1,192 entities /
+268 relations. The 27 remaining items are advisories — theonyms, damaged
+name-fragments, fused money-words, and `γίνεται` summary totals — each reviewed
+and left deliberately (§5, "completeness pass"). v0.2 added the §0 spine; v0.3
+made rule III enforceable and folded in the account/titulature/theonym rules.
+Sections 3–4 are stable enough to build the Phase 6 weak labeler against; §5
+grows fastest as real documents are annotated.
+
+These 50 remain a **model draft** (`provenance: model_draft`) — completeness is
+now guaranteed, but correctness of each label still needs a human pass before
+they score a model or seed an inter-annotator κ.
 
 Settled by the project owner (2026-07-21):
 - **Relation scope is full** — every transaction carries `PARTY_OF` for all

@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from oikonomia.gold.validate import (
+    check_numeral_coverage,
     relocate,
     repair_document,
     validate_document,
@@ -170,3 +171,83 @@ def test_validate_file_round_trip(tmp_path: Path) -> None:
     # The repair is persisted, and the file still parses.
     reloaded = json.loads(path.read_text(encoding="utf-8"))
     assert reloaded["entities"][0]["end"] == 9
+
+
+# --- numeral-coverage gate (§0 rule III made mechanical) -------------------
+
+def test_uncovered_numeral_is_an_error() -> None:
+    """A tagged <num> that no span covers and no skip declares is a hard error."""
+    # "δραχμὰς μ" — μ (the amount) is left unlabelled.
+    doc = _doc("δραχμὰς μ", [{"start": 0, "end": 7, "label": "CURRENCY", "text": "δραχμὰς"}])
+    numerals = [(8, 9, "μ")]
+    problems = check_numeral_coverage(doc, numerals)
+    assert [p.kind for p in problems] == ["uncovered_numeral"]
+    assert problems[0].severity == "error"
+
+
+def test_numeral_inside_a_span_is_covered() -> None:
+    """A numeral absorbed into a DATE_REF (or labelled directly) needs no skip."""
+    doc = _doc("ἔτους νβ", [{"start": 0, "end": 8, "label": "DATE_REF", "text": "ἔτους νβ"}])
+    assert check_numeral_coverage(doc, [(6, 8, "νβ")]) == []
+
+
+def test_deliberate_skip_clears_a_numeral() -> None:
+    """A sheet number is deliberately not a quantity, and a declared skip says so."""
+    doc = {
+        "doc_id": "t", "text": "κολλήματος μϛ", "entities": [], "relations": [],
+        "skipped_numerals": [{"start": 11, "end": 13, "text": "μϛ", "reason": "sheet_number"}],
+    }
+    assert check_numeral_coverage(doc, [(11, 13, "μϛ")]) == []
+
+
+def test_skip_must_match_a_real_numeral_and_a_valid_reason() -> None:
+    doc = {
+        "doc_id": "t", "text": "κολλήματος μϛ", "entities": [], "relations": [],
+        "skipped_numerals": [
+            {"start": 0, "end": 3, "text": "κολ", "reason": "sheet_number"},  # not a <num>
+            {"start": 11, "end": 13, "text": "μϛ", "reason": "because"},       # bad reason
+        ],
+    }
+    kinds = sorted(p.kind for p in check_numeral_coverage(doc, [(11, 13, "μϛ")]))
+    # phantom_skip for the first entry; skip_reason for the second; and the real
+    # numeral μϛ is still uncovered because its only skip has an invalid reason…
+    assert "phantom_skip" in kinds and "skip_reason" in kinds
+
+
+# --- completeness advisories (non-fatal review hints) ----------------------
+
+def test_capitalised_token_with_no_span_is_an_advisory() -> None:
+    doc = _doc("παρὰ Πετρωνίου", [])  # a missed PERSON
+    problems = validate_document(doc, advisories=True)
+    assert [p.kind for p in problems] == ["uncovered_name"]
+    assert problems[0].severity == "advisory"
+
+
+def test_titulature_is_not_flagged_as_a_missed_name() -> None:
+    """Imperial epithets belong inside the ruler's PERSON span, not on their own."""
+    doc = _doc("Σεβαστῶν Γερμανικῶν", [])
+    assert validate_document(doc, advisories=True) == []
+
+
+def test_lone_money_amount_and_partyless_transaction_are_advisories() -> None:
+    doc = _doc(
+        "ὁμολογῶ δραχμὰς μ",
+        [
+            {"start": 0, "end": 7, "label": "TRANSACTION", "text": "ὁμολογῶ"},
+            {"start": 16, "end": 17, "label": "MONEY_AMOUNT", "text": "μ"},
+        ],
+    )
+    kinds = sorted(p.kind for p in validate_document(doc, advisories=True))
+    assert kinds == ["money_no_currency", "transaction_no_party"]
+    assert all(
+        p.severity == "advisory" for p in validate_document(doc, advisories=True)
+    )
+
+
+def test_advisories_are_off_by_default_at_document_level() -> None:
+    """A reversed relation must not also trip a completeness advisory in unit tests."""
+    doc = _doc(
+        "παρὰ Πετρωνίου",  # capitalised but advisories off
+        [{"start": 5, "end": 14, "label": "PERSON", "text": "Πετρωνίου"}],
+    )
+    assert validate_document(doc) == []
