@@ -154,6 +154,16 @@ uv run oik silver distmap --sample 20000    # corpus label distribution -> gazet
 uv run oik silver label                     # emit silver over the train split (~5 min)
 uv run oik silver label --min-confidence 0.5  # abstain on the noisy tail
 
+# Phase 7 (entity NER — does DAPT beat off-the-shelf GreBerta?)
+uv run oik ner prepare                          # freeze BIO label schema from silver
+.venv/bin/modal run --detach modal_app/ner.py::push     # upload silver/gold/labels
+.venv/bin/modal run --detach modal_app/ner.py::xval               # b1: silver-only vs silver→gold (5-fold CV)
+.venv/bin/modal run --detach modal_app/ner.py::xval --loss gce    # step 2: noise-robust silver loss
+.venv/bin/modal run --detach modal_app/ner.py::xval --backbone b0 # control's two-stage numbers
+# NOTE: ner.py imports oikonomia in the container, so run with the venv's modal
+# (not global). b1 needs the DAPT run to have saved /dapt/.../full/final. The
+# git-committed Phase-7 silver-only b0-vs-b1 result predates `xval`.
+
 # Quality gate — run after ANY unit of work, in this order
 .venv/bin/ruff check src tests modal_app
 .venv/bin/python -m mypy src
@@ -795,6 +805,169 @@ for this reason), needs a larger / human-reviewed gold. And the gold is still
 Phase 7 entity model confidence-weighted on `silver.jsonl` with the reviewed
 gold as eval.
 
+### 🔶 Phase 4b — DAPT run executed; full FT wins, prior FLIPPED
+
+**The ledger's `LoRA wins or ties` prior was wrong for this stage and is now
+retracted.** DAPT is *continued pretraining*, and for that regime the on-point
+literature (Biderman 2405.09673) is that full FT beats low-rank adapters and the
+gap does not close with rank; the `adapters ≈ full FT` results are all about the
+downstream *fine-tune*, a different stage. Confirmed on GreBerta directly.
+
+**Clean two-arm run** (`modal_app/dapt.py`, rewritten to two arms + per-arm LR):
+`full` (full FT, lr 5e-5) vs `dora` (DoRA r=64, all-linear, rsLoRA, lr 1e-4) —
+DoRA chosen as the *steelman* adapter (closest to full-FT geometry; beats LoRA
+at all ranks). Both fresh from step 1, identical data, dev = the DAPT dev shard.
+- **full: dev ppl 300 → 4.54, converged at the 16-epoch ceiling, NO
+  overfitting** (dev loss never turned up; `hit_ceiling=1` but the curve is
+  flat, i.e. converged not starved). Sharp phase transition ~step 1300→1700
+  (ppl 70→6.7). Saved as `checkpoints/full/final` — **B1**, the papyri backbone.
+- **dora: dev ppl ~415 → ~224, plateaued.** Learns, but ~50× behind full.
+
+**Why the gap is that large (mechanistic, not just "adapters learn less"):**
+full FT trains the **~40M token-embedding params (a third of the model)** plus
+the LM head; the DoRA arm freezes them. Papyri's domain gap is heavily
+*vocabulary/orthography* (onomastics, abbreviations, lacunae), so the embedding
+remap is exactly the lever — and only full FT pulls it. At 125M params PEFT also
+buys no memory (full FT fits the A10 trivially), so the adapter pays the compute
+tax (DoRA materialises the merged weight per layer for its column-norm → ~2×
+slower/step) without the benefit. **Verdict: full FT is the DAPT method.**
+
+**Two bugs found and fixed mid-run, both worth remembering:** (a) the first
+sweep's "LoRA wins ppl 92" was a *misread of interleaved untagged logs* — the
+arms were swapped (`ClearLogger` now tags every line); (b) a fresh `compare`
+silently **resumed stale checkpoints** from a prior run — the entrypoint now
+clears the arm dirs (`reset_*`), while in-run resume for preemption is kept.
+Also: shared LR starved the adapters; MLM logits (batch·seq·52k) OOM'd at bs=32
+(now bs=16 × accum 4 + `expandable_segments`); train-loss display is `grad_accum×`
+inflated by HF — **read eval ppl, not train loss**.
+
+### ✅ Phase 7 — Entity NER: DAPT beats the control (+9.5 strict F1)
+
+**The result the whole DAPT detour was for. B0 (no DAPT) vs B1 (papyri DAPT),
+identical fine-tune on silver, scored on the 65-doc human-validated gold:**
+
+| | b0 (control) | b1 (DAPT) | Δ |
+|---|---|---|---|
+| strict micro F1 | 0.495 | **0.589** | **+0.095** |
+| relaxed micro F1 | 0.663 | 0.719 | +0.056 |
+| PERSON | 0.458 | 0.648 | **+0.190** |
+| PLACE | 0.503 | 0.617 | **+0.114** |
+| MONEY_AMOUNT | 0.575 | 0.634 | +0.058 |
+
+- **b1 ≥ b0 on every label**, strictly greater on most; nothing regressed.
+  Squarely in the Gururangan "2–12 pts, largest at greatest domain distance".
+- **The mechanism closed:** gains concentrate in PERSON/PLACE — the
+  onomastic/toponymic labels the ~40M-param embedding remap (full-FT-only) was
+  predicted to help. Lexicon-reachable labels barely move (CURRENCY .78→.79).
+  The live `SAMPLE` proof: at eval 1, b0 tagged `Ῥώμης/PERSON` (wrong),
+  b1 `Ῥώμης/PLACE` (right).
+- **The ~0.59 ceiling is silver-bounded, not model-bounded:** b1's 0.589/0.719
+  ≈ the silver labeler's own gold agreement (Phase 6). b0 can't even reach the
+  silver ceiling — the weak backbone leaves ~9 pts on the table. Breaking past
+  0.59 needs better *labels*, not a better backbone. b1 also converges far
+  faster (~0.58 by epoch 0.3 vs b0 crawling to 0.49 over 2.6 epochs).
+- **Weak spots:** OCCUPATION flat 0.239 (noisy silver), AGE 0.0 (5 gold / 149
+  silver, too rare). Both models saved to the `oikonomia-ner` Volume
+  (`models/{b0,b1}/final`). **Verdict: ship B1 as the entity backbone.**
+
+**Next levers (raise the ceiling for both arms — label-side, not backbone):**
+confidence-weighted silver loss (drop the 0.33-precision tail), sliding window
+for the 512-truncated long docs, finish gold → 150 + human review.
+
+**The harness that produced this:**
+does the DAPT'd backbone give a better *NER* model? Measured on gold entity-F1.
+- `oikonomia/ner/encode.py` — pure char-span ↔ BIO alignment (`align_bio` /
+  `decode_spans`, inverses on token-aligned spans), + `ner/data.py` loaders. 7
+  hand-computed tests. Metrics **reuse `labeling/score.py`** (`build_report`:
+  strict + relaxed micro F1, per-label) — no duplication.
+- `oik ner prepare` — freezes the BIO schema from silver to
+  `processed/ner/labels.json`. **15 entity types**, every gold label learnable
+  from silver (`gold_labels_not_in_silver: []`); 48,941 train docs / 1.11M
+  silver entities, 65 gold eval docs / 1,654 entities.
+- `modal_app/ner.py` — two arms, **b0 = bowphs/GreBerta (no DAPT, control)** vs
+  **b1 = `/dapt/.../full/final` (DAPT)**, identical fine-tune on silver, scored
+  on gold. Mounts the DAPT Volume read-only for b1. At each eval it decodes
+  predictions → char spans → `build_report` and logs strict/relaxed F1 + per-
+  label F1 + a **fixed-doc sample** (watch predictions improve across steps).
+  Selection on `eval_strict_f1`; `compare` prints the **b1−b0 delta** — the
+  actual finding. Runs with the venv's modal (container imports `oikonomia`).
+
+**This is where "did DAPT help" is decided** — not perplexity. The strict-F1
+Δ(b1−b0) is the number.
+
+### ✅ Phase 7b — Two-stage silver→gold RUN: +8.8 F1, plain CE is the recipe
+
+**Result (b1 = DAPT backbone, 5-fold CV over the 85-doc gold):**
+
+| stage | strict F1 | relaxed F1 |
+|---|---|---|
+| silver-only | 0.584 | 0.709 |
+| **silver→gold (CE)** | **0.672** | **0.785** |
+
+- **Fine-tuning on the clean gold lifts strict F1 +8.8** and **breaks the ~0.59
+  silver ceiling** — the diagnosis (label-bound, not model-bound) confirmed.
+- **OCCUPATION 0.236 → 0.664 (+0.43)** is the clincher: Phase 7 had it frozen at
+  0.24 for *both* backbones because the silver labels were systematically wrong;
+  one pass on clean gold fixed it. Also DATE_REF +0.18, FRACTION +0.13, MONEY
+  +0.11, QUANTITY +0.11, PERSON +0.08. Rare labels TAX_TERM/PERSON_ROLE regressed
+  (14/20 gold ex — starved, high variance); AGE 0.0 (5 ex, unlearnable).
+
+**GCE noise-robust loss — TESTED, REJECTED (−5.7 F1).** `--loss gce` gave
+silver→gold strict **0.615** vs CE's 0.672. Mechanism backfired: GCE down-weights
+low-confidence examples, but **rare classes are always low-confidence**, so it
+*zeroed* OCCUPATION/FRACTION/TRANSACTION/TAX_TERM/PERSON_ROLE/PRICE_TERM at the
+silver stage and gold couldn't fully rescue them. Also GCE targets *random* noise;
+ours is ~99% *systematic* (Phase 6). Right tool, wrong regime.
+
+**Lever ledger (all measured on gold F1, never guessed):**
+`DAPT +0.094 ✓ · gold fine-tune +0.088 ✓ · GCE −0.057 ✗`. **Settled recipe:
+DAPT backbone + silver (plain CE) + gold fine-tune → strict 0.672 / relaxed
+0.785.**
+
+**Caveat:** 20 of the 85 gold docs are un-reviewed `model_draft`s, so the CV has
+mild circularity — the 0.672 is ~±few pts until they're reviewed. Fold range
+0.635–0.743.
+
+**Built (`modal_app/ner.py`):** one `train` fn does **paired k-fold CV** — silver
+trained **once**, then per fold: reset to the silver model, score the held-out
+fold (**silver-only**), fine-tune on that fold's gold-train, score it again
+(**silver→gold**); per-doc scores pooled across folds into one micro-F1 each.
+`loss={ce,gce}`, `min_confidence>0` drops the low-confidence silver tail.
+Entrypoint `xval --backbone b1 --loss ce|gce`.
+
+**Next (label-side — the only lever left that moves it):** review the 20 drafts;
+finish gold for the starved rare classes (TAX_TERM/PERSON_ROLE/AGE/FRACTION).
+Optional cheap test: `xval --min-confidence 0.5` (hard-drop noisy silver, vs
+GCE's soft down-weight) — but expect limited help given systematic noise + rare-
+class fragility. Self-training (BOND) / CRF head only if those fall short.
+
+### (superseded) original Phase 7b plan
+
+**Why:** the Phase-7 ~0.59 is the *silver ceiling* (b1 hit it, b0 didn't) — both
+arms only ever train on silver and never on the clean gold. The weak+clean
+literature (NEEDLE 2106.08977; "Weaker Than You Think" 2305.17442) says the
+small clean set should be the **final fine-tune stage**, correcting silver's
+*systematic* errors (the noise Phase 6 measured).
+Diagnosis: **label-bound, not model-bound** — so the levers are label-side; a
+bigger backbone would hit the same wall.
+
+**Built (`modal_app/ner.py`, rewritten):** one `train` fn does **paired k-fold
+CV** — silver trained **once**, then per fold: reset to the silver model, score
+the held-out fold (**silver-only**), fine-tune on that fold's gold-train, score
+the same fold again (**silver→gold**); per-doc scores pooled across folds into
+one honest micro-F1 each. `loss={ce,gce}` sets the silver-stage loss (`gce` =
+generalized cross-entropy, the RoSTER noise-robust loss); `min_confidence>0`
+drops the low-confidence silver tail. Entrypoint `xval --backbone b1 --loss ce`
+(step 1) then `--loss gce` (step 2). Gold fine-tunes are cheap; silver runs once
+per config. Ruff + compile clean.
+
+**Plan (measured, one change at a time, all on the same gold via CV):**
+1. `xval b1 ce` — silver-only vs silver→gold. **Predicted: the largest jump**
+   (breaks the silver ceiling). 2. `xval b1 gce` — noise-robust silver, vs step 1.
+3. Before running, **label ~20 more gold (65→~85)** and re-`push` — raises the
+ceiling under everything and firms the CV. Later: soft confidence-weighting,
+self-training on the 68k unlabeled corpus (BOND), CRF head — only if 1–2 fall short.
+
 ---
 
 ## 7. Verified fact ledger
@@ -1061,34 +1234,56 @@ architecture claim on our own data rather than on the literature's.
 
 ## 8. Progress
 
-**~46% of the full project.** Phases 0–3 complete; Phase 4 built, corrected
-and priced but not yet run on GPU; **Phase 5 underway — 65 of 150 gold
-documents drafted and completeness-verified** (model draft, awaiting human
-review); **Phase 6 silver labeler built, validated against gold, and emitted
-over the whole train split** (1.11M entities / 328k relations, confidence per
-span). Foundation: a validated corpus-ingestion pipeline built over all
+**~60% of the full project.** Phases 0–3 complete; **Phase 4 DAPT RUN — full FT
+wins, `full/final` (B1) saved**; **Phase 5 — 85 gold docs (65 human + 20
+model_draft)**; **Phase 6 silver emitted over the train split** (1.11M entities
+/ 328k relations); **Phase 7 entity NER RUN — DAPT beats the no-DAPT control
++9.5 strict F1** (b1 0.589 vs b0 0.495; PERSON +19, PLACE +11); **Phase 7b
+two-stage RUN — gold fine-tune +8.8, settled recipe DAPT + silver(CE) + gold-FT
+= strict 0.672 / relaxed 0.785** (GCE loss tested & rejected −5.7). Foundation:
+a validated corpus-ingestion pipeline built over all
 67,980 documents at parse rate 1.000, whole-corpus characterization, mined
 lexicons with measured recall, the annotation schema (guidelines v0.3, ten
 rules), a mechanical span + **numeral-coverage** validator (`oik gold check`),
 a proximity baseline at a 74.50% numeral link rate, leak-free stratified +
 chronological splits, and a scored, confidence-aware silver labeler.
 
-Remaining: Phase 4 DAPT (Modal) · Phase 5 gold annotation (finish + human
-review) · Phase 7 entity model · Phase 8 relation model · Phase 9 corpus
-inference → DB · Phase 10 historical analysis · Phase 11 release.
+Remaining: Phase 5 gold (review the 20 drafts + finish for rare classes) ·
+Phase 8 relation model · Phase 9 corpus inference → DB · Phase 10 historical
+analysis · Phase 11 release.
 
-**Phase 5 (gold annotation) is the critical path** — there is zero upstream
-entity markup, so all supervision must be created by hand, and it is the only
-instrument that can validate the silver and score the models. Phase 8
-(relations) remains the scientific risk (silver PARTY_OF precision ≈ 0.28).
+**Gold annotation is still the critical path** — the Phase-7b result proved the
+gold fine-tune is where the last +8.8 came from, and the remaining ceiling
+(rare labels TAX_TERM/PERSON_ROLE/AGE/FRACTION; the 20 un-reviewed drafts) is
+label-side. Phase 8 (relations) remains the scientific risk (silver PARTY_OF
+precision ≈ 0.28).
 
 ---
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-21 (Phase 6: built + validated the silver labeler,
-scorer and confidence/abstention; emitted silver over the whole train split.
-Phase 5 gold unchanged at 65/150, resume at doc 66 = `23875`.)._
+_Last updated: 2026-07-21 (Phase 4 DAPT run — full FT wins over DoRA,
+`checkpoints/full/final` = B1. **Phase 7 entity NER run complete: DAPT beats the
+no-DAPT control +9.5 strict F1 on gold** (b1 0.589 vs b0 0.495), `models/{b0,b1}/
+final` saved to the `oikonomia-ner` Volume; B1 is the entity backbone. Harness:
+`oikonomia/ner/`, `oik ner prepare`, `modal_app/ner.py`. 397 tests, ruff + mypy
+clean. **Phase 7b harness built** (`modal_app/ner.py` rewritten: two-stage
+silver→gold + k-fold CV, `loss={ce,gce}`; entrypoint `xval`). **Gold extended
+65→85** (20 new model_drafts via `build_gold_draft.py` `draft` flag; 8 dense
+docs held; `oik gold check` 0 errors) — the +20 await a human review pass and a
+re-`push` before the Phase 7b run.)._
+
+### Modal Volumes (state that lives off-repo)
+- `oikonomia-dapt`: `shards/{train,dev}.bin`, `checkpoints/full/final` (**B1
+  backbone**, load this for Phase 7 b1), plus stale `checkpoints/b1-*` from the
+  first (misconfigured) sweep — safe to `modal volume rm -r` to reclaim space.
+- `oikonomia-ner`: `data/{silver,gold,labels}.json*` after `ner.py::push`.
+  **Re-`push` after the gold edits** (the Volume still has the 65-doc gold).
+  `xval` trains in `/tmp` per fold and saves no persistent model (it measures,
+  it doesn't ship a model) — the shippable NER model is a later `launch`-style
+  full train once the recipe/gold are frozen.
+- Run `modal_app/ner.py` with the **venv's** modal (imports `oikonomia`); the
+  DAPT one runs with global modal (ships nothing local).
 
 ### Quality gate at last save
 **`oik gold check` 0 errors / 49 reviewed advisories.** src/ untouched since the
@@ -1096,16 +1291,20 @@ last full gate (ruff · mypy · 348 tests all PASS); only
 `tools/build_gold_draft.py` and `data/gold/annotated.jsonl` changed this batch.
 Caches cleared. All work is committed to git (`main`).
 
-### Batch-2 gold annotation (in progress — resume here)
-- Target this phase-2 push: **docs 51–100 of the 150-doc batch → 100/150 total.**
-  Done so far: **51–65 (15 docs).** Committed as `Annotate gold docs 51-60`
-  and `…61-65`.
-- **Resume at doc 66 = `23875`.** The next 35 undone target doc_ids, in batch
-  order, start: `23875, 23914, 25467, 25677, 2699, 27473, 27734, 28068, 28329,
-  28885, 29051, 30719, 30725, 3141, 31975, 32721, 32874, 32910, 33238, 33510,
-  34901, 35239, 35281, 35704, 36217, 36847, 36928, 36941, 37263, 37277, 37409,
-  37678, 382560, 38625, 38767` (that reaches 100/150). Regenerate the working
-  list any time with the one-liner in §10.
+### Batch-2 gold annotation (85/150 — 65 human-validated + 20 model drafts)
+- **Now 85 docs, `oik gold check` 0 errors.** 65 are `human_validated`; the 20
+  added for Phase 7b are `provenance: model_draft` and **await a human review
+  pass** — `build_gold_draft.py` now honours a per-doc `"draft": True` flag so
+  un-reviewed drafts never claim human validation (integrity, §3).
+- **The 20 model drafts** (batch order): `23875 25677 2699 27473 28068 28885
+  29051 3141 30719 30725 32721 32874 32910 33238 34901 35239 35704 36217 36928
+  36941`. Review these, then flip each block's `draft` flag off and rebuild.
+- **8 docs were deliberately HELD** (too dense/fragmentary to auto-draft into
+  the eval set): `23914` (marriage, double-annotate), `25467` `27734` `28329`
+  `31975` `33510` `35281` (obol/grain/harbour registers, 40–80 numerals each),
+  `37263` (shattered λόγος). These need careful/human annotation.
+- **Resume for more:** next undone tractable ids after 36941: `37277, 37409,
+  37678, 382560, 38625, 38767, …`. Regenerate the list with the §10 one-liner.
 - **Workflow that worked well:** dump 5 docs at a time with the scratchpad
   helper (text + tagged `<num>` offsets + baseline suggestions), write each
   `SPEC["<id>"]` block in `tools/build_gold_draft.py`, rebuild, `oik gold check`.
@@ -1213,7 +1412,7 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/oik splits check
 .venv/bin/oik dapt inspect | tail -15
 
-# 3. Gold draft intact? (65/150 docs, must be 0 errors)
+# 3. Gold draft intact? (85/150 docs: 65 human + 20 model_draft, must be 0 errors)
 .venv/bin/oik gold check
 
 # 3b. Phase 6 silver intact? (labeler scored vs gold; re-emit if silver.jsonl missing)
@@ -1229,8 +1428,9 @@ print([d["doc_id"] for d in batch if d["doc_id"] not in done][:35])
 PY
 ```
 
-**Phase 5 batch 2 is underway — 65 of 150 documents done, resume at doc 66 =
-`23875`.** Dump the next few docs with the scratchpad helper (or inline: read
+**Phase 5 batch 2 — 85 of 150 done (65 human-validated + 20 model_draft awaiting
+review; 8 dense docs held — see §9).** To draft more, dump the next tractable
+docs with the scratchpad helper (or inline: read
 `text` + tagged `<num>` from `corpus.parquet` + `suggested_entities`), add each
 `SPEC["<id>"]` block to `tools/build_gold_draft.py` in reading order (and
 `skips=[S(...)]` for any deliberately-unlabelled numeral), run

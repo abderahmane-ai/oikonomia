@@ -1,48 +1,33 @@
-"""Modal job: domain-adaptive pretraining of GreBerta on documentary papyri.
+"""Domain-adaptive pretraining of GreBerta on documentary papyri (Modal, A10).
 
-Orchestration only. What data the model sees was decided offline in
-``oikonomia.dapt`` and frozen into packed shards. Deleting this directory must
-not break the library.
+Two arms, each trained to its own best and compared on held-out MLM loss:
 
-    modal run modal_app/dapt.py::push      # upload shards, once
-    modal run modal_app/dapt.py::sweep     # decide adapter + length empirically
-    modal run modal_app/dapt.py::launch    # single run with chosen settings
+    full : full fine-tuning            LR 5e-5   — every weight moves.
+    dora : DoRA, r=64, all-linear      LR 1e-4   — the strongest PEFT baseline.
 
-## The regime we are actually in
+Why exactly these two, and not a LoRA-scope sweep:
 
-GreBerta is 110M parameters. The packed train shard is **8.3M tokens** — 0.075
-tokens per parameter. The DAPT literature ("Don't Stop Pretraining") used
-2.1–8.1 *billion*-token domain corpora, i.e. **250–1000x more**. Its recipe —
-full fine-tuning for 12,500 steps — does not transfer here, and applying it
-unchanged would train for ~49 epochs and memorise the train split.
+* GreBerta is **RoBERTa-base, ~125M params** (config.json: 12L / 768d / 12h /
+  52k vocab / 512 ctx). At that size PEFT buys **no** memory — full FT fits an
+  A10 with room to spare — so an adapter's only value here is *regularization*,
+  never efficiency.
+* DAPT is **continued pretraining**, i.e. injecting a new domain. For that
+  regime the on-point evidence (Biderman et al. 2405.09673) is that full FT
+  beats low-rank adapters and the gap does **not** close with rank; the
+  "adapters equal full FT" results are all about the downstream *fine-tune*,
+  a different stage. DoRA (2402.09353) is the adapter that comes closest to
+  full-FT update geometry, so it is the one honest challenger — with rsLoRA
+  scaling and all linear layers targeted, given full expressivity.
+* **Each arm owns its learning rate.** A shared LR is what silently starved the
+  adapters last run (5e-5 is right for full FT, ~10x too low for an adapter).
 
-There is no more in-domain data to find. DCLP (literary papyri, already on
-disk) parses cleanly but adds only ~1.4M tokens (+17%) and pulls the register
-*away* from documentary Greek, which is the same objection that ruled out
-koine-t5-omni. Not worth it unless the dev curve shows genuine data starvation.
+The final backbone is chosen **downstream on gold NER F1**, not on the
+perplexity this file prints; here we only need each arm at its own optimum,
+with early stopping on dev loss deciding the epoch count.
 
-## What follows from that
-
-**1. Do not guess the epoch count — let the dev set end the run.** Early
-stopping on held-out perplexity with a generous ceiling removes the question
-entirely. The earlier "12,500 vs 2,024 steps" argument was the wrong argument:
-whichever number is right, the dev curve knows it and we do not.
-
-**2. Do not argue LoRA vs full fine-tuning — measure it.** A whole run is
-~15-45 minutes and well under a dollar on an A10, so a two-point sweep costs
-less than the time spent reasoning about it.
-
-The *prior*, stated so it is falsifiable: **LoRA should win or tie.** At 0.075
-tokens/param the binding constraint is data, not capacity, and "LoRA learns
-less and forgets less" is only a cost when there is enough data to learn more
-from. Direct in-domain evidence agrees — koineformer adapted this very
-backbone family with LoRA r=16 on 1.5M tokens. So LoRA is the default and full
-fine-tuning is the challenger, which is the reverse of this file's first draft.
-
-**3. Sequence length is a real variable here, not a default.** The median
-papyrus is ~74 tokens, so a 512-token block packs ~7 unrelated documents and
-most attention is cross-document noise. 256 halves that and doubles the number
-of blocks. Cheap to test; included in the sweep.
+    modal run --detach modal_app/dapt.py::push       # upload shards, once
+    modal run --detach modal_app/dapt.py::compare    # full vs dora, in parallel
+    modal run --detach modal_app/dapt.py::launch --arm dora   # a single arm
 """
 
 from __future__ import annotations
@@ -53,9 +38,7 @@ from pathlib import Path
 import modal
 
 APP_NAME = "oikonomia-dapt"
-# gpu="A10" — verified against modal.com/docs. "A10G" is no longer in the
-# documented GPU list (T4, L4, A10, L40S, A100, H100, H200, B200, B300).
-GPU = "A10"
+GPU = "A10"  # verified against modal.com/docs; "A10G" is no longer a valid name.
 VOLUME_NAME = "oikonomia-dapt"
 VOL_ROOT = "/vol"
 SHARD_DIR = f"{VOL_ROOT}/shards"
@@ -63,21 +46,28 @@ CKPT_ROOT = f"{VOL_ROOT}/checkpoints"
 
 LOCAL_SHARDS = Path(__file__).resolve().parents[1] / "data" / "processed" / "dapt"
 
+# The two arms. Each is a full, self-contained recipe — same data, own optimizer
+# settings. `compare` runs both; `launch --arm X` runs one.
+ARMS: dict[str, dict[str, object]] = {
+    "full": {"adapter": "full", "learning_rate": 5e-5},
+    "dora": {"adapter": "dora", "learning_rate": 1e-4, "lora_r": 64, "lora_alpha": 16},
+}
+
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install(
         "torch>=2.2",
-        # Pinned to the major version whose Trainer API was verified against:
-        # `evaluation_strategy` was removed in 5.x in favour of `eval_strategy`,
-        # so a silent major bump would break the run on the GPU, not locally.
+        # 5.x renamed evaluation_strategy -> eval_strategy; pin the major so a
+        # silent bump can't break the run on the GPU where it's expensive to find.
         "transformers>=5.0,<6",
         "accelerate>=0.33",
-        "peft>=0.12",
+        "peft>=0.12",  # DoRA (use_dora) and rsLoRA (use_rslora) both need >=0.12.
         "numpy>=1.26",
     )
-    # Local source is added explicitly: automounting was removed in Modal >=1.0.
-    .add_local_python_source("oikonomia")
 )
+# No add_local_python_source: the remote functions read packed shards off the
+# Volume and never import the `oikonomia` library, so nothing local ships. (That
+# line also broke `modal run` from any interpreter without the package on path.)
 
 app = modal.App(APP_NAME, image=image)
 volume = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
@@ -111,37 +101,59 @@ def push() -> None:
         print(f"uploaded {name}: {size / 1e6:.1f} MB")
 
 
+@app.function(volumes={VOL_ROOT: volume}, timeout=600)
+def reset_checkpoints(names: list[str]) -> list[str]:
+    """Delete each arm's checkpoint dir so a fresh comparison never resumes a
+    previous run. Preemption resume is unaffected: Modal retries re-enter
+    ``train`` (not this entrypoint), find the in-run checkpoints, and continue."""
+    import shutil
+
+    cleared = []
+    for name in names:
+        d = Path(f"{CKPT_ROOT}/{name}")
+        if d.is_dir():
+            shutil.rmtree(d)
+            cleared.append(name)
+    volume.commit()
+    return cleared
+
+
 @app.function(
     gpu=GPU,
     volumes={VOL_ROOT: volume},
     timeout=24 * 3600,
-    # A10 capacity is preemptible; retry and resume rather than lose the run.
     retries=modal.Retries(max_retries=3, initial_delay=10.0),
 )
 def train(
-    run_name: str = "b1-lora",
+    run_name: str,
+    adapter: str = "full",  # "full" | "dora"
+    learning_rate: float = 5e-5,
     model_name: str = "bowphs/GreBerta",
-    adapter: str = "lora",  # "lora" | "full"
-    lora_r: int = 16,
-    lora_alpha: int = 32,
-    lora_scope: str = "attn+ffn",  # "attn+ffn" | "attn"
-    # A *ceiling*, not a target: early stopping on dev loss ends the run. Set
-    # generously (~16 epochs) so the dev curve, not this number, decides.
+    lora_r: int = 64,
+    lora_alpha: int = 16,
+    lora_dropout: float = 0.05,
+    # A generous *ceiling* (~16 epochs); early stopping on dev loss decides the
+    # real stopping point, so this number never has to be guessed correctly.
     max_steps: int = 4048,
     patience: int = 5,
     eval_every: int = 100,
-    learning_rate: float = 5e-5,
-    per_device_batch_size: int = 32,
-    grad_accum: int = 2,
+    # Effective batch 64 (16 x 4). The MLM logits are batch*seq*52k floats; in
+    # fp32 that transient alone is ~1.7 GB at bs=16, and a larger per-device
+    # batch (plus full-FT activations) tips the A10 over its 22 GiB.
+    per_device_batch_size: int = 16,
+    grad_accum: int = 4,
     warmup_ratio: float = 0.06,
     mlm_probability: float = 0.15,
     seed: int = 17,
 ) -> dict[str, float | str]:
-    """Continued MLM pretraining on the packed papyri shards.
-
-    Returns dev loss/perplexity so runs in a sweep are directly comparable.
-    """
+    """Continued MLM pretraining on the packed papyri shards. Returns dev metrics."""
     import math
+    import os
+
+    # Set before torch initializes its CUDA allocator: reduces fragmentation, the
+    # difference between fitting and an edge-of-capacity OOM on the 22 GiB A10.
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 
     import numpy as np
     import torch
@@ -155,6 +167,7 @@ def train(
         TrainerCallback,
         TrainingArguments,
     )
+    from transformers.trainer_callback import PrinterCallback, ProgressCallback
 
     class PackedShard(Dataset):
         """Fixed-length blocks, memory-mapped straight off the Volume."""
@@ -169,24 +182,17 @@ def train(
             return self.n
 
         def __getitem__(self, i: int) -> dict[str, torch.Tensor]:
-            # int64 for the embedding lookup; uint16 on disk is storage only.
             block = torch.from_numpy(self.data[i].astype(np.int64))
             return {"input_ids": block, "attention_mask": torch.ones_like(block)}
 
     class GapAwareCollator(DataCollatorForLanguageModeling):
-        """MLM masking that never targets the lacuna placeholder.
+        """MLM masking that never *targets* the lacuna marker "…".
 
-        The gap marker "…" is 1.16% of corpus *characters* but tokenises to two
-        byte pieces, making it **6.0% of the token stream**. Left alone, ~6% of
-        the masking budget is spent predicting an editorial symbol that is
-        trivially predictable from its other half — near-zero loss, near-zero
-        gradient. Worse, those easy targets deflate dev perplexity, and dev
-        perplexity is what early stopping and model selection run on.
-
-        The markers stay in the *input*: they are real, they appear at
-        inference, and deleting them would splice text across a lacuna and
-        manufacture adjacencies that never existed. They are only excluded from
-        being prediction targets.
+        "…" is 6% of the token stream; masking it spends the budget predicting an
+        editorial symbol that is trivial from its other half — near-zero loss and
+        gradient, and it deflates the dev perplexity that model selection runs on.
+        The markers stay in the input (they are real and appear at inference);
+        they are only excluded from being prediction targets.
         """
 
         def __init__(self, *args, gap_ids: set[int] | None = None, **kwargs) -> None:
@@ -199,23 +205,15 @@ def train(
                 for gid in self.gap_ids:
                     is_gap |= inputs == gid
                 special_tokens_mask = (
-                    is_gap
-                    if special_tokens_mask is None
-                    else special_tokens_mask.bool() | is_gap
+                    is_gap if special_tokens_mask is None else special_tokens_mask.bool() | is_gap
                 )
             return super().torch_mask_tokens(
                 inputs, special_tokens_mask=special_tokens_mask, offset_mapping=offset_mapping
             )
 
     class ClearLogger(TrainerCallback):
-        """One tagged line per log/eval event, with perplexity.
-
-        The three sweep arms share one stdout, and the Trainer's default printer
-        emits untagged metric dicts under tqdm bars — unreadable interleaved.
-        Every line here is prefixed with ``run_name`` so a single arm is one
-        ``grep`` away, and eval events carry perplexity (exp of the loss), the
-        number the sweep actually selects on.
-        """
+        """One tagged line per event — the only thing that prints, so parallel
+        arms sharing stdout stay one ``grep`` apart and eval lines carry ppl."""
 
         def on_log(self, args, state, control, logs=None, **kwargs):
             if not logs:
@@ -223,19 +221,17 @@ def train(
             step = state.global_step
             if "loss" in logs:
                 print(
-                    f"[{run_name}] step {step:>4}/{args.max_steps} "
-                    f"ep {logs.get('epoch', 0.0):5.2f} | train_loss {logs['loss']:7.4f} "
-                    f"| lr {logs.get('learning_rate', 0.0):.2e} "
-                    f"| grad {logs.get('grad_norm', 0.0):5.2f}",
+                    f"[{run_name}] {step:>4}/{args.max_steps}  ep {logs.get('epoch', 0.0):5.2f}"
+                    f"  loss {logs['loss']:7.4f}  lr {logs.get('learning_rate', 0.0):.1e}"
+                    f"  grad {logs.get('grad_norm', 0.0):5.2f}",
                     flush=True,
                 )
             if "eval_loss" in logs:
                 el = logs["eval_loss"]
                 best = state.best_metric
-                best_str = f" | best {best:.4f}" if best is not None else ""
+                tag = f"  best {best:.4f}" if best is not None else ""
                 print(
-                    f"[{run_name}] step {step:>4} | EVAL loss {el:7.4f} "
-                    f"| ppl {math.exp(el):8.3f}{best_str}",
+                    f"[{run_name}] {step:>4}  EVAL  loss {el:7.4f}  ppl {math.exp(el):8.2f}{tag}",
                     flush=True,
                 )
 
@@ -247,90 +243,69 @@ def train(
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForMaskedLM.from_pretrained(model_name)
 
-    if adapter == "lora":
+    if adapter == "dora":
         from peft import LoraConfig, TaskType, get_peft_model
 
-        # PEFT matches target_modules by *suffix* ("it is checked if the name
-        # of the module ends with any of the passed strings"). A bare "dense"
-        # therefore also captures lm_head.dense, which is not part of the
-        # encoder and is tied to the embeddings — so every name here is
-        # qualified enough to exclude it.
-        #
-        # Default is attention + FFN, not attention alone. DAPT's job is to
-        # absorb domain content, and the feed-forward blocks are where lexical
-        # and factual associations live; the literature reports MLP-only
-        # matching or beating all-linear, and attention-only is the
-        # conservative choice rather than the apt one here. At r=16 this is
-        # still ~1% of the model, far from an overfitting risk on 8.3M tokens.
-        scopes = {
-            "attn": ["query", "key", "value"],
-            "attn+ffn": [
-                "query",
-                "key",
-                "value",
-                "attention.output.dense",
-                "intermediate.dense",
-                "output.dense",
-            ],
-        }
-        if lora_scope not in scopes:
-            raise ValueError(f"lora_scope must be one of {sorted(scopes)}, got {lora_scope!r}")
-
+        # Every linear layer in the encoder — QKV, attention output, and both FFN
+        # projections — so the adapter has full expressivity. FEATURE_EXTRACTION
+        # adapts the transformer and leaves the (tied) MLM head frozen to decode;
+        # lm_head is excluded explicitly so no adapter lands on the embeddings.
         model = get_peft_model(
             model,
             LoraConfig(
-                # PEFT has no masked-LM task type; FEATURE_EXTRACTION adapts
-                # the encoder and leaves the LM head frozen. That head is tied
-                # to the input embeddings, so training it would mean training
-                # the embedding matrix — a much larger change than "LoRA".
-                # Adaptation therefore happens in the encoder and the frozen
-                # head decodes it, which is what we want for a tagger backbone.
                 task_type=TaskType.FEATURE_EXTRACTION,
                 r=lora_r,
                 lora_alpha=lora_alpha,
-                lora_dropout=0.1,
-                target_modules=scopes[lora_scope],
+                lora_dropout=lora_dropout,
+                use_dora=True,
+                use_rslora=True,  # scaling = alpha / sqrt(r): stable at high rank.
+                target_modules=[
+                    "query",
+                    "key",
+                    "value",
+                    "attention.output.dense",
+                    "intermediate.dense",
+                    "output.dense",
+                ],
                 exclude_modules=["lm_head.dense", "lm_head.decoder"],
             ),
         )
         model.print_trainable_parameters()
     elif adapter != "full":
-        raise ValueError(f"adapter must be 'lora' or 'full', got {adapter!r}")
+        raise ValueError(f"adapter must be 'full' or 'dora', got {adapter!r}")
 
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(
-        f"[{run_name}] adapter={adapter} trainable={trainable / 1e6:.1f}M "
-        f"train_blocks={len(train_ds)} dev_blocks={len(eval_ds)} seq_len={train_ds.seq_len}"
+        f"[{run_name}] adapter={adapter} lr={learning_rate:.1e} "
+        f"trainable={trainable / 1e6:.1f}M  train_blocks={len(train_ds)} "
+        f"dev_blocks={len(eval_ds)}  seq_len={train_ds.seq_len}",
+        flush=True,
     )
 
     ckpt_dir = f"{CKPT_ROOT}/{run_name}"
     args = TrainingArguments(
-        # Inside the Volume, so HF checkpointing is what makes the job
-        # preemption-safe; background commits persist it automatically.
-        output_dir=ckpt_dir,
+        output_dir=ckpt_dir,  # inside the Volume -> checkpointing is preemption-safe.
         max_steps=max_steps,
         per_device_train_batch_size=per_device_batch_size,
         gradient_accumulation_steps=grad_accum,
         learning_rate=learning_rate,
-        warmup_ratio=warmup_ratio,
+        warmup_steps=int(warmup_ratio * max_steps),  # warmup_ratio is deprecated in 5.x.
         lr_scheduler_type="linear",
         bf16=True,
         logging_steps=50,
+        logging_first_step=True,
         eval_strategy="steps",
         eval_steps=eval_every,
         save_strategy="steps",
         save_steps=eval_every,
         save_total_limit=2,
-        # The three settings that turn "how many epochs?" from a guess into a
-        # measurement: keep the best-by-dev-loss weights, not the last ones.
+        # Keep the best-by-dev-loss weights, not the last ones — this is what
+        # turns "how many epochs?" into a measurement instead of a guess.
         load_best_model_at_end=True,
         metric_for_best_model="eval_loss",
         greater_is_better=False,
         report_to=[],
-        # Our ClearLogger prints the metrics; the tqdm bars only interleave
-        # noise across the three parallel arms sharing one stdout.
         disable_tqdm=True,
-        logging_first_step=True,
         seed=seed,
         dataloader_num_workers=2,
     )
@@ -346,20 +321,19 @@ def train(
             mlm_probability=mlm_probability,
             gap_ids=set(tokenizer("…", add_special_tokens=False)["input_ids"]),
         ),
-        callbacks=[
-            ClearLogger(),
-            EarlyStoppingCallback(early_stopping_patience=patience),
-        ],
+        callbacks=[ClearLogger(), EarlyStoppingCallback(early_stopping_patience=patience)],
     )
+    # Silence HF's default metric-dict printer; ClearLogger is the only voice.
+    trainer.remove_callback(PrinterCallback)
+    trainer.remove_callback(ProgressCallback)
 
+    # Only ever true on a preemption retry (the entrypoint clears checkpoints for
+    # a fresh comparison), so this resumes THIS run, never a previous one.
     ckpt_path = Path(ckpt_dir)
-    resume = ckpt_path.is_dir() and any(
-        p.name.startswith("checkpoint-") for p in ckpt_path.iterdir()
-    )
+    resume = ckpt_path.is_dir() and any(p.name.startswith("checkpoint-") for p in ckpt_path.iterdir())
     trainer.train(resume_from_checkpoint=resume or None)
 
-    metrics = trainer.evaluate()
-    loss = float(metrics.get("eval_loss", float("nan")))
+    loss = float(trainer.evaluate().get("eval_loss", float("nan")))
     stopped_at = int(trainer.state.global_step)
 
     final = f"{ckpt_dir}/final"
@@ -370,53 +344,51 @@ def train(
     result = {
         "run": run_name,
         "adapter": adapter,
-        "lora_scope": lora_scope if adapter == "lora" else "-",
+        "learning_rate": learning_rate,
         "eval_loss": loss,
         "perplexity": math.exp(loss),
         "stopped_at_step": stopped_at,
         "hit_ceiling": float(stopped_at >= max_steps),
         "trainable_params": trainable,
     }
-    print(f"[{run_name}] {json.dumps(result)}")
+    print(f"[{run_name}] RESULT {json.dumps(result)}", flush=True)
     return result
 
 
 @app.local_entrypoint()
-def launch(run_name: str = "b1-lora", adapter: str = "lora", max_steps: int = 4048) -> None:
-    """One run with chosen settings."""
-    print(json.dumps(train.remote(run_name=run_name, adapter=adapter, max_steps=max_steps), indent=2))
+def launch(arm: str = "full", max_steps: int = 4048) -> None:
+    """Train a single arm ("full" or "dora") with its own recipe."""
+    if arm not in ARMS:
+        raise SystemExit(f"arm must be one of {sorted(ARMS)}, got {arm!r}")
+    reset_checkpoints.remote([arm])  # fresh start; retries still resume in-run.
+    print(json.dumps(train.remote(run_name=arm, max_steps=max_steps, **ARMS[arm]), indent=2))
 
 
 @app.local_entrypoint()
-def sweep() -> None:
-    """Decide adapter empirically instead of by argument.
+def compare() -> None:
+    """Run full FT and DoRA in parallel and report dev perplexity for both.
 
-    Two runs, in parallel, well under a dollar. Whichever reaches the lower dev
-    perplexity is the primary arm; ``hit_ceiling`` tells you whether either was
-    still improving when the ceiling stopped it, which is the signal that the
-    corpus is data-starved rather than capacity-starved.
+    Whichever reaches the lower dev loss is the stronger DAPT backbone *by this
+    proxy*; the arm actually shipped is decided downstream on gold NER F1.
+    ``hit_ceiling`` flags an arm still improving when the ceiling stopped it —
+    the signal to raise ``max_steps`` (or that the corpus is data-starved).
     """
-    configs = [
-        {"run_name": "b1-lora-attn-ffn", "adapter": "lora", "lora_scope": "attn+ffn"},
-        {"run_name": "b1-lora-attn", "adapter": "lora", "lora_scope": "attn"},
-        {"run_name": "b1-full", "adapter": "full"},
-    ]
-    # spawn(), not map(): map/starmap take positional arguments only, so they
-    # cannot vary keyword arguments across invocations. spawn returns a
-    # FunctionCall to collect later, which is what gives parallelism here.
-    calls = [train.spawn(**cfg) for cfg in configs]
-    results = [call.get() for call in calls]
+    cleared = reset_checkpoints.remote(list(ARMS))
+    print(f"fresh start — cleared checkpoints: {cleared or 'none'}")
+    calls = {name: train.spawn(run_name=name, **cfg) for name, cfg in ARMS.items()}
+    results = [call.get() for call in calls.values()]
 
-    print("\n=== DAPT sweep results (lower perplexity is better) ===")
-    header = f"{'run':22s} {'ppl':>9s} {'eval_loss':>10s} {'stop@':>7s} {'trainable':>10s}"
+    print("\n=== DAPT comparison (lower perplexity is better) ===")
+    header = f"{'arm':6s} {'ppl':>9s} {'eval_loss':>10s} {'lr':>7s} {'stop@':>7s} {'trainable':>11s}"
     print(header)
     print("-" * len(header))
     for r in sorted(results, key=lambda x: x["eval_loss"]):
-        flag = "  <- still improving (raise ceiling)" if r["hit_ceiling"] else ""
+        flag = "  <- still improving" if r["hit_ceiling"] else ""
         print(
-            f"{r['run']:22s} {r['perplexity']:9.3f} {r['eval_loss']:10.4f} "
-            f"{r['stopped_at_step']:7d} {r['trainable_params'] / 1e6:9.1f}M{flag}"
+            f"{r['run']:6s} {r['perplexity']:9.2f} {r['eval_loss']:10.4f} "
+            f"{r['learning_rate']:7.0e} {r['stopped_at_step']:7d} "
+            f"{r['trainable_params'] / 1e6:9.1f}M{flag}"
         )
     best = min(results, key=lambda x: x["eval_loss"])
-    print(f"\nwinner: {best['run']}  (perplexity {best['perplexity']:.3f}, "
-          f"eval_loss {best['eval_loss']:.4f})")
+    print(f"\nlower dev loss: {best['run']}  (ppl {best['perplexity']:.2f})  "
+          f"— confirm the real winner downstream on gold NER F1.")

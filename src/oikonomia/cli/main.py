@@ -10,6 +10,7 @@ from oikonomia.cli.dapt_cmd import dapt_app
 from oikonomia.cli.gold_cmd import gold_app
 from oikonomia.cli.ingest_cmd import ingest_app
 from oikonomia.cli.lexicon_cmd import lexicon_app
+from oikonomia.cli.ner_cmd import ner_app
 from oikonomia.cli.silver_cmd import silver_app
 from oikonomia.cli.splits_cmd import splits_app
 
@@ -24,6 +25,7 @@ app.add_typer(splits_app, name="splits")
 app.add_typer(dapt_app, name="dapt")
 app.add_typer(gold_app, name="gold")
 app.add_typer(silver_app, name="silver")
+app.add_typer(ner_app, name="ner")
 
 
 @app.command("version")
