@@ -235,6 +235,33 @@ figure that restates amounts already annotated above. Annotate the total's
 own entities, and mark the transaction as a summary rather than a distinct
 transfer, so the database does not double-count.
 
+### Decisions from the second 15 documents
+
+**An alias formula stays inside one `PERSON` span.** `Κιαλῆς ὃς καὶ Νεφερῶς
+Νεφερῶτος`, `Νεῖλος ὁ καὶ Σαπ`, `Σαραπίων ὁ καὶ Ἀχιλλεὺς Ζωίλου` — the
+connectors `ὁ καὶ` / `ὃς καὶ` / `τοῦ καὶ` ("also called") join two names of the
+*same* person, so the whole phrase, alias and filiation included, is a single
+span. One mention, one person, one span (rule VI).
+
+**A mother in a filiation is her own `PERSON`.** In `X μητρὸς Y`, the child's
+name (with any patronymic) is one `PERSON` and the mother `Y` is a second,
+separate `PERSON` — she is a distinct individual, and census and property
+documents name her precisely so she can be identified. `μητρὸς` itself is not
+annotated.
+
+**One deal, one `TRANSACTION` anchor.** A document often restates its own act
+in a closing validity clause (`ἡ ὁμολογία … κυρία καὶ βεβαία`, "the agreement
+is valid and secure"). That noun is not a second transaction — anchor only the
+operative trigger (`ὁμολογῶ`), or the fragment double-counts. Genuinely
+distinct transactions (the eight contracts of doc 11974) each keep their own.
+
+**A transaction whose parties are lost still gets its anchor and its date.**
+Where the acting party is in a lacuna and the counterparty is a bare pronoun
+(`ὁμολογῶ ἐσχηκέναι παρὰ σοῦ …`, borrower's name gone), annotate the
+`TRANSACTION` and its `DATED_TO`, and record no `PARTY_OF`. A partyless anchor
+on a damaged document is honest; inventing or mis-attaching a party is not
+(rule IX).
+
 ### Decisions taken while annotating the first 15 documents
 
 Each of these recurred immediately and had to be settled to annotate at all.
@@ -401,8 +428,8 @@ the first 15 documents are annotated to this guide and pass `oik gold check`.
 ## 8. Status
 
 v0.2 — the ten rules in §0 are now the spine, and §5 records every decision
-taken against real text. Calibrated against the first 15 annotated documents
-(`data/gold/annotated.jsonl`, 420 entities / 124 relations, `oik gold check`
+taken against real text. Calibrated against the first 30 annotated documents
+(`data/gold/annotated.jsonl`, 775 entities / 194 relations, `oik gold check`
 clean). Sections 3–4 are stable enough to build the Phase 6 weak labeler
 against; §5 grows fastest as real documents are annotated.
 
