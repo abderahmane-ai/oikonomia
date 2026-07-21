@@ -446,12 +446,13 @@ is a perplexity proxy for a task F1 that cannot be measured until gold exists.
 **Still not built:** the B0 (no-DAPT) control. Without it no DAPT gain is
 believable.
 
-### 🔶 Phase 5 — Gold annotation (IN PROGRESS — 50 of 150 documents drafted, now completeness-verified)
+### 🔶 Phase 5 — Gold annotation (IN PROGRESS — 65 of 150 documents drafted, completeness-verified)
 
-**Status: 50/150 documents annotated as a reviewable model draft, and made
-mechanically complete** (`data/gold/annotated.jsonl`, **1,192 entities / 268
+**Status: 65/150 documents annotated as a reviewable model draft, and made
+mechanically complete** (`data/gold/annotated.jsonl`, **1,654 entities / 365
 relations**, `oik gold check` **0 errors**, every text byte-identical to
-`corpus.parquet`, 0 overlapping spans). All carry `provenance: model_draft` /
+`corpus.parquet`, 0 overlapping spans). Batch 2 (docs 51–100) is underway:
+**51–65 done, resume at doc 66 = `23875`** (see §9/§10). All carry `provenance: model_draft` /
 `annotator: claude-opus-4-8` — they are a draft for human review, **not** human
 gold, and must not be used to score a model or as one side of an inter-annotator
 κ without review. The generating spec is `tools/build_gold_draft.py` (offsets
@@ -944,8 +945,8 @@ architecture claim on our own data rather than on the literature's.
 
 ## 8. Progress
 
-**~40% of the full project.** Phases 0–3 complete; Phase 4 built, corrected
-and priced but not yet run on GPU; **Phase 5 underway — 50 of 150 gold
+**~42% of the full project.** Phases 0–3 complete; Phase 4 built, corrected
+and priced but not yet run on GPU; **Phase 5 underway — 65 of 150 gold
 documents drafted and completeness-verified** (model draft, awaiting human
 review). Foundation: a validated corpus-ingestion pipeline built over all
 67,980 documents at parse rate 1.000, whole-corpus characterization, mined
@@ -966,14 +967,38 @@ remains the scientific risk.
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-21 (Phase 5 completeness pass: `oik gold check` gained a
-numeral-coverage gate + name/relation advisories; all 34 uncovered numerals
-fixed; guidelines → v0.3; 50/150 docs now complete at 1,192 entities / 268
-relations)._
+_Last updated: 2026-07-21 (Phase 5 batch 2: annotated gold docs 51–65 to the
+completeness-verified standard; 65/150 done at 1,654 entities / 365 relations;
+paused mid-batch, resume at doc 66 = `23875`)._
 
 ### Quality gate at last save
-**ruff PASS · mypy PASS · 348 tests PASS · `oik gold check` 0 errors / 27
-reviewed advisories.** Caches cleared. All work is committed to git (`main`).
+**`oik gold check` 0 errors / 49 reviewed advisories.** src/ untouched since the
+last full gate (ruff · mypy · 348 tests all PASS); only
+`tools/build_gold_draft.py` and `data/gold/annotated.jsonl` changed this batch.
+Caches cleared. All work is committed to git (`main`).
+
+### Batch-2 gold annotation (in progress — resume here)
+- Target this phase-2 push: **docs 51–100 of the 150-doc batch → 100/150 total.**
+  Done so far: **51–65 (15 docs).** Committed as `Annotate gold docs 51-60`
+  and `…61-65`.
+- **Resume at doc 66 = `23875`.** The next 35 undone target doc_ids, in batch
+  order, start: `23875, 23914, 25467, 25677, 2699, 27473, 27734, 28068, 28329,
+  28885, 29051, 30719, 30725, 3141, 31975, 32721, 32874, 32910, 33238, 33510,
+  34901, 35239, 35281, 35704, 36217, 36847, 36928, 36941, 37263, 37277, 37409,
+  37678, 382560, 38625, 38767` (that reaches 100/150). Regenerate the working
+  list any time with the one-liner in §10.
+- **Workflow that worked well:** dump 5 docs at a time with the scratchpad
+  helper (text + tagged `<num>` offsets + baseline suggestions), write each
+  `SPEC["<id>"]` block in `tools/build_gold_draft.py`, rebuild, `oik gold check`.
+  Recurring builder gotchas: (a) list entities in **reading order** (surface
+  is found by forward scan from the previous span's end — CURRENCY before its
+  MONEY_AMOUNT, `βοηθὸς` before `Ἀλεξάνδρου`); (b) single-char numeral surfaces
+  (`δ`,`η`,`ι`,`ρ`) match inside words like `δηναρίων` — anchor them with a
+  two-token context (`"ρλγ δ"`, `"δ η ιϛ"`); (c) contexts are literal, no regex.
+- **Advisory residue is expected and justified:** theonyms (`Ἰησοῦ Χριστοῦ`),
+  fused obol-words (`διώβολον`, `τετρώβολον`), elided-denomination sums, bare
+  counts, and damaged name-fragments. Drive the *real* misses to zero; leave
+  those, per guidelines §5.
 
 ### Corpus on disk — COMPLETE
 `data/raw/idp.data` — **6.1 GB**, working tree clean, HEAD at the pinned rev
@@ -1062,18 +1087,28 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/oik splits check
 .venv/bin/oik dapt inspect | tail -15
 
-# 3. Gold draft intact? (50/150 docs, must be 0 problems)
+# 3. Gold draft intact? (65/150 docs, must be 0 errors)
 .venv/bin/oik gold check
+
+# 4. Regenerate the remaining batch-2 work list (target: reach 100/150)
+.venv/bin/python - <<'PY'
+import json
+batch=[json.loads(l) for l in open("data/gold/to_annotate.jsonl") if l.strip()]
+done={json.loads(l)["doc_id"] for l in open("data/gold/annotated.jsonl") if l.strip()}
+print([d["doc_id"] for d in batch if d["doc_id"] not in done][:35])
+PY
 ```
 
-**Phase 5 is underway — 50 of 150 documents drafted and completeness-verified.**
-Continue at document 51 (index 50) of `data/gold/to_annotate.jsonl`. Add each
-doc's spans to `tools/build_gold_draft.py` as surface strings in reading order
-(and `skips=[S(...)]` for any deliberately-unlabelled numeral), run
+**Phase 5 batch 2 is underway — 65 of 150 documents done, resume at doc 66 =
+`23875`.** Dump the next few docs with the scratchpad helper (or inline: read
+`text` + tagged `<num>` from `corpus.parquet` + `suggested_entities`), add each
+`SPEC["<id>"]` block to `tools/build_gold_draft.py` in reading order (and
+`skips=[S(...)]` for any deliberately-unlabelled numeral), run
 `.venv/bin/python tools/build_gold_draft.py`, then `oik gold check` — it must
-report **0 errors** (the numeral-coverage gate is now a hard failure) and its
-**advisories** must all be genuine residue (theonyms, damaged fragments), not
-real misses. Every `TRANSACTION` carries a `PARTY_OF` unless the parties are
+report **0 errors** (the numeral-coverage gate is a hard failure) and its
+**advisories** must all be genuine residue (theonyms, fused obol-words,
+elided sums, damaged fragments), not real misses. See §9 "Batch-2 gold
+annotation" for the builder gotchas. Every `TRANSACTION` carries a `PARTY_OF` unless the parties are
 genuinely lost to a lacuna. The full method and every decision are in
 `resources/schema/annotation_guidelines.md` **v0.3** (§0 ten rules; §5
 "completeness pass").
