@@ -115,6 +115,19 @@ def test_party_of_must_point_at_a_transaction_trigger() -> None:
     assert validate_document(good) == []
 
 
+def test_bare_fraction_links_to_currency_like_an_amount() -> None:
+    """A Byzantine rent of `𐅷` of a solidus is a whole amount, not a defect."""
+    doc = _doc(
+        "χρυσοῦ νομισματίου 𐅷",
+        [
+            {"start": 7, "end": 18, "label": "CURRENCY", "text": "νομισματίου"},
+            {"start": 19, "end": 20, "label": "FRACTION", "text": "𐅷"},
+        ],
+        [{"head": 1, "tail": 0, "type": "HAS_CURRENCY"}],
+    )
+    assert validate_document(doc) == []
+
+
 def test_counted_people_may_carry_a_quantity() -> None:
     """`ἱερεῖς β` — HAS_QUANTITY accepts OCCUPATION, not only COMMODITY."""
     doc = _doc(

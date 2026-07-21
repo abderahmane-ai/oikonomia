@@ -181,9 +181,9 @@ expression is a single `DATE_REF` spanning the numeral and the year word
 | Relation | From → To | Example |
 |---|---|---|
 | `HAS_QUANTITY` | `COMMODITY`/`OCCUPATION`/`PERSON_ROLE` → `QUANTITY` | πυροῦ → τεσσαράκοντα; ἱερεῖς → β |
-| `HAS_UNIT` | `QUANTITY` → `UNIT` | τεσσαράκοντα → ἀρτάβας |
-| `HAS_CURRENCY` | `MONEY_AMOUNT` → `CURRENCY` | μ → δραχμάς |
-| `HAS_PRICE` | `COMMODITY` → `MONEY_AMOUNT` | the price paid for the good |
+| `HAS_UNIT` | `QUANTITY`/`FRACTION` → `UNIT` | τεσσαράκοντα → ἀρτάβας |
+| `HAS_CURRENCY` | `MONEY_AMOUNT`/`FRACTION` → `CURRENCY` | μ → δραχμάς; 𐅷 → νομισματίου |
+| `HAS_PRICE` | `COMMODITY` → `MONEY_AMOUNT`/`FRACTION` | the price paid for the good |
 | `PARTY_OF` | `PERSON`/`PERSON_ROLE` → `TRANSACTION` | every party, named or not |
 | `PAID_BY` / `PAID_TO` | `PERSON`/`PERSON_ROLE` → `MONEY_AMOUNT`/`COMMODITY` | direction of transfer |
 | `DATED_TO` | `TRANSACTION` → `DATE_REF` | |
@@ -234,6 +234,33 @@ quantity unlinked.
 figure that restates amounts already annotated above. Annotate the total's
 own entities, and mark the transaction as a summary rather than a distinct
 transfer, so the database does not double-count.
+
+### Decisions from documents 31-50
+
+**A bare fraction can be the whole amount, and it links like a number.** In
+Byzantine rents and prices the sum is often a fraction of a solidus with no
+integer part: `ὑπὲρ ἐνοικίου … χρυσοῦ νομισματίου 𐅷` ("rent … 2/3 of a gold
+solidus"). Annotate `𐅷` as `FRACTION` and link it `HAS_CURRENCY → νομισματίου`.
+`HAS_CURRENCY`, `HAS_UNIT` and `HAS_PRICE` therefore accept a `FRACTION` head,
+not only a `MONEY_AMOUNT`/`QUANTITY` — a fractional sum is a real sum (§0 rule
+X: never drop value).
+
+**A slave in a sale is a `PERSON`, with `δούλου` as `PERSON_ROLE`.** `πρᾶσις
+Παροδίωνος δούλου` ("sale of Parodion, a slave") — the enslaved person keeps
+their name as `PERSON` and is a `PARTY_OF` the sale; `δούλου` is the status
+role. Do not annotate a human being as a `COMMODITY`, even when the document
+treats them as the object of sale. The `πρᾶσις` is the `TRANSACTION`.
+
+**Status and honorific roles are `PERSON_ROLE`.** `ἀπελευθέρα` / `ἀπελεύθερον`
+(freed-person), `ματρώνᾳ στολάτᾳ` (matron of stola rank), `κληρονόμοις` (heirs
+acting as a party). These qualify a person's standing in the transaction and
+are annotated like the guardian formula.
+
+**A request is not a transaction, and an empty document is a valid answer.**
+A petition verb (`δεόμεθα`, `ἀξιῶ` — "we ask", "I request") is not an economic
+transfer; do not give it a `TRANSACTION`. A heavily damaged scrap with no
+legible economic content is annotated with **no** entities — a true negative is
+data, and inventing spans to fill it is worse than leaving it empty (§0 rule I).
 
 ### Decisions from the second 15 documents
 
@@ -428,8 +455,8 @@ the first 15 documents are annotated to this guide and pass `oik gold check`.
 ## 8. Status
 
 v0.2 — the ten rules in §0 are now the spine, and §5 records every decision
-taken against real text. Calibrated against the first 30 annotated documents
-(`data/gold/annotated.jsonl`, 775 entities / 194 relations, `oik gold check`
+taken against real text. Calibrated against the first 50 annotated documents
+(`data/gold/annotated.jsonl`, 1,127 entities / 258 relations, `oik gold check`
 clean). Sections 3–4 are stable enough to build the Phase 6 weak labeler
 against; §5 grows fastest as real documents are annotated.
 

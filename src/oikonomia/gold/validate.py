@@ -31,9 +31,12 @@ from pydantic import BaseModel, Field
 # Each side is the set of labels allowed at that endpoint.
 RELATION_SIGNATURES: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     "HAS_QUANTITY": (frozenset({"COMMODITY", "OCCUPATION", "PERSON_ROLE"}), frozenset({"QUANTITY"})),
-    "HAS_UNIT": (frozenset({"QUANTITY"}), frozenset({"UNIT"})),
-    "HAS_CURRENCY": (frozenset({"MONEY_AMOUNT"}), frozenset({"CURRENCY"})),
-    "HAS_PRICE": (frozenset({"COMMODITY"}), frozenset({"MONEY_AMOUNT"})),
+    "HAS_UNIT": (frozenset({"QUANTITY", "FRACTION"}), frozenset({"UNIT"})),
+    # FRACTION heads: a bare fraction is a complete amount (𐅷 of a nomismation
+    # is a Byzantine rent; 𐅵 of an aroura is real land), so it links like a
+    # MONEY_AMOUNT/QUANTITY would.
+    "HAS_CURRENCY": (frozenset({"MONEY_AMOUNT", "FRACTION"}), frozenset({"CURRENCY"})),
+    "HAS_PRICE": (frozenset({"COMMODITY"}), frozenset({"MONEY_AMOUNT", "FRACTION"})),
     "CHARGED_UNDER": (frozenset({"MONEY_AMOUNT"}), frozenset({"TAX_TERM"})),
     # Anchored on an explicit TRANSACTION trigger — see the guidelines. Before
     # TRANSACTION existed these pointed at "the transaction", which was not an

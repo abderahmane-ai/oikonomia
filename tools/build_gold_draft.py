@@ -842,6 +842,427 @@ SPEC["17157"] = {"entities": [  # sale of a female donkey
 ]}
 
 
+# ---------------------------------------------------------------------------
+# Batch documents 31-50 (index 30-49). Guidelines v0.2.
+# ---------------------------------------------------------------------------
+
+SPEC["17290"] = {"entities": [  # loan acknowledgement, huge sum
+    E("DATE_REF", "ὑπάτων", None, "date"),
+    E("PERSON", "Διοκλητιανοῦ"), E("DATE_REF", "τὸ ε"),
+    E("PERSON", "Μαξιμιανοῦ"), E("DATE_REF", "το δ"),
+    E("PERSON_ROLE", "κληρονόμοις", None, "lenders"),
+    E("PERSON", "Γαΐου Ἰουλίου Αὐρηλίου Διογένους"),
+    E("OCCUPATION", "ὑπομνηματογράφου", "γενομένου\nὑπομνηματογράφου"),
+    E("OCCUPATION", "ἐπιτρόπων"),
+    E("PERSON", "Αὐρηλίων Ἰουλιανοῦ τοῦ καὶ Διοσκουρίδου"),
+    E("OCCUPATION", "ὑπομνηματογράφου", "Διοσκουρίδου ὑπομνηματογράφου"),
+    E("OCCUPATION", "βουλευτοῦ"),
+    E("PLACE", "πόλεως τῶν Ἀλεξανδρέων"),
+    E("PERSON", "Δημητριανοῦ Πλουτίωνος"),
+    E("OCCUPATION", "γυμνασιαρχήσαντος"), E("OCCUPATION", "βουλευτῶν"),
+    E("PLACE", "Ὀξυρυγχιτῶν πόλεως"),
+    E("PERSON", "Αὐρήλιοι Ὡριγένης Σερήνου", None, "p1"), E("PERSON", "Διοσκοροῦτος"),
+    E("PERSON", "Ἁρποκρατίων", None, "p2"), E("PERSON", "Ἀνναρίης"),
+    E("TRANSACTION", "ὁμολογοῦμεν", None, "t1"),
+    E("CURRENCY", "ἀργυρίου Σεβαστοῦ\nνομίσματος"),
+    E("CURRENCY", "δραχμῶν", "νομίσματος δραχμῶν", "cur1"),
+    E("MONEY_AMOUNT", "μυριάδας τρεῖς καὶ τετρακοσίας", None, "m1"),
+    E("CURRENCY", "τάλαντα", "εἰσι τάλαντα πέντε", "cur2"), E("MONEY_AMOUNT", "πέντε", None, "m2"),
+    E("CURRENCY", "δραχμαὶ", "καὶ δραχμαὶ τετρακόσιαι", "cur3"), E("MONEY_AMOUNT", "τετρακόσιαι", None, "m3"),
+    E("CURRENCY", "τάλαντα", "γίνονται τάλαντα ε", "cur4"), E("MONEY_AMOUNT", "ε", "τάλαντα ε", "m4"),
+    E("CURRENCY", "δραχμαὶ", "τάλαντα ε δραχμαὶ υ", "cur5"), E("MONEY_AMOUNT", "υ", "δραχμαὶ υ", "m5"),
+], "relations": [
+    ("m1", "cur1", "HAS_CURRENCY"), ("m2", "cur2", "HAS_CURRENCY"),
+    ("m3", "cur3", "HAS_CURRENCY"), ("m4", "cur4", "HAS_CURRENCY"),
+    ("m5", "cur5", "HAS_CURRENCY"),
+    ("p1", "t1", "PARTY_OF"), ("p2", "t1", "PARTY_OF"), ("lenders", "t1", "PARTY_OF"),
+    ("t1", "date", "DATED_TO"),
+]}
+
+SPEC["17329"] = {"entities": [  # petition over a house (heavily damaged)
+    E("COMMODITY", "οἶνος"), E("COMMODITY", "οἰκία"),
+    E("COMMODITY", "μέρος τῆς οἰκίας"),
+    E("PERSON", "Αὐρήλιος Πατερμοῦθις"),
+    E("OCCUPATION", "ἄρξας βουλευτής"),
+    E("DATE_REF", "ἔτους ιγ καὶ α Μεσορὴ ϛ"),
+], "relations": []}
+
+SPEC["17409"] = {"entities": [  # private letter
+    E("PERSON", "Μάξιμος"), E("PERSON", "Χαιρήμονι"), E("PERSON", "Εὐδαίμονι"),
+    E("DATE_REF", "τῇ ιζ"),
+    E("OCCUPATION", "ἡγεμὼν"),
+    E("DATE_REF", "τῇ ιϛ"),
+    E("PERSON", "Τίτος Φούριος Οὐικτωρῖνος"),
+    E("PERSON", "Θερμουθαρίου"),
+    E("COMMODITY", "ἀμπελῶνος"),
+    E("PERSON", "Σαραπίων υἱὸς Δημητρίου\nυἱοῦ Ἀπελεκήτου"),
+    E("PLACE", "ῥύμην Ὠριγένους"),
+    E("PERSON", "Ἡρακλείδου τοῦ\nΚαλαῆ"),
+    E("DATE_REF", "ἔτους κβ"), E("DATE_REF", "Ἐπεὶφ κ"),
+    E("PERSON", "Ἁροῦτος"),
+    E("PLACE", "Ναρμούθει"),
+    E("PERSON", "Μαξίμου", "παρὰ Μαξίμου"),
+    E("OCCUPATION", "γραμματέως\nγερδίων"),
+], "relations": []}
+
+SPEC["17483"] = {"entities": [  # petition of a wife (dowry, ἕδνον)
+    E("PERSON", "Φλαουίῳ Οὐαλερίῳ"), E("OCCUPATION", "ἐκδίκῳ"),
+    E("PLACE", "Ὀξυρυγχιτῶν πόλεως"),
+    E("PERSON", "Αὐρηλίας Σοφίας θυγατρὸς Ἀνουθίου", None, "petitioner"),
+    E("PERSON_ROLE", "τοῦ ἀνδρός μου"),
+    E("PERSON_ROLE", "τοῦ ἰδίου πατρὸς"),
+    E("CURRENCY", "νομίσματα", "εἰς νομίσματα\nδεκατέσσαρα", "cur1"),
+    E("MONEY_AMOUNT", "δεκατέσσαρα", None, "m1"),
+    E("COMMODITY", "προικῴων"),
+    E("COMMODITY", "φθορίου ἕδνου"),
+    E("COMMODITY", "οἰκίαν"),
+    E("PERSON", "Αὐρηλία Σοφία", "κύριε.\nΑὐρηλία Σοφία"),
+    E("DATE_REF", "ὑπατείας", None, "date"),
+    E("PERSON", "Φλαουίου Λέοντος"),
+    E("DATE_REF", "τὸ α"), E("DATE_REF", "Μεσορὴ ι"),
+], "relations": [
+    ("m1", "cur1", "HAS_CURRENCY"),
+]}
+
+SPEC["17856"] = {"entities": [  # loan/repayment of wheat
+    E("DATE_REF", "ἔτους κ", "δημοσίοις.\nἔτους κ"),
+    E("PERSON", "Μάρκου Αὐρηλίου Ἀντωνίνου"),
+    E("PERSON", "Πουβλίου Σεπτιμίου Γέτα"),
+    E("DATE_REF", "Ἁθὺρ"),
+    E("PERSON", "Λούκιος Πουλφέννιος Φίλων", None, "p1"),
+    E("COMMODITY", "πυροῦ", None, "c1"),
+    E("UNIT", "ἀρτάβας", None, "u1"),
+    E("QUANTITY", "τεσσαράκοντα\nτρεῖς", "ἀρτάβας τεσσαράκοντα\nτρεῖς", "q1"),
+    E("PERSON", "Σαραπίων ὁ\nκαὶ Ὀρσ"),
+    E("PERSON", "Ἱέρακος"), E("OCCUPATION", "βοηθοῦ"),
+    E("UNIT", "ἄρουραι", "προκείμεναι ἄρουραι"),
+], "relations": [
+    ("c1", "q1", "HAS_QUANTITY"), ("q1", "u1", "HAS_UNIT"),
+]}
+
+SPEC["18396"] = {"entities": [  # receipt for a rope for a waterwheel
+    E("PLACE", "μοναστηρίου ἀββᾶ Ἀνδρέου"),
+    E("PERSON", "Ἰωσῆφ"),
+    E("COMMODITY", "μηχανῆς"),
+    E("PLACE", "τόπου Ἠλίου"),
+    E("DATE_REF", "μηνὸς Μεχεὶρ κδ ἰνδικτίωνος τετάρτης"),
+    E("COMMODITY", "σχοινίον ἤτοι κρίκον", None, "c1"), E("QUANTITY", "ἕνα", None, "q1"),
+    E("COMMODITY", "σχοινίον ἤτοι κρίκος", None, "c2"), E("QUANTITY", "α", "κρίκος α μόνον", "q2"),
+    E("DATE_REF", "ἔτους σλβ καὶ σα Μεχεὶρ κδ ἰνδικτίωνος τετάρτης"),
+    E("PERSON", "Πικῶς"),
+], "relations": [
+    ("c1", "q1", "HAS_QUANTITY"), ("c2", "q2", "HAS_QUANTITY"),
+]}
+
+SPEC["1842"] = {"entities": [  # Ptolemaic wage receipt (dyke labourers)
+    E("DATE_REF", "ἔτους κθ Θῶυτ κε", "ἔτους κθ Θῶυτ κε.\nἔχει"),
+    E("PERSON", "Νικίας", "ἔχει Νικίας εἰς τὴν"),
+    E("COMMODITY", "γῆν", "τὴν\nγῆν"),
+    E("OCCUPATION", "ἐργάτας", "εἰς\nἐργάτας ι"),
+    E("QUANTITY", "ι", "ἐργάτας ι ἀνὰ", "q1"),
+    E("CURRENCY", "ὀβολὸν", "ἀνὰ ὀβολὸν·"),
+    E("CURRENCY", "δραχμὴν", None, "cur2"), E("MONEY_AMOUNT", "α", "δραχμὴν α", "m2"),
+    E("MONEY_AMOUNT", "τετρώβολον"),
+    E("DATE_REF", "ἔτους κθ Θῶυτ κε"),
+    E("PERSON", "Νικίας", "ἔχει Νικίας εἰς\nτὴν"),
+    E("COMMODITY", "γῆν", "τὴν γῆν ἣν"),
+    E("OCCUPATION", "ἐργάτας", "εἰς ἐργάτας\nι"),
+    E("QUANTITY", "ι", "ἐργάτας\nι ἀνὰ", "q3"),
+    E("CURRENCY", "ὀβολὸν", "ἀνὰ ὀβολὸν· δεκόβολον"),
+    E("MONEY_AMOUNT", "δεκόβολον"),
+    E("DATE_REF", "Θῶυθ κε"),
+    E("DATE_REF", "Θῶυτ κε", "Ἀργυρικά.\nΘῶυτ κε"),
+], "relations": [
+    ("m2", "cur2", "HAS_CURRENCY"),
+]}
+
+SPEC["18505"] = {"entities": [  # petition over a kleros (blind)
+    E("DATE_REF", "ἔτους ιϛ Φαμενὼθ θ", "… ἔτους ιϛ Φαμενὼθ θ"),
+    E("PERSON", "Νεάρχωι"), E("OCCUPATION", "ὑποστρατήγωι"),
+    E("PLACE", "κλῆρον γειτνιῶντα"),
+    E("PLACE", "Τιλῶθιν"),
+    E("PLACE", "κλήρου", "ἡμῶν\nκλήρου τέταρτον"),
+    E("FRACTION", "τέταρτον", "κλήρου τέταρτον"),
+    E("QUANTITY", "εἴκοσι", "τὰ εἴκοσι\nσχοινία", "q1"),
+    E("UNIT", "σχοινία", "εἴκοσι\nσχοινία", "u1"),
+    E("DATE_REF", "η ἔτους"),
+    E("COMMODITY", "πυροῦ", None, "c1"),
+    E("UNIT", "ἀρτάβαι", None, "u2"), E("QUANTITY", "ε", "ἀρτάβαι ε", "q2"),
+    E("DATE_REF", "ἐτῶν β", "χρόνων ἐτῶν β"),
+    E("TAX_TERM", "ἐκφόρια"),
+    E("PERSON", "Θέωνι"), E("OCCUPATION", "ἀρχεφόδῳ"),
+    E("DATE_REF", "ἔτους ιϛ Φαμενὼθ θ", "καταντῆσαι ἔτους ιϛ Φαμενὼθ θ"),
+], "relations": [
+    ("q1", "u1", "HAS_UNIT"),
+    ("c1", "q2", "HAS_QUANTITY"), ("q2", "u2", "HAS_UNIT"),
+]}
+
+SPEC["18620"] = {"entities": [  # cancellation of a loan
+    E("PERSON", "Πρωτάρχωι"),
+    E("PERSON", "Μάρκου Τιγελλίου Ἰαλύσου", None, "p1"),
+    E("PERSON", "Ἔρωτος τοῦ Διοδώρου", None, "p2"),
+    E("PERSON", "Καλάθου τοῦ καὶ Φιλήμονος", None, "p3"),
+    E("TRANSACTION", "συνχωρεῖ", None, "t1"),
+    E("PERSON", "Μᾶρκος Τιγέλλιος Ἰάλυσος"),
+    E("PERSON", "Ἔρωτος", "ὑπὸ τοῦ Ἔρωτος"),
+    E("PERSON", "Ἑρμίου"),
+    E("PERSON", "Καλάθου", "τοῦ τοῦ Καλάθου ὀνόματος"),
+    E("CURRENCY", "ἀργυρίου Πτολεμαικοῦ"),
+    E("CURRENCY", "δραχμὰς", "Πτολεμαικοῦ δραχμὰς", "cur1"),
+    E("MONEY_AMOUNT", "τετρακοσίας", None, "m1"),
+    E("PERSON", "Καλάθωι"),
+    E("DATE_REF", "ἔτους κ", "ἔτους κ Καίσαρος"), E("PERSON", "Καίσαρος", "ἔτους κ Καίσαρος"),
+], "relations": [
+    ("m1", "cur1", "HAS_CURRENCY"),
+    ("p1", "t1", "PARTY_OF"), ("p2", "t1", "PARTY_OF"), ("p3", "t1", "PARTY_OF"),
+]}
+
+SPEC["18621"] = {"entities": [  # cancellation of a loan, woman with guardian
+    E("PERSON", "Πρωτάρχωι"),
+    E("PERSON", "Τηθοήους", "παρὰ Τηθοήους", "p1"),
+    E("PERSON", "Ἀλεξάνδρου τοῦ Ἀχιλλέως", None, "p2"),
+    E("PERSON", "Ἀθηνίου τῆς Ἀχιλλέως", None, "p3"),
+    E("PERSON_ROLE", "μετὰ κυρίου αὐτοῦ"),
+    E("PERSON", "Ἀλεξάνδρου", "κυρίου αὐτοῦ Ἀλεξάνδρου"),
+    E("TRANSACTION", "συνχωροῦσιν", None, "t1"),
+    E("PERSON", "Ἀλέξανδρος", "συνχωροῦσιν Ἀλέξανδρος"),
+    E("PERSON", "Ἀθήνιον", "καὶ Ἀθήνιον ἀπεσχηκέναι"),
+    E("PERSON", "Τηθοήους", "παρὰ τοῦ Τηθοήους"),
+    E("CURRENCY", "ἀργυρίου", "οἴκου\nἀργυρίου"),
+    E("CURRENCY", "δραχμὰς", "ἀργυρίου δραχμὰς σμ", "cur1"),
+    E("MONEY_AMOUNT", "σμ", "δραχμὰς σμ", "m1"),
+    E("PERSON", "Τακονσομιν Νώχεος"),
+    E("DATE_REF", "ἑβδόμῳ ἔτει", None, "date"),
+    E("PERSON", "Καίσαρος"), E("DATE_REF", "Ἁθύρ"),
+    E("PERSON", "Τιθοῆν"),
+], "relations": [
+    ("m1", "cur1", "HAS_CURRENCY"),
+    ("p1", "t1", "PARTY_OF"), ("p2", "t1", "PARTY_OF"), ("p3", "t1", "PARTY_OF"),
+    ("t1", "date", "DATED_TO"),
+]}
+
+SPEC["18699"] = {"entities": [  # request for seed-loan (blind)
+    E("PERSON", "Αὐρηλίωι Ἀχιλλεῖ"), E("OCCUPATION", "στρατηγῷ"),
+    E("PLACE", "Ἡρακλεοπολείτου"),
+    E("PERSON", "Αὐρηλίου Πτολλᾶτος\nΝεμεσίωνος", None, "p1"),
+    E("PERSON", "Ἐργέως"),
+    E("PLACE", "κώμης Τεβετνυ"),
+    E("TRANSACTION", "αἰτοῦμαι", None, "t1"),
+    E("COMMODITY", "σπέρματα δάνεια", None, "c0"),
+    E("DATE_REF", "ιβ ἔτους"),
+    E("PERSON", "Μάρκου Αὐρηλίου Σεουήρου\nἈλεξάνδρου Καίσαρος"),
+    E("DATE_REF", "ια ἔτους"),
+    E("COMMODITY", "βασιλικὴν γῆν"),
+    E("QUANTITY", "β", "ἔλαττον\nβ ἀρταβῶν", "q1"), E("UNIT", "ἀρταβῶν", None, "u1"),
+    E("PLACE", "Τεβετνυ", "αὐτὴν Τεβετνυ"),
+    E("PLACE", "Νικίου\nκαὶ Πτολεμαίου καὶ ἄλλων κλήρου"),
+    E("UNIT", "ἀρουρῶν", None, "u2"), E("QUANTITY", "ν", "ἀρουρῶν ν", "q2"),
+    E("UNIT", "ἀρτάβας", None, "u3"), E("QUANTITY", "ν", "ἀρτάβας ν", "q3"),
+], "relations": [
+    ("q1", "u1", "HAS_UNIT"), ("q2", "u2", "HAS_UNIT"), ("q3", "u3", "HAS_UNIT"),
+    ("p1", "t1", "PARTY_OF"),
+]}
+
+SPEC["18920"] = {"entities": [  # debt acknowledgement in gold carats
+    E("PERSON", "Αὐρήλιος Κόλλουθος Λιλοῦτος", None, "debtor"), E("PERSON", "Μαρίας"),
+    E("OCCUPATION", "λαχανοπώλης"),
+    E("PLACE", "Ἑρμουπόλεως"),
+    E("PERSON", "Αὐρηλίῳ Κολλούθῳ υἱῷ Γεωργίου", None, "creditor"),
+    E("OCCUPATION", "χοιρομαγείρῳ"),
+    E("PLACE", "Ἀντινοέων πόλεως"),
+    E("TRANSACTION", "ἔχω καὶ ὀφείλω", None, "t1"),
+    E("CURRENCY", "χρυσοῦ", "ὀφείλω σοι,\nκαθαρῶς καὶ ἀποκρότως, χρυσοῦ"),
+    E("CURRENCY", "κεράτια", "χρυσοῦ κεράτια ἐννέα", "cur1"),
+    E("MONEY_AMOUNT", "ἐννέα", "κεράτια ἐννέα", "m1"), E("FRACTION", "ἥμισυ", "ἐννέα ἥμισυ"),
+    E("CURRENCY", "χρυσοῦ κεράτια", "γίνεται χρυσοῦ κεράτια θ", "cur2"),
+    E("MONEY_AMOUNT", "θ", "κεράτια θ 𐅵", "m2"), E("FRACTION", "𐅵", "θ 𐅵 ζυγῷ"),
+    E("PLACE", "Ἀντινόου", "δημοσίῳ Ἀντινόου"),
+    E("CURRENCY", "κερατίων", "αὐτῶν κερατίων θ", "cur3"),
+    E("MONEY_AMOUNT", "θ", "κερατίων θ 𐅵·", "m3"), E("FRACTION", "𐅵", "θ 𐅵·"),
+    E("CURRENCY", "χρυσοῦ νομισμάτιον", "παρέξω σοι δίχα κρίσεως καὶ δίκης χρυσοῦ νομισμάτιον", "cur4"),
+    E("MONEY_AMOUNT", "ἓν", "νομισμάτιον ἓν παρὰ", "m4"),
+    E("CURRENCY", "κεράτια", "παρὰ κεράτια\nἓξ", "cur5"), E("MONEY_AMOUNT", "ἓξ", "κεράτια\nἓξ", "m5"),
+    E("DATE_REF", "Φαῶφι πέμπτῃ τρίτης ἰνδικτίονος"),
+    E("PERSON", "Κολλούθου"), E("OCCUPATION", "λαχανοπώλου"),
+    E("PLACE", "Ἑρμοῦ πόλεως"),
+], "relations": [
+    ("m1", "cur1", "HAS_CURRENCY"), ("m2", "cur2", "HAS_CURRENCY"),
+    ("m3", "cur3", "HAS_CURRENCY"), ("m4", "cur4", "HAS_CURRENCY"),
+    ("m5", "cur5", "HAS_CURRENCY"),
+    ("debtor", "t1", "PARTY_OF"), ("creditor", "t1", "PARTY_OF"),
+]}
+
+SPEC["19306"] = {"entities": [  # house-room lease by a woman
+    E("DATE_REF", "ὑπατείας", None, "date"),
+    E("PERSON", "Φλαουίου Μάγνου"),
+    E("DATE_REF", "Φαῶφι"),
+    E("DATE_REF", "ἰνδικτίονος ιβ"),
+    E("PLACE", "Ὀξυρύγχων πόλει"),
+    E("PERSON", "Φλαουίῳ Ἁτρῆτι", None, "lessor"),
+    E("PERSON", "Μαρτυρίου"),
+    E("PLACE", "Ὀξυρυγχιτῶν πόλει"),
+    E("PERSON", "Αὐρηλία Νόννα\nθυγάτηρ Ἀπολλω", None, "lessee"), E("PERSON", "Ἄννας"),
+    E("TRANSACTION", "μισθώσασθαι", None, "t1"),
+    E("DATE_REF", "μηνὸς Θὼθ"),
+    E("DATE_REF", "δωδεκάτης ἰνδικτίονος"),
+    E("PLACE", "ἀμφόδου Δρόμου Σαραπίου"),
+    E("COMMODITY", "οἰκίας"),
+    E("COMMODITY", "ἐξέδραν"),
+    E("TAX_TERM", "ἐνοικίου"),
+    E("CURRENCY", "χρυσοῦ νομισματίου", "ἐνιαυσίως χρυσοῦ νομισματίου"),
+    E("FRACTION", "δίμοιρον"),
+    E("CURRENCY", "χρυσοῦ", "γίνεται χρυσοῦ νομιτευόμενον"),
+    E("CURRENCY", "νομισματίου", "νομιτευόμενον\nνομισματίου 𐅷", "cur1"),
+    E("FRACTION", "𐅷", None, "fr1"),
+    E("PERSON", "Αὐρηλία Νόννα θυγάτηρ Ἀπολλω", "ὡμολόγησα.\nΑὐρηλία Νόννα θυγάτηρ Ἀπολλω"),
+    E("FRACTION", "ἥμισυ", "ἐνιαυσίως\nἥμισυ"),
+    E("PERSON", "Αὐρηλίας Νόννας", "μίσθωσις Αὐρηλίας Νόννας"),
+], "relations": [
+    ("fr1", "cur1", "HAS_CURRENCY"),
+    ("lessor", "t1", "PARTY_OF"), ("lessee", "t1", "PARTY_OF"),
+    ("t1", "date", "DATED_TO"),
+]}
+
+SPEC["2001"] = {"entities": [
+    # A 132-char scrap of a petition: no legible economic content, and δεόμεθα
+    # ("we ask") is a request, not a transfer. A true-negative document.
+], "relations": []}
+
+SPEC["20069"] = {"entities": [  # land lease
+    E("PERSON", "Αὐρηλίᾳ Διογενίδι τῇ καὶ Ἡρακλείᾳ", None, "lessor"),
+    E("PERSON_ROLE", "ματρώνᾳ στολάτᾳ"),
+    E("PERSON", "Ἁρποκρατίωνος"), E("OCCUPATION", "προνοητοῦ"),
+    E("PERSON", "Αὐρηλίων Πεθώτου Παήσιος", None, "p1"), E("PERSON", "Τασουκᾶτος"),
+    E("PERSON", "Ἁρπαθώτου Σαρᾶτος", None, "p2"), E("PERSON", "Εὖτος"),
+    E("PLACE", "κώμης Μαγδώλων Μίρη"),
+    E("TRANSACTION", "μισθώσασθαι", None, "t1"),
+    E("PERSON", "Γαλλιηνοῦ Σεβαστοῦ"),
+    E("PLACE", "Ποαμπινοῦφιν"),
+    E("PLACE", "Ἀγαζήλου κλήρου"),
+    E("UNIT", "ἀρούρας", "κλήρου\nἀρούρας δέκα ὀκτὼ", "u1"),
+    E("QUANTITY", "δέκα ὀκτὼ", None, "q1"),
+    E("COMMODITY", "πυροῦ"), E("COMMODITY", "χόρτου"),
+    E("FRACTION", "ἥμισυ", "κατὰ τὸ ἥμισυ"),
+    E("TAX_TERM", "φόρου"),
+    E("UNIT", "ἀρτάβας", None, "u2"), E("QUANTITY", "τέσσαρας", None, "q2"),
+], "relations": [
+    ("q1", "u1", "HAS_UNIT"), ("q2", "u2", "HAS_UNIT"),
+    ("lessor", "t1", "PARTY_OF"), ("p1", "t1", "PARTY_OF"), ("p2", "t1", "PARTY_OF"),
+]}
+
+SPEC["20335"] = {"entities": [  # loan of wheat, repayment in kind (blind)
+    E("PERSON", "Αὐρήλιοι Πεκῦσις Παυσείριος", None, "p1"), E("PERSON", "Σοήριος"),
+    E("PERSON", "Πετενοῦφις", "υἱὸς Πετενοῦφις", "p2"), E("PERSON", "Σινθεῦτος"),
+    E("PLACE", "Ὀξυρύγχων πόλεως"),
+    E("PERSON", "Αὐρηλίῳ\nΘέωνι Διδύμου", None, "p3"),
+    E("TRANSACTION", "ὁμολογοῦμεν", None, "t1"),
+    E("COMMODITY", "πυροῦ", "παραμεμετρῆσθαι παρὰ σοῦ πυροῦ", "c1"),
+    E("DATE_REF", "δ ἔτους"),
+    E("UNIT", "ἀρτάβας", "ἔτους ἀρτάβας\nτέσσαρας", "u1"), E("QUANTITY", "τέσσαρας", None, "q1"),
+    E("COMMODITY", "πυροῦ", "αὐτὸ πυροῦ σὺν", "c2"),
+    E("UNIT", "ἀρτάβας", "διαφόρῳ ἀρτάβας ἕξ", "u2"), E("QUANTITY", "ἕξ", "ἀρτάβας ἕξ", "q2"),
+    E("DATE_REF", "Παῦνι\nμηνὶ"),
+    E("PLACE", "κώμης Τερύθεως"),
+    E("COMMODITY", "πυρὸν νέον καθαρὸν ἄδολον"),
+    E("DATE_REF", "ἔτους ε", None, "date"),
+    E("PERSON", "Μάρκου Αὐρηλίου Σεουήρου Ἀλεξάνδρου"),
+    E("DATE_REF", "Ἁθὺρ η"),
+    E("PERSON", "Αὐρήλιοι Πεκῦσις\nΠαυσείριος", "Ἁθὺρ η. Αὐρήλιοι Πεκῦσις\nΠαυσείριος"),
+    E("PERSON", "Πετενοῦφις", "υἱὸς Πετενοῦφις παραμεμετρήμεθα"),
+    E("PERSON", "Αὐρηλίου Θέωνος"),
+    E("COMMODITY", "πυροῦ", "τὰς τοῦ πυροῦ ἀρτάβας"),
+    E("UNIT", "ἀρτάβας", "τοῦ πυροῦ ἀρτάβας\nτέσσαρας"),
+], "relations": [
+    ("c1", "q1", "HAS_QUANTITY"), ("q1", "u1", "HAS_UNIT"),
+    ("c2", "q2", "HAS_QUANTITY"), ("q2", "u2", "HAS_UNIT"),
+    ("p1", "t1", "PARTY_OF"), ("p2", "t1", "PARTY_OF"), ("p3", "t1", "PARTY_OF"),
+    ("t1", "date", "DATED_TO"),
+]}
+
+SPEC["20799"] = {"entities": [  # official letter, land registration
+    E("DATE_REF", "μηνὶ Φαῶφι", "ἐνεστῶτι\nμηνὶ Φαῶφι"),
+    E("PLACE", "Σύρων κώμην"),
+    E("PLACE", "Φιλίππου\nσὺν τῷ Ἀνθι… κλήρου"),
+    E("UNIT", "ἀρούρας", None, "u1"), E("QUANTITY", "τέσσαρας", None, "q1"),
+    E("DATE_REF", "ἔτους τρίτου", None, "date"),
+    E("PERSON", "Αὐτοκράτορος Καίσαρος\nΝέρουα Τραιανοῦ\nΣεβαστοῦ Γερμανικοῦ"),
+    E("DATE_REF", "Φαῶφι ιε"),
+], "relations": [
+    ("q1", "u1", "HAS_UNIT"),
+]}
+
+SPEC["20815"] = {"entities": [  # sale of a prophetship (office), damaged
+    E("PERSON", "Μάρκιος Μοισιακὸς"), E("OCCUPATION", "στρατηγῷ"),
+    E("PLACE", "Ἑρμοπολίτου"),
+    E("PERSON", "Ἁρθώτου Ἁρθώτου", None, "buyer"),
+    E("DATE_REF", "τῇ ι"),
+    E("COMMODITY", "προφητείαν", None, "c1"),
+    E("CURRENCY", "ταλάντου", "τάξεις ταλάντου α", "cur1"), E("MONEY_AMOUNT", "α", "ταλάντου α\n", "m1"),
+    E("PERSON", "Σεκούνδῳ"), E("OCCUPATION", "οἰκονόμῳ"),
+    E("CURRENCY", "δραχμὰς", "οἰκονόμῳ δραχμὰς φ", "cur2"), E("MONEY_AMOUNT", "φ", "δραχμὰς φ", "m2"),
+    E("PRICE_TERM", "τιμῆς"),
+    E("DATE_REF", "ἔτους ζ", None, "date"),
+    E("PERSON", "Ἁδριανοῦ Καίσαρος"),
+    E("DATE_REF", "Μεχεὶρ", "χυ Μεχεὶρ"),
+    E("PERSON", "Ἁρθώτῃ Ἁρθώτου"),
+    E("COMMODITY", "προφητείας", "Ἁρθώτου προφητείας"),
+    E("CURRENCY", "ταλάντου", "ἀπὸ ταλάντου α", "cur3"), E("MONEY_AMOUNT", "α", "ταλάντου α\n", "m3"),
+    E("DATE_REF", "τῇ κ Μεσορὴ τοῦ ε ἔτους"),
+    E("DATE_REF", "ϛ ἔτει"),
+    E("PLACE", "Μαρσισούχῳ"),
+], "relations": [
+    ("m1", "cur1", "HAS_CURRENCY"), ("m2", "cur2", "HAS_CURRENCY"),
+    ("m3", "cur3", "HAS_CURRENCY"),
+    ("c1", "m1", "HAS_PRICE"),
+]}
+
+SPEC["20820"] = {"entities": [  # slave-sale fragment (blind)
+    E("PLACE", "κατοίκων"),
+    E("PERSON", "Πατῦνις Ὥρου"),
+    E("UNIT", "ἀρτάβη", None, "u1"), E("QUANTITY", "α", "ἀρτάβη α", "q1"),
+    E("TRANSACTION", "πρᾶσις", "ἀντίγραφον· πρᾶσις", "t1"),
+    E("PERSON", "Παροδίωνος", None, "slave"), E("PERSON_ROLE", "δούλου", "Παροδίωνος δούλου"),
+    E("DATE_REF", "ἔτους", "κα… ἔτους …", "date"),
+    E("PERSON", "Τιβερίου Καίσαρος Σεβαστοῦ"),
+    E("DATE_REF", "μηνὸς Νέου Σεβαστοῦ β"),
+    E("PERSON_ROLE", "δούλου", "ἀποστασίου δούλου"),
+], "relations": [
+    ("q1", "u1", "HAS_UNIT"),
+    ("slave", "t1", "PARTY_OF"), ("t1", "date", "DATED_TO"),
+]}
+
+SPEC["20983"] = {"entities": [  # petition to dissolve a will
+    E("PERSON", "Ἰσιδώρῳ"), E("OCCUPATION", "στρατηγῷ"),
+    E("PERSON", "Θέωνος Παυσειρίωνος τοῦ\nκαὶ Γερμανίου Ἰσᾶτος", None, "petitioner"),
+    E("PERSON", "Ταυσαράπιος τῆς καὶ Σεραοῦτος"),
+    E("PLACE", "Ὀξυρύγχων πόλεως"),
+    E("PERSON_ROLE", "ἀπελευθέρα"),
+    E("PERSON", "Σαραπίωνος Ἀπολλωνίου"),
+    E("PERSON", "Ἡρακλοῦτος"),
+    E("DATE_REF", "μηνὶ Γερμανικείου"),
+    E("DATE_REF", "τρισκαιδεκάτου ἔτους"),
+    E("PERSON", "Αὐρηλίου\nἈντωνίνου Καίσαρος"),
+    E("PERSON", "Διονύσιον τὸν καὶ Ἀμόιν Ἡρακλείδου τοῦ Διονυσίου τοῦ καὶ Ἀμόι"),
+    E("PERSON", "Σαραποῦτος"),
+    E("PERSON", "Διογένην Ἀπολλοφάνους τοῦ\nΔιογένους"),
+    E("PERSON", "Σαραπίωνα Χαιρήμονος τοῦ Σωσιβίου"),
+    E("PERSON", "Ἀγαθὸν Δαίμονα"),
+    E("PERSON_ROLE", "ἀπελεύθερον"),
+    E("PERSON", "Ἡρακλείδου καὶ Σαραπίωνος τοῦ καὶ Δωρίωνος"),
+    E("PERSON", "Ὥρῳ τῷ καὶ Ὡρίωνι"),
+    E("PERSON", "Δημητρίῳ", "καὶ\nΔημητρίῳ"),
+    E("CURRENCY", "δραχμὰς", "δίδοσθαι λύσεως διαθήκης δραχμὰς δέκα δύο", "cur1"),
+    E("MONEY_AMOUNT", "δέκα δύο", None, "m1"),
+    E("DATE_REF", "ἔτους ιδ", None, "date"),
+    E("PERSON", "Μάρκου Αὐρηλίου\nἈντωνίνου Σεβαστοῦ"),
+    E("DATE_REF", "Παῦνι ιη ιδ"),
+    E("PERSON", "Θέων Παυσιρίωνος"),
+    E("DATE_REF", "Παῦνι ιη", "ἐπιδέδωκα.\nΠαῦνι ιη"),
+], "relations": [
+    ("m1", "cur1", "HAS_CURRENCY"),
+]}
+
+
 def build(text: str, spec: dict, doc_id: str) -> tuple[list, list]:
     entities, keys, pos = [], {}, 0
     for label, surface, ctx, key in spec["entities"]:
