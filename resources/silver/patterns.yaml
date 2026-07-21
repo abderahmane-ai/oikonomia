@@ -1,0 +1,177 @@
+# Silver-labeler patterns (Phase 6).
+#
+# These drive the labeling functions that no economic lexicon reaches — PERSON,
+# PLACE, TRANSACTION, PERSON_ROLE, AGE — the categories the scorer showed the
+# proximity baseline is structurally blind to (recall 0).
+#
+# Every string here is **folded** (lowercase, accents stripped, final sigma →
+# σ) because matching happens in folded space; see labeling/normalize.py. Stems
+# are matched as *token prefixes*, so "μισθωσ" covers μίσθωσις, μισθώσασθαι,
+# μισθώσεως. They were read off the 65 gold documents plus their obvious
+# inflections, not recalled — the same "measured, never recalled" rule the
+# lexicons follow. Tune against `oik silver score`, not intuition.
+
+# --- TRANSACTION: the word that names the legal act (verb or noun) ----------
+# Gold surfaces: ὁμολογῶ/ὁμολογία, μίσθωσις/μισθώσασθαι, δάνειον, πέπρακά,
+# ἠγόρασα, ἐκτησάμην, συνχωρεῖ, ἐξοικονομοῦντες, παρεχώρησα.
+transaction_stems:
+  - ομολογ      # ὁμολογία, ὁμολογῶ, ὁμολογεῖ, ὁμολογοῦμεν
+  - ωμολογ      # ὡμολόγησα
+  - μισθωσ      # μίσθωσις, μισθώσασθαι, μισθώσεως
+  - εμισθωσ     # ἐμίσθωσαν, ἐμισθώσατο
+  - μεμισθωκ    # μεμίσθωκα (perfect)
+  - μισθωθ      # μισθωθῆναι
+  - δανει       # δάνειον, δανείου
+  - δανεισ      # δανείσματος, ἐδάνεισα (see εδανεισ)
+  - εδανεισ     # ἐδάνεισα
+  - πρασ        # πρᾶσις, πρᾶσιν (sale)
+  - πεπρακ      # πέπρακα (I have sold)
+  - επρα        # ἐπράθη (was sold)
+  - εωνη        # ἐωνήθη, ἐωνησάμην (purchase)
+  - ηγορασ      # ἠγόρασα
+  - αγορασ      # ἀγοράσαι, ἀγορασθέντος
+  - κτησ        # κτῆσις
+  - εκτησ       # ἐκτησάμην
+  - παραχωρ     # παραχωρέω (cede)
+  - παρεχωρ     # παρεχώρησα
+  - συγχωρ      # συγχωρέω
+  - συνχωρ      # συνχωρεῖ (non-assimilated spelling)
+  - διαστειλ    # διαστείλατε (bank pay-order)
+  - εξοικονομ   # ἐξοικονομέω (dispose of)
+
+# --- PERSON_ROLE: a party named only by role/status/kinship -----------------
+# The role *word*, not the person. Gold: μετὰ κυρίου, τῆς γυναικός, δούλου,
+# κληρονόμοις, ἀπελευθέρα, ἀφηλίκων, ματρώνᾳ.
+role_stems:
+  - γυναικ      # γυναικός, γυναῖκα
+  - γυνη        # γυνή
+  - ανδρ        # ἀνδρός (husband)
+  - ανηρ        # ἀνήρ
+  - δουλ        # δούλου (slave, as status of a party)
+  - θρεπτ       # θρεπτός (foster-child)
+  - απελευθερ   # ἀπελεύθερος/-α (freed person)
+  - αφηλικ      # ἀφῆλιξ (minor)
+  - κληρονομο   # κληρονόμος (heir) — NOT κληρονομία (inheritance, a thing)
+  - ματρων      # ματρώνα
+  - ορφαν       # ὀρφανός
+  - διασημ      # διασημότατος (vir perfectissimus, an honorific rank)
+# κύριος over-fires: as "lord/valid/master" it is not a party. It is a role
+# only in the guardian formula, so it is gated behind μετά/χωρίς.
+role_guarded_stems: [κυρι]
+role_guard_determiners: [μετα, χωρις]
+# Determiners pulled into a role span when they immediately precede the role
+# word: τῆς γυναικός, τοῦ ἀνδρός, τὴν γυναῖκα.
+role_determiners: [τησ, του, τον, την, τω, τη]
+
+# --- PLACE: admin geography and toponyms ------------------------------------
+# Lowercase administrative nouns that are *part of* a PLACE span and signal it:
+# κώμης Τερύθεως, Ὀξυρύγχων πόλεως, Ἡρακλείδου μερίδος, Εἰρηναίου κλήρου.
+place_admin_stems:
+  - κωμ         # κώμη, κώμης, κώμῃ
+  - πολε        # πόλεως
+  - πολει       # πόλει
+  - πολισ       # πόλις
+  - πολιν       # πόλιν
+  - μεριδ       # μερίδος, μερίδι (administrative division)
+  - νομου       # νομοῦ (nome)
+  - νομω        # νομῷ
+  - κληρου      # κλήρου (land parcel — keeps the eponym from reading as PERSON)
+  - κληρω       # κλήρῳ
+  - τοπαρχ      # τοπαρχία
+  - αμφοδ       # ἄμφοδον (city quarter)
+  - μητροπολ    # μητρόπολις
+  - εποικ       # ἐποίκιον (hamlet)
+# Prepositions that *signal* a following place but are not part of the span.
+place_prepositions: [εν, εισ, απο, επι, εξ, εκ]
+# Toponym stems — a weak secondary signal for an isolated capitalised token
+# (context above is primary). Deliberately short; expand from a TM/Pleiades
+# gazetteer later.
+place_gazetteer_stems:
+  - αλεξανδρε   # Ἀλεξάνδρεια / Ἀλεξανδρεύς — the -ε- keeps the place & ethnic
+                # but excludes the person Ἀλέξανδρος (Ἀλεξάνδρ-ο-υ)
+  - οξυρυγχ     # Ὀξύρυγχος
+  - αρσινο      # Ἀρσινοΐτης
+  - ερμουπολ    # Ἑρμούπολις
+  - σοκνοπαι    # Σοκνοπαίου Νῆσος
+  - φιλαδελφ    # Φιλαδέλφεια
+  - καρανιδ     # Καρανίς
+  - τεβτυν      # Τεβτῦνις
+  - θεαδελφ     # Θεαδέλφεια
+  - διονυσιαδ   # Διονυσιάς
+  - αντινο      # Ἀντινόου πόλις
+  - βαβυλων     # Βαβυλών
+  - μεμφ        # Μέμφις
+  - ρωμ         # Ῥώμη
+
+# --- PERSON: capitalisation, filiation, and what to exclude -----------------
+# Lowercase particles that bridge two capitalised tokens into ONE person span
+# (filiation and alias): Πτολεμαὶς Χαιρήμονος τοῦ Χαιρήμονος; Κιαλῆς ὃς καὶ
+# Νεφερῶς. Bare καί does NOT bridge (X καὶ Y are two parties) — only the alias
+# "ὁ/ὃς καὶ" does, handled in code.
+name_bridge_articles: [του, τησ, τω, τη, τον, την, το]
+name_bridge_junior: [νεωτεροσ, νεωτερου, νεωτερον, νεωτερα, πρεσβυτεροσ, πρεσβυτερου, πρεσβυτερον]
+name_alias_pronouns: [ο, η, οσ, ητισ]
+# Imperial titulature: a capitalised token whose fold starts with one of these
+# is an honorific, not a name. A run made ONLY of titulature (a bare dating
+# formula, "Αὐτοκρατόρων Σεβαστῶν") is dropped; a run that also holds a real
+# name (Δομιτιανοῦ Σεβαστοῦ Γερμανικοῦ) is kept whole as the ruler's PERSON.
+titulature_stems:
+  - σεβαστ      # Σεβαστός (Augustus)
+  - αυτοκρατ    # Αὐτοκράτωρ (Imperator)
+  - καισ        # Καῖσαρ
+  - αυγουστ     # Αὔγουστος
+  - μεγιστ      # Μέγιστος (Maximus)
+  - ευσεβ       # Εὐσεβής (Pius)
+  - γερμανικ    # Γερμανικός
+  - βρεταννικ   # Βρεταννικός
+  - παρθικ      # Παρθικός
+  - δακικ       # Δακικός
+  - αραβικ      # Ἀραβικός
+  - αδιαβηνικ   # Ἀδιαβηνικός
+  - μηδικ       # Μηδικός
+  - περσικ      # Περσικός
+  - σαρματικ    # Σαρματικός
+  - ευτυχ       # Εὐτυχής (Felix)
+  - θεου        # θεοῦ (divine, in the imperial style)
+  - νικητ       # Νικητής
+  - ανικητ      # Ἀνίκητος (Invictus)
+
+# --- Relations --------------------------------------------------------------
+# A capitalised name introduced by one of these is a party to the transaction
+# (παρὰ Πανίσκου "from Paniskos", διὰ X "through X"). Linking *every* person to
+# the transaction is what wrecked PARTY_OF precision; this gates it.
+party_prepositions: [παρα, δια, υπο]
+
+# Month names (Egyptian + Macedonian calendars). A capitalised month leaks into
+# PERSON when the date lexicon misses that spelling (Θῶυτ, Ὑπερβερεταίου); these
+# stems block that — a month is never a person.
+month_stems:
+  - θωθ
+  - θωυτ
+  - φαωφι
+  - αθυρ
+  - χοιαχ
+  - χοιακ
+  - τυβι
+  - μεχειρ
+  - φαμενωθ
+  - φαρμουθι
+  - παχων
+  - παυνι
+  - επειφ
+  - επιφ
+  - μεσορη
+  - υπερβερετ
+  - δυστρ
+  - ξανδικ
+  - αρτεμισι
+  - δαισι
+  - πανημ
+  - λωι
+  - γορπιαι
+  - υπερβερεταιου
+
+# --- AGE: a numeral tagged as a person's age --------------------------------
+# ἐτῶν κ ("of 20 years"). A numeral immediately next to this marker is an AGE,
+# not a quantity.
+age_marker_stems: [ετων]

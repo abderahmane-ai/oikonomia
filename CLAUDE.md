@@ -147,6 +147,13 @@ uv run oik dapt inspect                     # shard contents + derived schedule
 modal run modal_app/dapt.py::push           # upload shards to the Volume
 modal run modal_app/dapt.py::launch         # DAPT on an A10
 
+# Phase 6 (silver labeling)
+uv run oik silver score                     # score the silver labeler vs gold (per label)
+uv run oik silver score --labeler baseline  # the Phase-2 proximity bar
+uv run oik silver distmap --sample 20000    # corpus label distribution -> gazetteer/confidence
+uv run oik silver label                     # emit silver over the train split (~5 min)
+uv run oik silver label --min-confidence 0.5  # abstain on the noisy tail
+
 # Quality gate — run after ANY unit of work, in this order
 .venv/bin/ruff check src tests modal_app
 .venv/bin/python -m mypy src
@@ -706,6 +713,85 @@ check` clean, `provenance: model_draft`) is calibrated to these; regenerate it
 from `tools/build_gold_draft.py`. Expect §5 to keep growing as real documents
 are annotated — that growth *is* the deliverable as much as the spans are.
 
+### 🔶 Phase 6 — Weak/silver labeling (labeler built + validated; full train emission done)
+
+**Status: the silver labeler is built, scored against the 65-doc gold draft,
+and run over the whole train split.** `data/processed/silver.jsonl` (gitignored)
+— **48,941 docs, 1,110,796 entities, 327,789 relations**, every span carrying a
+calibrated `confidence`. This is *training* material (`provenance: silver`) —
+not gold, not the database.
+
+**The scorer came first** (`labeling/score.py`, `oik silver score`): scores any
+labeler against the gold per label, strict (exact span) and relaxed (overlap),
+plus directed relations. It showed the Phase-2 baseline is *structurally blind*
+to PERSON (30% of entities), PLACE, TRANSACTION, PERSON_ROLE, AGE — entity
+recall 0.37, those five at 0.
+
+**The labeler** (`labeling/silver.py`, `SilverLabeler`) is built *on top of*
+the baseline — keeps the economic spans, adds LFs for the missing types, every
+rule calibrated to a measured signal and stored in
+`resources/silver/patterns.yaml`:
+- **PERSON** — capitalisation (99.8% of gold persons are capital-initial),
+  merged across filiation/alias particles (`Πτολεμαὶς Χαιρήμονος τοῦ Χαιρήμονος`
+  is one span; bare `καί` splits co-parties; `ὃς καὶ` alias joins), minus
+  standalone imperial titulature and calendar months.
+- **PLACE** — admin-noun context (`κώμης X`, `X πόλεως/μερίδος/νομοῦ/κλήρου`) or
+  a toponym gazetteer; the admin noun is part of the span.
+- **TRANSACTION / PERSON_ROLE** — closed-class folded-stem prefixes, both
+  lowercase-guarded (0/41 and 0/20 gold cases are capitalised); κύριος gated
+  behind μετά/χωρίς; one TRANSACTION per document.
+- **AGE** — a numeral next to ἐτῶν. **Relations** — the baseline's economic
+  links plus PARTY_OF (roles + prep-marked names + the transaction's nearest
+  name), DATED_TO, HAS_PRICE.
+
+**Measured lift over the baseline** (65 gold docs, `model_draft` — agreement,
+not truth):
+
+| | baseline | silver |
+|---|---|---|
+| entity micro F1 exact | 0.412 | **0.598** |
+| entity micro F1 relaxed | 0.470 | **0.723** |
+| PERSON F1 (exact / relaxed) | 0 / 0 | **0.65 / 0.86** |
+| PLACE F1 exact | 0 | **0.61** |
+| relations micro F1 | 0.448 | ~0.45 |
+
+**Three denoising moves, each validated against gold before the next:**
+1. **Corpus type-consensus (majority override) — REJECTED by its own
+   validation.** 96% of its changes flipped PLACE→PERSON (it *amplifies* the
+   systematic bias), and corpus self-consistency was already **0.992** — the
+   labeler's noise is ~99% systematic, not diffuse, so consensus has almost
+   nothing to fix. **Lesson: aggregation cannot fix systematic noise, only
+   independent signals can.**
+2. **Directional place gazetteer + systematic-bug fixes — kept.** The corpus
+   label distribution (`oik silver distmap` → `silver_label_dist.json`) yields a
+   gazetteer of place-dominant, rarely-person forms that promotes PERSON→PLACE
+   (only that direction is safe). Neutral on the 65 docs (they cannot see
+   corpus-scale recall), but building it exposed real systematic bugs — the
+   seed stem `αλεξανδρ` labelled the person Ἀλέξανδρος as PLACE, and months
+   leaked to PERSON. Fixing those: **PLACE precision 0.69→0.74**.
+3. **Confidence + abstention — kept, the real lever.** Every span carries a
+   calibrated confidence: corpus-agreement for surface-decided labels (a
+   validated predictor of correctness — the 0.7–0.9 band is a 0.33-precision
+   sink), measured precision priors for the rest. `oik silver label
+   --min-confidence 0.5` drops ~33% of entities and ~64% of relations —
+   precisely the measured-noisy labels (DATE_REF, QUANTITY, TAX_TERM, PARTY_OF,
+   DATED_TO). This keeps the systematic-noise tail out of training instead of
+   feeding it as truth.
+
+**The binding constraint this surfaced:** the 65-doc gold is at its resolution
+limit — two corpus-scale denoisers both scored ~0.000 on it. Validating
+corpus-scale denoising, or a label-model combiner (deliberately **not** built
+for this reason), needs a larger / human-reviewed gold. And the gold is still
+`model_draft`: these are agreement figures, not ground truth.
+
+**Deliverables:** `labeling/score.py`, `labeling/silver.py`,
+`resources/silver/patterns.yaml`, CLI `oik silver {score,distmap,label}`,
+`confidence` on `WeakEntity`/`WeakRelation`, 25 tests. Ruff + mypy clean.
+
+**Next:** finish Phase 5 gold to 150 + a human review pass, then train the
+Phase 7 entity model confidence-weighted on `silver.jsonl` with the reviewed
+gold as eval.
+
 ---
 
 ## 7. Verified fact ledger
@@ -824,6 +910,33 @@ re-derive; if reality contradicts one, treat it as a finding and update here.
   vs currency `χαλκοῦς`; `σιτολόγος` (grain officer) vs commodity `σῖτος`;
   `ἐλαιουργός` (oil-worker) vs `ἔλαιον`. These are OCCUPATION. Stem matching
   alone will mislabel them.
+
+### Silver labeling (Phase 6, measured against the 65-doc gold draft)
+- **PERSON is capitalisation.** 99.8% of gold PERSON spans are capital-initial;
+  of all capitalised tokens, 71.6% are PERSON, 13.3% PLACE, ~6% titulature-in-
+  dates, ~6% months — so capitalisation minus those exclusions is a strong
+  PERSON detector. TRANSACTION and PERSON_ROLE are the opposite: **0/41 and
+  0/20 gold instances are capitalised**, so those stems must be lowercase-gated.
+- **The silver labeler's noise is ~99% systematic, not diffuse.** Corpus
+  self-consistency (same form, same label across docs) is **0.992** before any
+  denoising. Consequence, verified the hard way: a corpus-majority vote is
+  *harmful* — 96% of its label changes flipped PLACE→PERSON, amplifying the
+  systematic bias. **Aggregation cannot fix systematic noise; only independent
+  signals or abstention can.**
+- **Corpus-agreement confidence predicts correctness.** For surface-decided
+  labels, confidence = the form's corpus-wide share of that label. Precision by
+  bucket: ≥0.9 → 0.90, **0.7–0.9 → 0.33** (the danger zone), unseen novel form
+  → 0.91. A `--min-confidence 0.5` filter drops the measured-noisy labels
+  (DATE_REF 0.35, QUANTITY 0.46, TAX_TERM 0.26 and the PARTY_OF/DATED_TO tail).
+- **The 65-doc gold cannot measure corpus-scale changes.** Both the place
+  gazetteer and the consensus denoiser scored ~0.000 on it — their effects are
+  on forms/docs outside the sample. Validating corpus-scale denoising (or a
+  label-model combiner) requires a larger / human-reviewed gold. All Phase-6
+  numbers are agreement-with-`model_draft`, not ground truth.
+- **Seed-stem greediness is a real precision bug.** `αλεξανδρ` matched both
+  Ἀλεξάνδρεια (place) and the person Ἀλέξανδρος; tightening to `αλεξανδρε`
+  fixed it (PLACE precision 0.69→0.74). Month names (Θῶυτ, Ὑπερβερεταίου)
+  missing from the date lexicon leak to PERSON unless stem-excluded.
 
 ### EpiDoc rendering (confirmed vs EpiDoc Guidelines)
 - `<choice>`: edited uses `<reg>`/`<corr>`; diplomatic uses `<orig>`/`<sic>`.
@@ -945,31 +1058,34 @@ architecture claim on our own data rather than on the literature's.
 
 ## 8. Progress
 
-**~42% of the full project.** Phases 0–3 complete; Phase 4 built, corrected
+**~46% of the full project.** Phases 0–3 complete; Phase 4 built, corrected
 and priced but not yet run on GPU; **Phase 5 underway — 65 of 150 gold
 documents drafted and completeness-verified** (model draft, awaiting human
-review). Foundation: a validated corpus-ingestion pipeline built over all
+review); **Phase 6 silver labeler built, validated against gold, and emitted
+over the whole train split** (1.11M entities / 328k relations, confidence per
+span). Foundation: a validated corpus-ingestion pipeline built over all
 67,980 documents at parse rate 1.000, whole-corpus characterization, mined
 lexicons with measured recall, the annotation schema (guidelines v0.3, ten
 rules), a mechanical span + **numeral-coverage** validator (`oik gold check`),
-a proximity baseline at a 74.50% numeral link rate, and leak-free stratified +
-chronological splits.
+a proximity baseline at a 74.50% numeral link rate, leak-free stratified +
+chronological splits, and a scored, confidence-aware silver labeler.
 
-Remaining: Phase 4 DAPT (Modal) · Phase 5 gold annotation ·
-Phase 6 weak/silver labeling · Phase 7 entity model · Phase 8 relation model ·
-Phase 9 corpus inference → DB · Phase 10 historical analysis · Phase 11 release.
+Remaining: Phase 4 DAPT (Modal) · Phase 5 gold annotation (finish + human
+review) · Phase 7 entity model · Phase 8 relation model · Phase 9 corpus
+inference → DB · Phase 10 historical analysis · Phase 11 release.
 
 **Phase 5 (gold annotation) is the critical path** — there is zero upstream
-entity markup, so all supervision must be created by hand. Phase 8 (relations)
-remains the scientific risk.
+entity markup, so all supervision must be created by hand, and it is the only
+instrument that can validate the silver and score the models. Phase 8
+(relations) remains the scientific risk (silver PARTY_OF precision ≈ 0.28).
 
 ---
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-21 (Phase 5 batch 2: annotated gold docs 51–65 to the
-completeness-verified standard; 65/150 done at 1,654 entities / 365 relations;
-paused mid-batch, resume at doc 66 = `23875`)._
+_Last updated: 2026-07-21 (Phase 6: built + validated the silver labeler,
+scorer and confidence/abstention; emitted silver over the whole train split.
+Phase 5 gold unchanged at 65/150, resume at doc 66 = `23875`.)._
 
 ### Quality gate at last save
 **`oik gold check` 0 errors / 49 reviewed advisories.** src/ untouched since the
@@ -1032,6 +1148,13 @@ and self-healing.
   shards, stage version **3**: case preserved, blocks framed `<s>…</s>`.
   16,109 train blocks (8.25M tokens) + 2,146 dev (1.10M). **No test shard, by
   design.**
+- `data/processed/silver.jsonl` — **146 MB**, Phase 6 silver over the train
+  split (48,941 docs, 1.11M entities, 328k relations, `confidence` per span,
+  `provenance: silver`). Regenerate with `oik silver label` (~5 min); needs
+  `silver_label_dist.json`. Gold docs excluded (they get reviewed labels).
+- `data/processed/silver_label_dist.json` — corpus surface-form → label
+  distribution (9,517 forms) from `oik silver distmap --sample 20000`; drives
+  the place gazetteer and the confidence signal.
 
 **All three were rebuilt this session** after the parser fixes. Splits and DAPT
 shards came out **byte-identical** to their pre-canonicalisation versions —
@@ -1089,6 +1212,10 @@ cd /Users/abdoumagico/Development/ACHATES
 
 # 3. Gold draft intact? (65/150 docs, must be 0 errors)
 .venv/bin/oik gold check
+
+# 3b. Phase 6 silver intact? (labeler scored vs gold; re-emit if silver.jsonl missing)
+.venv/bin/oik silver score                  # entity micro F1 ~0.60 exact / ~0.72 relaxed
+#   oik silver distmap --sample 20000  ->  oik silver label   (rebuilds silver.jsonl, ~5 min)
 
 # 4. Regenerate the remaining batch-2 work list (target: reach 100/150)
 .venv/bin/python - <<'PY'

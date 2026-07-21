@@ -67,6 +67,10 @@ class WeakEntity(BaseModel):
     span: CharSpan
     text: str
     entry_id: str | None = None  # lexicon entry, when it came from the lexicon
+    # Calibrated confidence in [0, 1]; the silver labeler sets it from corpus
+    # agreement and per-source priors so training can down-weight noise. The
+    # bare baseline leaves it 1.0.
+    confidence: float = 1.0
 
 
 class WeakRelation(BaseModel):
@@ -76,6 +80,7 @@ class WeakRelation(BaseModel):
     head: int
     tail: int
     distance: int  # characters between the two mentions, for triage
+    confidence: float = 1.0
 
 
 class WeakLabeling(BaseModel):
