@@ -152,6 +152,7 @@ def train(
         DataCollatorForLanguageModeling,
         EarlyStoppingCallback,
         Trainer,
+        TrainerCallback,
         TrainingArguments,
     )
 
@@ -192,7 +193,7 @@ def train(
             super().__init__(*args, **kwargs)
             self.gap_ids = gap_ids or set()
 
-        def torch_mask_tokens(self, inputs, special_tokens_mask=None):
+        def torch_mask_tokens(self, inputs, special_tokens_mask=None, offset_mapping=None):
             if self.gap_ids:
                 is_gap = torch.zeros_like(inputs, dtype=torch.bool)
                 for gid in self.gap_ids:
@@ -202,7 +203,41 @@ def train(
                     if special_tokens_mask is None
                     else special_tokens_mask.bool() | is_gap
                 )
-            return super().torch_mask_tokens(inputs, special_tokens_mask=special_tokens_mask)
+            return super().torch_mask_tokens(
+                inputs, special_tokens_mask=special_tokens_mask, offset_mapping=offset_mapping
+            )
+
+    class ClearLogger(TrainerCallback):
+        """One tagged line per log/eval event, with perplexity.
+
+        The three sweep arms share one stdout, and the Trainer's default printer
+        emits untagged metric dicts under tqdm bars — unreadable interleaved.
+        Every line here is prefixed with ``run_name`` so a single arm is one
+        ``grep`` away, and eval events carry perplexity (exp of the loss), the
+        number the sweep actually selects on.
+        """
+
+        def on_log(self, args, state, control, logs=None, **kwargs):
+            if not logs:
+                return
+            step = state.global_step
+            if "loss" in logs:
+                print(
+                    f"[{run_name}] step {step:>4}/{args.max_steps} "
+                    f"ep {logs.get('epoch', 0.0):5.2f} | train_loss {logs['loss']:7.4f} "
+                    f"| lr {logs.get('learning_rate', 0.0):.2e} "
+                    f"| grad {logs.get('grad_norm', 0.0):5.2f}",
+                    flush=True,
+                )
+            if "eval_loss" in logs:
+                el = logs["eval_loss"]
+                best = state.best_metric
+                best_str = f" | best {best:.4f}" if best is not None else ""
+                print(
+                    f"[{run_name}] step {step:>4} | EVAL loss {el:7.4f} "
+                    f"| ppl {math.exp(el):8.3f}{best_str}",
+                    flush=True,
+                )
 
     torch.manual_seed(seed)
     shard_dir = Path(SHARD_DIR)
@@ -292,6 +327,10 @@ def train(
         metric_for_best_model="eval_loss",
         greater_is_better=False,
         report_to=[],
+        # Our ClearLogger prints the metrics; the tqdm bars only interleave
+        # noise across the three parallel arms sharing one stdout.
+        disable_tqdm=True,
+        logging_first_step=True,
         seed=seed,
         dataloader_num_workers=2,
     )
@@ -307,7 +346,10 @@ def train(
             mlm_probability=mlm_probability,
             gap_ids=set(tokenizer("…", add_special_tokens=False)["input_ids"]),
         ),
-        callbacks=[EarlyStoppingCallback(early_stopping_patience=patience)],
+        callbacks=[
+            ClearLogger(),
+            EarlyStoppingCallback(early_stopping_patience=patience),
+        ],
     )
 
     ckpt_path = Path(ckpt_dir)
@@ -364,10 +406,17 @@ def sweep() -> None:
     # FunctionCall to collect later, which is what gives parallelism here.
     calls = [train.spawn(**cfg) for cfg in configs]
     results = [call.get() for call in calls]
-    print("\n=== sweep ===")
+
+    print("\n=== DAPT sweep results (lower perplexity is better) ===")
+    header = f"{'run':22s} {'ppl':>9s} {'eval_loss':>10s} {'stop@':>7s} {'trainable':>10s}"
+    print(header)
+    print("-" * len(header))
     for r in sorted(results, key=lambda x: x["eval_loss"]):
-        flag = "  (STILL IMPROVING — raise the ceiling)" if r["hit_ceiling"] else ""
+        flag = "  <- still improving (raise ceiling)" if r["hit_ceiling"] else ""
         print(
-            f"{r['run']:10s} ppl={r['perplexity']:7.3f} "
-            f"stopped@{r['stopped_at_step']:5d} trainable={r['trainable_params'] / 1e6:6.1f}M{flag}"
+            f"{r['run']:22s} {r['perplexity']:9.3f} {r['eval_loss']:10.4f} "
+            f"{r['stopped_at_step']:7d} {r['trainable_params'] / 1e6:9.1f}M{flag}"
         )
+    best = min(results, key=lambda x: x["eval_loss"])
+    print(f"\nwinner: {best['run']}  (perplexity {best['perplexity']:.3f}, "
+          f"eval_loss {best['eval_loss']:.4f})")
