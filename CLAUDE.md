@@ -463,17 +463,83 @@ is a perplexity proxy for a task F1 that cannot be measured until gold exists.
 **Still not built:** the B0 (no-DAPT) control. Without it no DAPT gain is
 believable.
 
-### ✅ Phase 5 — Gold annotation (CLOSED at 65/150, human-validated)
+### ✅ Phase 5 — Gold annotation (115 docs, ALL human_validated)
 
-**Status: 65 documents annotated and human-validated** (`data/gold/annotated.jsonl`,
-**1,654 entities / 365 relations**, `oik gold check` **0 errors**, every text
-byte-identical to `corpus.parquet`, 0 overlapping spans). The set now carries
-`provenance: human_validated` / `reviewed_by: abderahmane-ai` (drafted by
-`claude-opus-4-8`, reviewed by the project owner) — **this is real gold**: the
-Phase-7/8 evaluation set and the fine-tune anchor. The generating spec is
-`tools/build_gold_draft.py` (offsets computed from surface strings, never
-written by hand), so it is reproducible and reviewable as source. Guidelines
-are **v0.3**.
+**Status: 115 documents** (`data/gold/annotated.jsonl`, **2,995 entities /
+623 relations**, `oik gold check` **0 errors**, `numerals_checked: true`, every
+text byte-identical to `corpus.parquet`). **All 115 are now
+`provenance: human_validated` / `reviewed_by: abderahmane-ai`** — the owner
+reviewed this session's 20 model-drafts (13 hard-batch + 7 AGE-targeted), so the
+whole set is a clean eval/fine-tune anchor with no draft-scoring-draft
+circularity (the Phase-7b "±few pts from un-reviewed drafts" caveat is now
+retired). Drafted by `claude-opus-4-8`, reviewed by the owner. Guidelines **v0.3**.
+
+#### AGE un-starved: 6 → 133 (2026-07-22, second half of session)
+
+AGE was the last unlearnable class (6 instances; Phase-7b scored it 0.0). Fixed
+by mining the **train split** for the census/signalement age formula
+`(ὡς) ἐτῶν N` (`scratchpad/find_age_docs*.py`: rank by age-numeral density, dedup
+by `group_id`, exclude gold), then annotating **7 age-dense docs** →
+**+127 AGE** (now 133, a fully learnable class):
+- `25173 26167 27453 11440 29529` — signalement/poll-tax lists where **every
+  tagged numeral is an age**; AGE spans generated **directly from the corpus
+  `<num>` offsets** (`scratchpad/age_build.py`, `age_all=True`) — zero surface
+  ambiguity — with names forward-scanned. `11440` alone: 33 ages + 62 PERSON
+  (registrant + mother, per the mother rule). `29529`'s trailing `N φυλῆς` tribe
+  ordinals are `non_referential` skips.
+- `12351` (grazing lease, 12 witness-ages + a freedman `ἀπελεύθερος`) and
+  `12906` (epikrisis, 14 ages + `δοῦλος`/`ἰδιώτης` statuses) — mixed age+date
+  docs, every span explicit; the `θ ἔτει`/`ιζ ἔτους` regnal years correctly went
+  to DATE_REF, not AGE (verified: no date numeral mislabeled as age).
+
+Session entity lift (committed HEAD 85 docs → 115): **AGE +127, PERSON +288,
+TAX_TERM +45, FRACTION +35, PERSON_ROLE +23, OCCUPATION +70** (total +1,042
+entities). Every AGE numeral gate-verified; `find_age_docs2.py` still lists ~900
+more train age-docs (and huge poll-tax registers of 100–220 ages each) if more
+is ever wanted.
+
+#### Hard-batch extension + a silent-corruption fix (2026-07-22 session)
+
+The owner curated a **hard batch** (`data/gold/hard_data_batch.jsonl`, 24 docs)
+to feed the starved rare classes and hand-annotated the first 10 into gold; a
+`batch_2.jsonl` holds the leftover 15 (14 hard + `702571`). This session:
+
+1. **Verified the owner's 10 hard docs and fixed 3 load-bearing bugs.** Three of
+   them (`7797`, `40966`, `41308`) had gold `text` that was **not byte-identical
+   to `corpus.parquet`** — the hard-batch file itself carried a silently
+   *normalized* text (`γίνεται`→`γίνονται`, final-sigma→medial-sigma). Because
+   the numeral-coverage gate keys on an exact `text` match, a non-matching text
+   **silently disabled the gate for those docs** (`numerals=None`), so their
+   coverage was never actually checked. Fixed by rebasing each onto canonical
+   corpus text and remapping all 135 entity/skip offsets through a `difflib`
+   alignment (every remapped span's corpus substring re-verified against its
+   recorded text). Also removed **3 phantom `skipped_numerals`** (`ω`, `μα`,
+   `πρώτῃ`) that pointed at tokens the corpus never tagged `<num>`. Result: every
+   gold doc byte-identical, gate live on every doc, **0 errors**.
+2. **Annotated 13 more hard docs from scratch** (`77576 78637 77107 75749 79378
+   702571 793 5344 7560 5414 703351 76201 43027`) via surface-string forward-scan
+   (offsets computed, never hand-written — same method as
+   `tools/build_gold_draft.py`, text pulled from `corpus.parquet`, **not** the
+   corrupted batch files). +352 entities / +81 relations. The pre-existing
+   `entities` in `hard_data_batch.jsonl` are low-quality auto-suggestions
+   (broken relation indices, many uncovered numerals) — **do not trust them**;
+   re-annotate.
+3. **Rare-class yield** (HEAD 85 → now 108): **TAX_TERM 23→66 (+43)**,
+   **FRACTION 61→96 (+35)**, **PERSON_ROLE 21→38 (+17)**, **OCCUPATION
+   122→182 (+60)**, AGE 6→9 (+3, all from the owner's `7797`). The 13
+   model_drafts are TAX_TERM- and FRACTION-heavy (poll/sales/rent-tax receipts,
+   aroura fractions ιϛ=1/16 λβ=1/32, Byzantine occupation lists) plus `43027`'s
+   two guardian-formula `PERSON_ROLE`s and a freedwoman (`ἀπελευθέρᾳ`).
+
+**AGE was then un-starved 9→133** by a dedicated pass over 7 census/signalement
+docs (see the AGE subsection above). Rare classes now: TAX_TERM 68, FRACTION 96,
+PERSON_ROLE 44, AGE 133 — all comfortably learnable.
+
+The generating spec for the original gold is `tools/build_gold_draft.py`; **note
+it `write_text`-overwrites the whole file from its 85-doc SPEC**, so running it
+now would drop the owner's 10 + this session's 20 (none is in its SPEC) —
+append future docs, do not regenerate. The session's appender specs lived in the
+scratchpad and are gone; the artifacts are the JSONL rows.
 
 **Phase 5 was closed at 65 of the planned 150** (owner decision) so training
 can begin; the remaining 85 batch documents stay available in
@@ -720,11 +786,12 @@ recurring decisions; §5 records every case settled against real text. Three
 project-owner decisions are locked (2026-07-21): **full relation scope**
 (every transaction carries `PARTY_OF`/`DATED_TO`/`HAS_PRICE`, not just the
 measurable links), **one `PERSON` span including filiation**, and
-**genitive-named parcels are `PLACE`** (`Εἰρηναίου κλήρου`). The draft gold
-(`data/gold/annotated.jsonl`, 50 docs, 1,127 entities / 258 relations, `oik gold
-check` clean, `provenance: model_draft`) is calibrated to these; regenerate it
-from `tools/build_gold_draft.py`. Expect §5 to keep growing as real documents
-are annotated — that growth *is* the deliverable as much as the spans are.
+**genitive-named parcels are `PLACE`** (`Εἰρηναίου κλήρου`). The gold
+(`data/gold/annotated.jsonl`, now **115 docs, all `human_validated`**, `oik gold
+check` clean) is calibrated to these decisions. **Do not regenerate the whole
+file** — append only (§9/§10); `tools/build_gold_draft.py` builds only the
+original 85. Expect §5 to keep growing as real documents are annotated — that
+growth *is* the deliverable as much as the spans are.
 
 ### 🔶 Phase 6 — Weak/silver labeling (labeler built + validated; full train emission done)
 
@@ -895,9 +962,10 @@ does the DAPT'd backbone give a better *NER* model? Measured on gold entity-F1.
 **This is where "did DAPT help" is decided** — not perplexity. The strict-F1
 Δ(b1−b0) is the number.
 
-### ✅ Phase 7b — Two-stage silver→gold RUN: +8.8 F1, plain CE is the recipe
+### ✅ Phase 7b — Two-stage silver→gold RUN: gold fine-tune is the recipe (strict 0.710 on 115-doc gold)
 
-**Result (b1 = DAPT backbone, 5-fold CV over the 85-doc gold):**
+**Original result (b1 = DAPT backbone, 5-fold CV over the 85-doc gold; the
+115-doc all-human re-run is the subsection below):**
 
 | stage | strict F1 | relaxed F1 |
 |---|---|---|
@@ -922,11 +990,41 @@ ours is ~99% *systematic* (Phase 6). Right tool, wrong regime.
 **Lever ledger (all measured on gold F1, never guessed):**
 `DAPT +0.094 ✓ · gold fine-tune +0.088 ✓ · GCE −0.057 ✗`. **Settled recipe:
 DAPT backbone + silver (plain CE) + gold fine-tune → strict 0.672 / relaxed
-0.785.**
+0.785 on the 85-doc gold (→ 0.710 / 0.811 on the 115-doc all-human re-run below).**
 
-**Caveat:** 20 of the 85 gold docs are un-reviewed `model_draft`s, so the CV has
-mild circularity — the 0.672 is ~±few pts until they're reviewed. Fold range
-0.635–0.743.
+**Caveat (now retired — see the re-run below):** 20 of the 85 gold docs were
+un-reviewed `model_draft`s, giving the 0.672 mild circularity.
+
+#### ✅ Re-run on the 115-doc, ALL-human-validated gold (2026-07-22)
+
+Gold grown 85→115 (AGE un-starved 6→133; TAX_TERM/FRACTION/PERSON_ROLE ~2×) and
+all 115 flipped to `human_validated`, then re-`push` + `xval --backbone b1
+--loss ce`. **Result (5-fold CV, no draft-scoring-draft circularity):**
+
+| stage | strict F1 | relaxed F1 |
+|---|---|---|
+| silver-only | 0.575 | 0.680 |
+| **silver→gold (CE)** | **0.710** | **0.811** |
+
+Gold-fine-tune Δ grew **+0.088 → +0.136**; the recipe is unchanged and now the
+best measured (strict 0.710 / relaxed 0.811). Fold range 0.685–0.739.
+
+- **AGE 0.0 → 0.947 — the batch's target, decisively hit.** Silver-only AGE is
+  *still* 0.0 despite 149 silver AGE (the silver labels don't score on their
+  own); the 133 clean gold examples both correct it and give it a real eval
+  denominator. Same mechanism that fixed OCCUPATION, now proven for AGE.
+- **Other gains:** FRACTION **0.82** (was +0.13 delta, now strong absolute),
+  OCCUPATION 0.70, PERSON 0.75, MONEY 0.74, QUANTITY 0.71, DATE_REF 0.63.
+- **The +0.038 vs 0.672 is partly reweighting** — the eval now includes AGE the
+  model does well on, so it is not a clean apples-to-apples lift; the per-label
+  numbers are the honest evidence.
+- **Two classes did NOT respond to more data (correcting the prior prediction):**
+  **TAX_TERM 0.440** (flat; silver-only 0.444 — doubling to 68 stopped the
+  regression but bought no lift) and **PERSON_ROLE 0.396** (*still regresses*
+  from silver-only 0.427 despite 44 ex). More-of-the-same won't move these —
+  they need cleaner/more-consistent labels (PERSON_ROLE is heterogeneous:
+  guardian formulas, statuses, unnamed roles) or a different lever, not just
+  volume. This is the next real bottleneck.
 
 **Built (`modal_app/ner.py`):** one `train` fn does **paired k-fold CV** — silver
 trained **once**, then per fold: reset to the silver model, score the held-out
@@ -935,11 +1033,13 @@ fold (**silver-only**), fine-tune on that fold's gold-train, score it again
 `loss={ce,gce}`, `min_confidence>0` drops the low-confidence silver tail.
 Entrypoint `xval --backbone b1 --loss ce|gce`.
 
-**Next (label-side — the only lever left that moves it):** review the 20 drafts;
-finish gold for the starved rare classes (TAX_TERM/PERSON_ROLE/AGE/FRACTION).
-Optional cheap test: `xval --min-confidence 0.5` (hard-drop noisy silver, vs
-GCE's soft down-weight) — but expect limited help given systematic noise + rare-
-class fragility. Self-training (BOND) / CRF head only if those fall short.
+**Done since (see the 115-doc re-run subsection above):** the 20 drafts were
+reviewed → `human_validated`, AGE finished (0→**0.947**), and the rare classes
+~doubled. **The lever that remains is TAX_TERM/PERSON_ROLE label *consistency*** —
+volume is exhausted (doubling them moved nothing). Cheap untried test:
+`xval --backbone b1 --loss ce --min-confidence 0.5` (hard-drop the noisy silver
+tail). Self-training (BOND) / CRF head only if that falls short. Otherwise the
+next build is **Phase 8 (relations)**.
 
 ### (superseded) original Phase 7b plan
 
@@ -1069,6 +1169,17 @@ re-derive; if reality contradicts one, treat it as a finding and update here.
   shifts every offset and silently decouples your spans from the stored text,
   which is exactly the bug v4 fixed. Verified over 1,500 random documents:
   0 occurrences of `'  '`, `' \n'`, `'\n '`, `'\n\n'`, or edge padding.
+- **Gold `text` must be byte-identical to `corpus.parquet.edited_text`, and the
+  numeral gate SILENTLY skips any doc where it is not.** `oik gold check` keys
+  the `<num>` tags by exact `text` match (`_load_gold_numerals`); a mismatched
+  text returns `numerals=None`, so `check_numeral_coverage` never runs for that
+  doc and its coverage goes unchecked — no error, no warning. Found 2026-07-22:
+  3 of the owner's hard docs (`7797`, `40966`, `41308`) carried a *normalized*
+  text from `hard_data_batch.jsonl` (`γίνεται`→`γίνονται`, final `ς`→medial `σ`)
+  that differed from corpus by 1–4 chars, so their gates had been silently off.
+  **Any hand-curated batch file's `text` is suspect** — always source gold text
+  from `corpus.parquet`, never from a batch/suggestion file, and cross-check
+  byte-identity (a two-line diff) whenever gold rows are added by hand.
 - **`<space>` is a *vacat*** — blank space deliberately left on the papyrus —
   and emits a space of its own. The source also puts literal spaces around it,
   so all three used to collide (`'Ποκῶτος   δραχμὰς'`). It is not a
@@ -1235,12 +1346,14 @@ architecture claim on our own data rather than on the literature's.
 ## 8. Progress
 
 **~60% of the full project.** Phases 0–3 complete; **Phase 4 DAPT RUN — full FT
-wins, `full/final` (B1) saved**; **Phase 5 — 85 gold docs (65 human + 20
-model_draft)**; **Phase 6 silver emitted over the train split** (1.11M entities
+wins, `full/final` (B1) saved**; **Phase 5 — 115 gold docs, ALL human_validated,
+2,995 entities, 0 errors, all byte-identical to corpus; AGE un-starved 6→133**;
+**Phase 6 silver emitted over the train split** (1.11M entities
 / 328k relations); **Phase 7 entity NER RUN — DAPT beats the no-DAPT control
 +9.5 strict F1** (b1 0.589 vs b0 0.495; PERSON +19, PLACE +11); **Phase 7b
-two-stage RUN — gold fine-tune +8.8, settled recipe DAPT + silver(CE) + gold-FT
-= strict 0.672 / relaxed 0.785** (GCE loss tested & rejected −5.7). Foundation:
+two-stage RUN — settled recipe DAPT + silver(CE) + gold-FT; on the 115-doc
+all-human gold strict 0.710 / relaxed 0.811, AGE 0.0→0.947** (GCE rejected −5.7).
+Foundation:
 a validated corpus-ingestion pipeline built over all
 67,980 documents at parse rate 1.000, whole-corpus characterization, mined
 lexicons with measured recall, the annotation schema (guidelines v0.3, ten
@@ -1248,37 +1361,49 @@ rules), a mechanical span + **numeral-coverage** validator (`oik gold check`),
 a proximity baseline at a 74.50% numeral link rate, leak-free stratified +
 chronological splits, and a scored, confidence-aware silver labeler.
 
-Remaining: Phase 5 gold (review the 20 drafts + finish for rare classes) ·
-Phase 8 relation model · Phase 9 corpus inference → DB · Phase 10 historical
-analysis · Phase 11 release.
+Remaining: **Phase 8 relation model** (next big build) · Phase 9 corpus
+inference → DB · Phase 10 historical analysis · Phase 11 release. Phase 5 gold is
+in strong shape (115 human-validated docs, 0 errors); any further gold work is
+optional label-quality, not volume.
 
-**Gold annotation is still the critical path** — the Phase-7b result proved the
-gold fine-tune is where the last +8.8 came from, and the remaining ceiling
-(rare labels TAX_TERM/PERSON_ROLE/AGE/FRACTION; the 20 un-reviewed drafts) is
-label-side. Phase 8 (relations) remains the scientific risk (silver PARTY_OF
-precision ≈ 0.28).
+**The entity model is validated: strict 0.710 / relaxed 0.811 on the 115-doc
+all-human gold, with gold fine-tune the proven lever (+0.136).** AGE is solved
+(0.947) and every gold doc is human_validated. The remaining *entity-side*
+ceiling is **TAX_TERM (0.44, flat) and PERSON_ROLE (0.40, still regresses under
+gold fine-tune)** — these do NOT respond to more volume (proven: doubling them
+did nothing); they need cleaner/more-consistent labels or a different lever.
+**Phase 8 (relations) is the next scientific risk** (silver PARTY_OF precision
+≈ 0.28).
 
 ---
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-21 (Phase 4 DAPT run — full FT wins over DoRA,
-`checkpoints/full/final` = B1. **Phase 7 entity NER run complete: DAPT beats the
-no-DAPT control +9.5 strict F1 on gold** (b1 0.589 vs b0 0.495), `models/{b0,b1}/
-final` saved to the `oikonomia-ner` Volume; B1 is the entity backbone. Harness:
-`oikonomia/ner/`, `oik ner prepare`, `modal_app/ner.py`. 397 tests, ruff + mypy
-clean. **Phase 7b harness built** (`modal_app/ner.py` rewritten: two-stage
-silver→gold + k-fold CV, `loss={ce,gce}`; entrypoint `xval`). **Gold extended
-65→85** (20 new model_drafts via `build_gold_draft.py` `draft` flag; 8 dense
-docs held; `oik gold check` 0 errors) — the +20 await a human review pass and a
-re-`push` before the Phase 7b run.)._
+_Last updated: 2026-07-22 (**Gold extended 85→115**: owner reviewed the 20
+model-drafts (→human_validated) and hand-annotated 10 "hard" docs; this session
+fixed 3 silent text-corruption bugs in those 10 (see §7 "Gold `text` must be
+byte-identical") + 3 phantom skips, annotated 13 more hard docs, then targeted
+**AGE** with 7 census/signalement docs (`25173 26167 27453 11440 29529 12351
+12906`) → **AGE 6→133**. `annotated.jsonl` = **115 docs / 2,995 entities / 623
+relations, `oik gold check` 0 errors, numerals_checked, all byte-identical to
+corpus**. Session lift: AGE +127, PERSON +288, TAX_TERM +45, FRACTION +35,
+OCCUPATION +70, PERSON_ROLE +23. 398 tests, ruff + mypy clean, caches cleared.
+**Prior state (still
+current):** Phase 4 DAPT full FT wins → `checkpoints/full/final` = B1; **Phase 7
+entity NER: DAPT beats control +9.5 strict F1** (b1 0.589 vs b0 0.495),
+`models/{b0,b1}/final` on the `oikonomia-ner` Volume; **Phase 7b two-stage
+silver→gold: on the 115-doc all-human gold strict 0.710 / relaxed 0.811, AGE
+0.0→0.947; TAX_TERM (0.44) and PERSON_ROLE (0.40) are the stubborn classes**.
+Harness: `oikonomia/ner/`, `oik ner prepare`, `modal_app/ner.py` (`xval`).)._
 
 ### Modal Volumes (state that lives off-repo)
 - `oikonomia-dapt`: `shards/{train,dev}.bin`, `checkpoints/full/final` (**B1
   backbone**, load this for Phase 7 b1), plus stale `checkpoints/b1-*` from the
   first (misconfigured) sweep — safe to `modal volume rm -r` to reclaim space.
-- `oikonomia-ner`: `data/{silver,gold,labels}.json*` after `ner.py::push`.
-  **Re-`push` after the gold edits** (the Volume still has the 65-doc gold).
+- `oikonomia-ner`: `data/{silver,gold,labels}.json*`. **The Volume now holds the
+  115-doc all-human gold** — pushed this session before the successful `xval`
+  run (strict 0.710 / relaxed 0.811, AGE 0.947). Re-`push` only if
+  `annotated.jsonl` / `silver.jsonl` / `labels.json` change again.
   `xval` trains in `/tmp` per fold and saves no persistent model (it measures,
   it doesn't ship a model) — the shippable NER model is a later `launch`-style
   full train once the recipe/gold are frozen.
@@ -1286,23 +1411,41 @@ re-`push` before the Phase 7b run.)._
   DAPT one runs with global modal (ships nothing local).
 
 ### Quality gate at last save
-**`oik gold check` 0 errors / 49 reviewed advisories.** src/ untouched since the
-last full gate (ruff · mypy · 348 tests all PASS); only
-`tools/build_gold_draft.py` and `data/gold/annotated.jsonl` changed this batch.
-Caches cleared. All work is committed to git (`main`).
+**`oik gold check` 0 errors, `numerals_checked`, 115 docs, all byte-identical to
+corpus.** src/ untouched since the last full gate (ruff · mypy · **398 tests**
+all PASS). This session changed only `CLAUDE.md` and `data/gold/annotated.jsonl`
+(gold grown 85→115, then all flipped to `human_validated`). Caches cleared.
+**NOT yet committed** — `git status`: `M CLAUDE.md`, `M data/gold/annotated.jsonl`,
+`?? uv.lock`. Commit when ready (owner's call).
 
-### Batch-2 gold annotation (85/150 — 65 human-validated + 20 model drafts)
-- **Now 85 docs, `oik gold check` 0 errors.** 65 are `human_validated`; the 20
-  added for Phase 7b are `provenance: model_draft` and **await a human review
-  pass** — `build_gold_draft.py` now honours a per-doc `"draft": True` flag so
-  un-reviewed drafts never claim human validation (integrity, §3).
-- **The 20 model drafts** (batch order): `23875 25677 2699 27473 28068 28885
-  29051 3141 30719 30725 32721 32874 32910 33238 34901 35239 35704 36217 36928
-  36941`. Review these, then flip each block's `draft` flag off and rebuild.
-- **8 docs were deliberately HELD** (too dense/fragmentary to auto-draft into
-  the eval set): `23914` (marriage, double-annotate), `25467` `27734` `28329`
-  `31975` `33510` `35281` (obol/grain/harbour registers, 40–80 numerals each),
-  `37263` (shattered λόγος). These need careful/human annotation.
+### Gold annotation (115 docs — ALL human_validated)
+- **Now 115 docs, `oik gold check` 0 errors, numerals_checked, byte-identical,
+  all `human_validated` / `reviewed_by: abderahmane-ai`.** This session's 20
+  drafts were owner-reviewed and flipped from `model_draft`:
+  - 13 hard-batch docs: `77576 78637 77107 75749 79378 702571 793 5344 7560 5414
+    703351 76201 43027`
+  - 7 AGE-targeted docs: `25173 26167 27453 11440 29529 12351 12906`
+- **The `oikonomia-ner` Volume now has this 115-doc gold** (pushed + `xval` run
+  this session → strict 0.710 / relaxed 0.811, AGE 0.0→0.947). Re-`push` only
+  after further gold edits.
+- **The owner's 10 hard docs** (now `human_validated`): `35281 36847 40966 41308
+  47246 7797 78653 79380 38767 76915`. Three (`7797 40966 41308`) needed a
+  text-corruption fix this session (§7) — do not re-import their text from
+  `hard_data_batch.jsonl`, it is normalized-away-from-corpus.
+- **Do NOT run `tools/build_gold_draft.py`** — it `write_text`-overwrites the
+  whole file from its 85-doc SPEC and would drop the owner's 10 + this session's
+  20 (none is in the SPEC). Append new rows instead (compute offsets by
+  forward-scanning surface strings against `corpus.parquet` text).
+- **AGE un-starved: 9 → 133** (now `human_validated`). Seven train-split
+  census/signalement docs annotated this session (`25173 26167 27453 11440 29529
+  12351 12906`). `scratchpad/find_age_docs2.py` regenerates the ranked
+  candidate list (~900 more age-docs + huge 100–220-age poll-tax registers) if
+  further AGE is ever wanted; `scratchpad/age_build.py` auto-generates AGE spans
+  from the corpus `<num>` offsets for clean "every-numeral-is-an-age" lists.
+- **8 docs still HELD** (too dense/fragmentary to auto-draft; `35281` was one but
+  the owner has since annotated it): `23914` (marriage, double-annotate),
+  `25467` `27734` `28329` `31975` `33510` (obol/grain/harbour registers,
+  40–80 numerals each), `37263` (shattered λόγος). Careful/human annotation.
 - **Resume for more:** next undone tractable ids after 36941: `37277, 37409,
   37678, 382560, 38625, 38767, …`. Regenerate the list with the §10 one-liner.
 - **Workflow that worked well:** dump 5 docs at a time with the scratchpad
@@ -1372,15 +1515,20 @@ the suite still runs on a clean checkout.
 Disk: watch headroom — corpus 6.1 GB + processed 280 MB.
 
 ### Gold annotation state (git-TRACKED, not derived)
-- `data/gold/to_annotate.jsonl` — the 150-doc batch (unchanged this session).
-- `data/gold/annotated.jsonl` — **50 documents drafted + completeness-verified**,
-  **1,192 entities / 268 relations**, `provenance: model_draft`. Regenerate with
-  `.venv/bin/python tools/build_gold_draft.py` (idempotent; writes all docs
-  currently in the SPEC dict). Some docs now carry a `skipped_numerals` field.
-- `tools/build_gold_draft.py` — the spec that produces the draft; entities are
-  surface strings in reading order (builder computes offsets, so an off-by-one
-  is structurally impossible), and `skips=[S(surface, reason, ctx)]` records
-  deliberately-unlabelled numerals. Add docs 51+ here.
+- `data/gold/annotated.jsonl` — **115 documents, ALL `human_validated`**,
+  **2,995 entities / 623 relations**, `oik gold check` 0 errors,
+  `numerals_checked`, every text byte-identical to `corpus.parquet`. Built from
+  three sources: the original 85 (`tools/build_gold_draft.py` SPEC), the owner's
+  10 hard docs, and this session's 20 (13 hard + 7 AGE). **Do NOT regenerate the
+  whole file** (§9 "Gold annotation" note) — append only.
+- `data/gold/{to_annotate,hard_data_batch,batch_2}.jsonl` — the source batches
+  gold docs were drawn from. **Their `text` is suspect** — some carries
+  normalized-away-from-corpus text (§7); always source gold text from
+  `corpus.parquet`, never these files.
+- `tools/build_gold_draft.py` — the spec for the ORIGINAL 85 only; entities are
+  surface strings in reading order (offsets computed, off-by-one impossible).
+  The appenders for the +30 docs lived in the scratchpad and are gone; the
+  artifacts are the JSONL rows themselves.
 - `resources/schema/annotation_guidelines.md` — **v0.3**, the single authority
   (§0 ten rules, §5 all decisions incl. the "completeness pass" block, §6 batch
   format with `skipped_numerals`). `ANNOTATION.md` was deleted; do not recreate.
@@ -1412,48 +1560,52 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/oik splits check
 .venv/bin/oik dapt inspect | tail -15
 
-# 3. Gold draft intact? (85/150 docs: 65 human + 20 model_draft, must be 0 errors)
+# 3. Gold intact? (115 docs, ALL human_validated, 0 errors + numerals_checked)
 .venv/bin/oik gold check
 
-# 3b. Phase 6 silver intact? (labeler scored vs gold; re-emit if silver.jsonl missing)
+# 3b. Phase 6 silver intact? (re-emit if silver.jsonl missing)
 .venv/bin/oik silver score                  # entity micro F1 ~0.60 exact / ~0.72 relaxed
 #   oik silver distmap --sample 20000  ->  oik silver label   (rebuilds silver.jsonl, ~5 min)
 
-# 4. Regenerate the remaining batch-2 work list (target: reach 100/150)
-.venv/bin/python - <<'PY'
-import json
-batch=[json.loads(l) for l in open("data/gold/to_annotate.jsonl") if l.strip()]
-done={json.loads(l)["doc_id"] for l in open("data/gold/annotated.jsonl") if l.strip()}
-print([d["doc_id"] for d in batch if d["doc_id"] not in done][:35])
-PY
+# 3c. Re-run the entity xval any time (Volume already has the 115-doc gold):
+#   .venv/bin/modal run --detach modal_app/ner.py::xval --backbone b1 --loss ce
+#   (re-`push` first only if annotated.jsonl/silver.jsonl/labels.json changed)
+
+# 4. (Optional) more gold candidates: AGE-dense train docs, or undone to_annotate
+.venv/bin/python /path/to/scratchpad/find_age_docs2.py   # ranked AGE candidates (regen if lost)
 ```
 
-**Phase 5 batch 2 — 85 of 150 done (65 human-validated + 20 model_draft awaiting
-review; 8 dense docs held — see §9).** To draft more, dump the next tractable
-docs with the scratchpad helper (or inline: read
-`text` + tagged `<num>` from `corpus.parquet` + `suggested_entities`), add each
-`SPEC["<id>"]` block to `tools/build_gold_draft.py` in reading order (and
-`skips=[S(...)]` for any deliberately-unlabelled numeral), run
-`.venv/bin/python tools/build_gold_draft.py`, then `oik gold check` — it must
-report **0 errors** (the numeral-coverage gate is a hard failure) and its
-**advisories** must all be genuine residue (theonyms, fused obol-words,
-elided sums, damaged fragments), not real misses. See §9 "Batch-2 gold
-annotation" for the builder gotchas. Every `TRANSACTION` carries a `PARTY_OF` unless the parties are
-genuinely lost to a lacuna. The full method and every decision are in
-`resources/schema/annotation_guidelines.md` **v0.3** (§0 ten rules; §5
-"completeness pass").
+**Where the project stands.** Phases 0–7b are done and *measured*: the entity
+model is validated at **strict 0.710 / relaxed 0.811** (DAPT + silver-CE +
+gold-FT, 5-fold CV on the 115-doc all-human gold), AGE solved (0.947). Gold is
+115 docs, all `human_validated`, 0 errors. **Nothing here is blocked on more
+gold volume.**
 
-**These are a model draft, not human gold** (`provenance: model_draft`). They
-still need a human pass before any Phase 7 model is scored against them.
+**The two real next moves (pick one):**
 
-**Phase 4 is built and can run any time** (`modal run modal_app/dapt.py::push`
-then `::sweep`, ~$0.25–0.80), but it optimises perplexity as a proxy. It will
-be far more informative once a gold set exists to score arms against, and the
-B0 no-DAPT control still needs building either way.
+1. **Phase 8 — relation model.** The next big build and the scientific risk:
+   silver PARTY_OF precision ≈ 0.28. The gold already carries 623 relations
+   (PARTY_OF, HAS_*, DATED_TO, CHARGED_UNDER) as the eval/fine-tune anchor. This
+   is the largest remaining piece of the pipeline.
 
-**Before touching Modal:** re-verify its API against `modal.com/docs`. Facts
-verified this session are in §7, including that `.map()`/`.starmap()` are
-positional-only and the sweep needs `.spawn()`.
+2. **Entity-model polish — the stubborn classes.** TAX_TERM (0.44, flat) and
+   PERSON_ROLE (0.40, *regresses* under gold-FT) are the entity ceiling and do
+   **not** respond to more volume (proven: doubling them moved nothing). The
+   lever is label *consistency*, not count — audit the PERSON_ROLE spans across
+   the gold for inconsistency (guardian formulas vs statuses vs unnamed roles
+   all share one label), consider splitting the label, then re-run `xval`.
+   Optional cheap test first: `xval --backbone b1 --loss ce --min-confidence 0.5`
+   (hard-drop the noisy silver tail).
 
-**Reminder:** commit after each green unit of work, and update §6/§8/§9 of this
-file before ending a session.
+**If more gold is ever wanted** (not required): `scratchpad/find_age_docs2.py`
+lists ~900 more train AGE-docs; the appender pattern is `scratchpad/age_build.py`
+(auto-AGE from `<num>` offsets for pure age-lists) + `append_gold.py`-style
+surface specs for mixed docs. **Always** source text from `corpus.parquet`, run
+`oik gold check` (0 errors + honest advisories), and check byte-identity.
+8 dense docs remain held (§9): `23914 25467 27734 28329 31975 33510 37263`.
+
+**Before touching Modal:** re-verify its API against `modal.com/docs` (§7). Run
+`modal_app/ner.py` with the **venv's** modal (it imports `oikonomia`).
+
+**Reminder:** commit after each green unit of work (this session's work is
+uncommitted — see §9 "Quality gate"), and update §6/§8/§9 before ending a session.
