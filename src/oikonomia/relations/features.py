@@ -144,15 +144,21 @@ def _payer_marking(folded: str, head: Span, lex: PaymentLexicon) -> int:
     return MARK_OTHER
 
 
+def direction_features_from_folded(
+    folded: str, head: Span, tail: Span, lex: PaymentLexicon
+) -> DirectionFeatures:
+    """Direction features from a pre-folded text (fold the doc once, reuse per pair)."""
+    verb_class, verb_pos = _nearest_verb(folded, head, tail, lex)
+    payer_mark = _payer_marking(folded, head, lex)
+    return DirectionFeatures(verb_class=verb_class, verb_pos=verb_pos, payer_mark=payer_mark)
+
+
 def direction_features(text: str, head: Span, tail: Span, lex: PaymentLexicon) -> DirectionFeatures:
     """Compute the symbolic direction-feature triple for a (payer, amount) pair.
 
     ``head`` is the PERSON/PERSON_ROLE span, ``tail`` the MONEY_AMOUNT/COMMODITY.
     """
-    folded = fold(text)
-    verb_class, verb_pos = _nearest_verb(folded, head, tail, lex)
-    payer_mark = _payer_marking(folded, head, lex)
-    return DirectionFeatures(verb_class=verb_class, verb_pos=verb_pos, payer_mark=payer_mark)
+    return direction_features_from_folded(fold(text), head, tail, lex)
 
 
 def context_window(head: Span, tail: Span, *, pad: int = _VERB_LOOKBACK) -> Span:

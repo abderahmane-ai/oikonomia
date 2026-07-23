@@ -142,14 +142,17 @@ def train(
     k_folds: int = 5,
     seq_len: int = 512,
     type_dim: int = 64,
+    feat_dim: int = 16,
     dropout: float = 0.2,
     min_confidence: float = 0.0,
     no_relation_weight: float = 1.0,
+    constrain_decode: bool = True,
+    payment_lex: dict[str, list[str]] | None = None,
     gce_q: float = 0.7,
     warmup_ratio: float = 0.06,
     seed: int = 17,
 ) -> dict[str, object]:
-    """Silver-pretrain the span-pair head, then paired k-fold gold fine-tuning."""
+    """Silver-pretrain the span-pair head (+ direction features), then k-fold gold FT."""
     import os
     from collections import namedtuple
 
@@ -162,12 +165,20 @@ def train(
 
     from oikonomia.labeling.score import build_report
     from oikonomia.relations.data import entities_of, read_ner_jsonl, relations_of
+    from oikonomia.relations.decode import constrain
     from oikonomia.relations.encode import (
         NO_RELATION,
         admissible_mask,
         char_span_to_token_range,
         label_candidates,
         window_entities,
+    )
+    from oikonomia.relations.features import (
+        FEATURE_CARDINALITIES,
+        PaymentLexicon,
+        context_window,
+        direction_features_from_folded,
+        fold,
     )
 
     if backbone.startswith(DAPT_ROOT) and not Path(backbone).is_dir():
@@ -188,11 +199,16 @@ def train(
     device = "cuda"
 
     tokenizer = AutoTokenizer.from_pretrained(backbone, use_fast=True)
+    lex = PaymentLexicon(**payment_lex) if payment_lex else PaymentLexicon()
 
-    # A candidate: token ranges of head/tail, entity type ids, entity indices +
-    # labels (for masked decoding), the target id, and whether it trains (silver
-    # positives below min_confidence are excluded from the loss, not relabeled).
-    Cand = namedtuple("Cand", "h t h0 h1 t0 t1 htid ttid hlab tlab label_id train_ok")
+    # A candidate carries: head/tail token ranges, a WIDE context token range
+    # (pad-before-payer → amount-end, for the direction verb), entity type ids,
+    # the 3 neuro-symbolic direction feature ids (verb-class, verb-position,
+    # payer-marking), entity indices + labels (for masked decoding), the target,
+    # and whether it trains (low-confidence silver positives are withheld).
+    Cand = namedtuple(
+        "Cand", "h t h0 h1 t0 t1 w0 w1 htid ttid vc vp pm hlab tlab label_id train_ok"
+    )
     Doc = namedtuple("Doc", "input_ids attention_mask ents rels cands")
 
     def encode_doc(d: dict) -> Doc | None:
@@ -215,13 +231,19 @@ def train(
             if h in old2new and t in old2new:
                 conf[(old2new[h], old2new[t], str(r["type"]))] = float(r.get("confidence", 1.0))
 
+        folded = fold(text)
         cands: list = []
         for h, t, ty in label_candidates(ents, rels):
             rh, rt = ranges[h], ranges[t]  # both valid — every kept entity has a range
+            hc, tc = (ents[h][0], ents[h][1]), (ents[t][0], ents[t][1])  # char spans
+            wlo, whi = context_window(hc, tc)
+            wr = char_span_to_token_range(offsets, wlo, whi) or (min(rh[0], rt[0]), max(rh[1], rt[1]))
+            f = direction_features_from_folded(folded, hc, tc, lex)
             hlab, tlab = ents[h][2], ents[t][2]
             train_ok = not (ty != NO_RELATION and conf.get((h, t, ty), 1.0) < min_confidence)
-            cands.append(Cand(h, t, rh[0], rh[1], rt[0], rt[1],
-                              ent2id[hlab], ent2id[tlab], hlab, tlab, rel_label2id[ty], train_ok))
+            cands.append(Cand(h, t, rh[0], rh[1], rt[0], rt[1], wr[0], wr[1],
+                              ent2id[hlab], ent2id[tlab], f.verb_class, f.verb_pos, f.payer_mark,
+                              hlab, tlab, rel_label2id[ty], train_ok))
         if not cands:
             return None
         return Doc(enc["input_ids"], enc["attention_mask"], ents, rels, cands)
@@ -233,17 +255,24 @@ def train(
           f"silver_docs={len(silver_docs)} gold_docs={len(gold_docs)} k={k_folds}", flush=True)
 
     class RelationHead(nn.Module):
-        """Single-encode span-pair classifier (SpERT-style)."""
+        """Single-encode span-pair classifier (SpERT-style) + neuro-symbolic direction.
+
+        Per pair the classifier sees: head/tail max-pooled reps, the between-span
+        context (local relations), a WIDE context reaching before the payer (the
+        direction verb, which precedes the payer 25% of the time), CLS, entity-type
+        embeddings, and the 3 symbolic direction-feature embeddings.
+        """
 
         def __init__(self) -> None:
             super().__init__()
             self.encoder = AutoModel.from_pretrained(backbone)
             hsz = self.encoder.config.hidden_size
             self.type_emb = nn.Embedding(len(entity_labels), type_dim)
+            self.feat_emb = nn.ModuleList(nn.Embedding(card, feat_dim) for card in FEATURE_CARDINALITIES)
             self.no_ctx = nn.Parameter(torch.zeros(hsz))
             self.mlp = nn.Sequential(
                 nn.Dropout(dropout),
-                nn.Linear(4 * hsz + 2 * type_dim, hsz),
+                nn.Linear(5 * hsz + 2 * type_dim + 3 * feat_dim, hsz),
                 nn.GELU(),
                 nn.Dropout(dropout),
                 nn.Linear(hsz, len(rel_labels)),
@@ -255,7 +284,8 @@ def train(
 
         def score_pairs(self, hb, cls_b, cands):
             """Logits [P, n_rel_labels] for one document's candidate pairs."""
-            reps_h, reps_t, ctxs = [], [], []
+            dev = hb.device
+            reps_h, reps_t, ctxs, wides = [], [], [], []
             for c in cands:
                 reps_h.append(hb[c.h0:c.h1].amax(0))
                 reps_t.append(hb[c.t0:c.t1].amax(0))
@@ -266,13 +296,18 @@ def train(
                 else:  # overlapping token spans
                     c0, c1 = 0, 0
                 ctxs.append(hb[c0:c1].amax(0) if c1 > c0 else self.no_ctx)
-            rh = torch.stack(reps_h)
-            rt = torch.stack(reps_t)
-            cx = torch.stack(ctxs)
-            th = self.type_emb(torch.tensor([c.htid for c in cands], device=hb.device))
-            tt = self.type_emb(torch.tensor([c.ttid for c in cands], device=hb.device))
+                wides.append(hb[c.w0:c.w1].amax(0) if c.w1 > c.w0 else self.no_ctx)
+            rh, rt = torch.stack(reps_h), torch.stack(reps_t)
+            cx, wx = torch.stack(ctxs), torch.stack(wides)
+            th = self.type_emb(torch.tensor([c.htid for c in cands], device=dev))
+            tt = self.type_emb(torch.tensor([c.ttid for c in cands], device=dev))
+            fv = [
+                self.feat_emb[0](torch.tensor([c.vc for c in cands], device=dev)),
+                self.feat_emb[1](torch.tensor([c.vp for c in cands], device=dev)),
+                self.feat_emb[2](torch.tensor([c.pm for c in cands], device=dev)),
+            ]
             cls = cls_b.unsqueeze(0).expand(rh.size(0), -1)
-            return self.mlp(torch.cat([rh, rt, cx, cls, th, tt], dim=-1))
+            return self.mlp(torch.cat([rh, rt, cx, wx, cls, th, tt, *fv], dim=-1))
 
     model = RelationHead().to(device)
     pad_id = tokenizer.pad_token_id or 0
@@ -348,19 +383,27 @@ def train(
 
     @torch.no_grad()
     def predict(docs):
-        """Per-doc decode → (gold_ents, gold_rels, gold_ents, pred_rels) tuples."""
+        """Per-doc decode → (gold_ents, gold_rels, gold_ents, pred_rels) tuples.
+
+        Each candidate's winning admissible type carries its softmax probability;
+        schema-constrained decoding then keeps the best tail per functional head.
+        """
         model.eval()
         per_doc = []
         for d in docs:
             ids, am = pad_batch([d])
             h, cls = model.encode(ids, am)
             logits = model.score_pairs(h[0], cls[0], d.cands)  # [P, n]
-            pred_rels = []
+            scored = []  # (h, t, type, score) for the non-NO_RELATION winners
             for k, c in enumerate(d.cands):
                 masked = logits[k].masked_fill(~mask_for(c.hlab, c.tlab), float("-inf"))
-                lid = int(masked.argmax().item())
+                prob = torch.softmax(masked, dim=-1)
+                lid = int(prob.argmax().item())
                 if lid != no_rel_id:
-                    pred_rels.append((c.h, c.t, rel_labels[lid]))
+                    scored.append((c.h, c.t, rel_labels[lid], float(prob[lid].item())))
+            pred_rels = (
+                constrain(scored) if constrain_decode else [(h, t, ty) for h, t, ty, _ in scored]
+            )
             per_doc.append((d.ents, d.rels, d.ents, pred_rels))
         model.train()
         return per_doc
@@ -422,15 +465,22 @@ def xval(
     loss: str = "ce",
     no_relation_weight: float = 1.0,
     min_confidence: float = 0.0,
+    constrain_decode: bool = True,
 ) -> None:
     """Two-stage CV for one backbone+loss: silver-only vs silver→gold relations.
 
     ``no_relation_weight`` is the recall lever for the ~24:1 negative imbalance
     (positive candidate rate ≈ 0.04); ``min_confidence`` drops the low-confidence
-    silver positives from the loss. Both default to the clean, unweighted setting.
+    silver positives from the loss; ``constrain_decode`` applies the functional
+    schema constraints at inference. The mined payment verb lexicon is shipped as
+    features for the direction head (loaded here, since resources/ is not in the
+    container image).
     """
+    from oikonomia.relations.features import load_payment_lexicon
+
     if backbone not in BACKBONES:
         raise SystemExit(f"backbone must be one of {sorted(BACKBONES)}, got {backbone!r}")
+    payment_lex = load_payment_lexicon(REPO / "resources").model_dump()
     run = f"{backbone}-{loss}"
     print(json.dumps(
         train.remote(
@@ -439,6 +489,8 @@ def xval(
             loss=loss,
             no_relation_weight=no_relation_weight,
             min_confidence=min_confidence,
+            constrain_decode=constrain_decode,
+            payment_lex=payment_lex,
         ),
         indent=2, ensure_ascii=False,
     ))
