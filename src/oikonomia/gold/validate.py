@@ -47,6 +47,15 @@ RELATION_SIGNATURES: dict[str, tuple[frozenset[str], frozenset[str]]] = {
     "DATED_TO": (frozenset({"TRANSACTION"}), frozenset({"DATE_REF"})),
     "PAID_BY": (frozenset({"PERSON", "PERSON_ROLE"}), frozenset({"MONEY_AMOUNT", "COMMODITY"})),
     "PAID_TO": (frozenset({"PERSON", "PERSON_ROLE"}), frozenset({"MONEY_AMOUNT", "COMMODITY"})),
+    # Attribute apposition (Phase 8b): a person's title or age stands right next
+    # to the name it qualifies. Before these, OCCUPATION and AGE appeared in no
+    # signature, so they could never be a candidate endpoint and 79% of every
+    # PERSON reached the database in no relation at all. Recovered by a
+    # deterministic adjacency rule (oikonomia.labeling.apposition), each edge
+    # auditable to its two spans. PERSON_ROLE is an admissible head too: a bare
+    # role can bear the attribute ("the priest, 40 years old").
+    "HAS_OCCUPATION": (frozenset({"PERSON", "PERSON_ROLE"}), frozenset({"OCCUPATION"})),
+    "HAS_AGE": (frozenset({"PERSON", "PERSON_ROLE"}), frozenset({"AGE"})),
 }
 
 # A numeral the annotator *deliberately* leaves unlabelled records the reason,

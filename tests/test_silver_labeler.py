@@ -295,3 +295,56 @@ def test_paron_participle_is_not_the_para_preposition():
     )
     assert not any(t == "PAID_BY" for t, _, _ in rels)
     assert ("PAID_TO", "Ὧρος", "ρ") in rels
+
+
+# --- Attribute apposition (HAS_OCCUPATION / HAS_AGE) -------------------------
+# The rule is pure (tests/test_apposition.py owns its logic); here the interest is
+# the labeler wiring — that WeakRelations come out with the right type and the
+# type's provisional confidence, and that the AGE path works end-to-end from a
+# numeral the labeler builds itself.
+
+
+def _attribute(text: str, ents: list[tuple[str, str]]) -> set[tuple[str, str, str, float]]:
+    """Run the attribute labeler on hand-placed entities (label, substring)."""
+    from oikonomia.labeling.weak_rules import WeakEntity
+
+    entities = []
+    for label, sub in ents:
+        i = text.index(sub)
+        entities.append(WeakEntity(label=label, span=CharSpan(start=i, end=i + len(sub)), text=sub))
+    rels = _labeler()._attribute_relations(entities)
+    return {(r.type, entities[r.head].text, entities[r.tail].text, round(r.confidence, 3)) for r in rels}
+
+
+def test_occupation_apposition_emits_has_occupation_with_confidence():
+    from oikonomia.labeling.silver import RELATION_CONFIDENCE
+
+    rels = _attribute(
+        "Ἀρτεμίδωρος ἰατρός",
+        [("PERSON", "Ἀρτεμίδωρος"), ("OCCUPATION", "ἰατρός")],
+    )
+    assert rels == {("HAS_OCCUPATION", "Ἀρτεμίδωρος", "ἰατρός", RELATION_CONFIDENCE["HAS_OCCUPATION"])}
+
+
+def test_counted_occupation_gets_no_edge_through_the_labeler():
+    # 'ἱερεῖς β' = 'priests: 2' — a headcount line; the guard drops it end-to-end.
+    rels = _attribute(
+        "Ἀπολλώνιος ἱερεῖς β",
+        [("PERSON", "Ἀπολλώνιος"), ("OCCUPATION", "ἱερεῖς"), ("QUANTITY", "β")],
+    )
+    assert rels == set()
+
+
+def test_age_links_to_preceding_person_end_to_end():
+    # The labeler builds the AGE entity from the numeral after ἐτῶν itself; the
+    # attribute rule then links it to the capitalised name before it.
+    text = "Φιλουμένη ὡς ἐτῶν λη"
+    i = text.index("λη")
+    result = _labeler().label(
+        text, [CharSpan(start=i, end=i + len("λη"))], [CharSpan(start=0, end=len(text))]
+    )
+    age_rels = [r for r in result.relations if r.type == "HAS_AGE"]
+    assert len(age_rels) == 1
+    r = age_rels[0]
+    assert result.entities[r.head].text == "Φιλουμένη"
+    assert result.entities[r.tail].label == "AGE"

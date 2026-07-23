@@ -155,3 +155,38 @@ def test_admissible_mask_matches_types() -> None:
     assert allowed == {NO_RELATION, "PAID_BY", "PAID_TO"}
     # id 0 (NO_RELATION) is always allowed.
     assert mask[label2id[NO_RELATION]] is True
+
+
+# --- 8b attribute apposition: a signalement with a person, trade and age -----
+ATTR_ENTITIES = [
+    (0, 10, "PERSON"),  # 0  the registrant
+    (11, 17, "OCCUPATION"),  # 1  his trade (gap 1)
+    (25, 27, "AGE"),  # 2  ἐτῶν N (gap 8)
+    (900, 906, "OCCUPATION"),  # 3  a far trade in another clause (>500 away)
+]
+ATTR_GOLD = [
+    (0, 1, "HAS_OCCUPATION"),
+    (0, 2, "HAS_AGE"),
+]
+
+
+def test_attribute_signatures_are_admissible() -> None:
+    # Both subject labels reach both attributes, each with a single type.
+    assert admissible_types("PERSON", "OCCUPATION") == ("HAS_OCCUPATION",)
+    assert admissible_types("PERSON", "AGE") == ("HAS_AGE",)
+    assert admissible_types("PERSON_ROLE", "OCCUPATION") == ("HAS_OCCUPATION",)
+    assert admissible_types("PERSON_ROLE", "AGE") == ("HAS_AGE",)
+    # OCCUPATION still heads HAS_QUANTITY (a counted category), unchanged.
+    assert admissible_types("OCCUPATION", "QUANTITY") == ("HAS_QUANTITY",)
+
+
+def test_attribute_candidates_and_local_gap_cap() -> None:
+    pairs = set(candidate_pairs(ATTR_ENTITIES))
+    assert (0, 1) in pairs  # PERSON -> OCCUPATION (near)
+    assert (0, 2) in pairs  # PERSON -> AGE
+    # The far OCCUPATION (890 chars) is gap-pruned: the appositions are local.
+    assert (0, 3) not in pairs
+
+
+def test_attribute_recall_guard_holds() -> None:
+    assert uncovered_relations(ATTR_ENTITIES, ATTR_GOLD) == []

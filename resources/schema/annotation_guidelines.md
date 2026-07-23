@@ -191,9 +191,21 @@ expression is a single `DATE_REF` spanning the numeral and the year word
 | `PAID_BY` / `PAID_TO` | `PERSON`/`PERSON_ROLE` → `MONEY_AMOUNT`/`COMMODITY` | direction of transfer |
 | `DATED_TO` | `TRANSACTION` → `DATE_REF` | |
 | `CHARGED_UNDER` | `MONEY_AMOUNT` → `TAX_TERM` | ὑπὲρ λαογραφίας |
+| `HAS_OCCUPATION` | `PERSON`/`PERSON_ROLE` → `OCCUPATION` | Ἀρτεμίδωρος → ἰατρός |
+| `HAS_AGE` | `PERSON`/`PERSON_ROLE` → `AGE` | Φιλουμένη → ν (ὡς ἐτῶν ν) |
 
 Relations are annotated **within a document**, and may cross line boundaries.
 They may not cross documents.
+
+`HAS_OCCUPATION` / `HAS_AGE` (v0.5, Phase 8b) are **attribute apposition**: a
+person's title or age stands right beside the name it qualifies. They are
+recovered by a deterministic adjacency rule
+(`oikonomia.labeling.apposition`), not hand-annotated from scratch — each edge
+links an attribute to the nearest `PERSON`/`PERSON_ROLE` that ends before it, and
+is confirmed against the auditable draft (`data/gold/attribute_draft.jsonl`)
+before merging. A **counted** occupation is *not* a title: `ἱερεῖς β` stays a
+`HAS_QUANTITY` (`ἱερεῖς → β`, §5), so the rule skips any occupation immediately
+followed by its `QUANTITY`.
 
 ## 5. Hard cases
 

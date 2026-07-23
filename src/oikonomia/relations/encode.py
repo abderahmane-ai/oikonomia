@@ -53,10 +53,17 @@ ENDPOINT_LABELS: tuple[str, ...] = tuple(
     sorted({lab for head, tail in RELATION_SIGNATURES.values() for lab in (*head, *tail)})
 )
 
-# Relation types whose endpoints are always close (economic-quantity links). Only
-# these are subject to the character-gap cap; the rest are left uncapped.
+# Relation types whose endpoints are always close (economic-quantity links, and
+# the 8b attribute appositions — a title/age sits right beside its name, median
+# gap ~1). Only these are subject to the character-gap cap; the rest are left
+# uncapped. The cap (500) dwarfs any real apposition gap, so no gold is dropped;
+# the point is to kill the O(n²) person×attribute cross-product in dense poll-tax
+# registers, where hundreds of names and titles co-occur.
 LOCAL_FAMILY: frozenset[str] = frozenset(
-    {"HAS_CURRENCY", "HAS_UNIT", "HAS_QUANTITY", "HAS_PRICE", "CHARGED_UNDER"}
+    {
+        "HAS_CURRENCY", "HAS_UNIT", "HAS_QUANTITY", "HAS_PRICE", "CHARGED_UNDER",
+        "HAS_OCCUPATION", "HAS_AGE",
+    }
 )
 # Gold local-family gaps top out at 411 chars (HAS_PRICE); 500 keeps every gold
 # candidate with margin while still pruning far-apart pairs in dense registers.

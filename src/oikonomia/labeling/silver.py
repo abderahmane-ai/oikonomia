@@ -41,6 +41,11 @@ from typing import Any, NamedTuple
 import yaml
 from pydantic import BaseModel, Field
 
+from oikonomia.labeling.apposition import (
+    HAS_AGE,
+    HAS_OCCUPATION,
+    attribute_relations,
+)
 from oikonomia.labeling.matcher import Matcher
 from oikonomia.labeling.mine import is_greek_letter, tokenize
 from oikonomia.labeling.normalize import normalize
@@ -109,6 +114,12 @@ UNSEEN_DIST_PRIOR = 0.85
 
 # Relation confidence by type (measured precisions). PARTY_OF/DATED_TO/HAS_PRICE
 # are the noisy tail — priced low so a confidence filter drops them first.
+# HAS_OCCUPATION/HAS_AGE are the 8b appositions: deterministic and near-adjacency,
+# so priced high. These two are PROVISIONAL priors (gold carries no HAS_OCCUPATION/
+# HAS_AGE yet, so `oik silver score` cannot measure them); the prior reflects the
+# gold-draft spot-check (occupation ~clean at gap 1; age looser, the ἐτῶν formula
+# occasionally attaches a guardian/mother). Replace with measured precisions once
+# the reviewed attribute draft is merged into gold.
 RELATION_CONFIDENCE: dict[str, float] = {
     "HAS_CURRENCY": 0.70,
     "HAS_UNIT": 0.52,
@@ -117,6 +128,8 @@ RELATION_CONFIDENCE: dict[str, float] = {
     PARTY_OF: 0.28,
     DATED_TO: 0.12,
     HAS_PRICE: 0.30,
+    HAS_OCCUPATION: 0.80,
+    HAS_AGE: 0.70,
 }
 
 # Payment-direction confidence, keyed by the *construction* that fired, not the
@@ -448,6 +461,7 @@ class SilverLabeler:
         entities = [e.model_copy(update={"confidence": self._confidence(e)}) for e in entities]
         relations.extend(self._relations(entities, tokens))
         relations.extend(self._direction_relations(entities, tokens))
+        relations.extend(self._attribute_relations(entities))
         return WeakLabeling(entities=entities, relations=relations)
 
     def _confidence(self, ent: WeakEntity) -> float:
@@ -711,6 +725,31 @@ class SilverLabeler:
                 payer = nearest(vspan, [i for i in near if entities[i].span.start >= vspan.start], side=1)
                 emit(PAID_BY, payer, amount, "impersonal")
 
+        return rels
+
+    def _attribute_relations(self, entities: list[WeakEntity]) -> list[WeakRelation]:
+        """HAS_OCCUPATION / HAS_AGE — attribute apposition (Phase 8b).
+
+        Delegates the adjacency logic to the pure, unit-tested
+        :func:`oikonomia.labeling.apposition.attribute_relations` (each
+        OCCUPATION/AGE linked to the nearest PERSON/PERSON_ROLE that *ends before*
+        it), and only wraps its ``(head, tail, type)`` output into
+        :class:`WeakRelation` with the facing distance and the type's provisional
+        confidence. Keeping the rule pure means it is shared, unchanged, with the
+        gold-draft tool.
+        """
+        spans = [(e.span.start, e.span.end, e.label) for e in entities]
+        rels: list[WeakRelation] = []
+        for head, tail, rtype in attribute_relations(spans):
+            rels.append(
+                WeakRelation(
+                    type=rtype,
+                    head=head,
+                    tail=tail,
+                    distance=_facing_distance(entities[head].span, entities[tail].span),
+                    confidence=RELATION_CONFIDENCE.get(rtype, 0.5),
+                )
+            )
         return rels
 
 

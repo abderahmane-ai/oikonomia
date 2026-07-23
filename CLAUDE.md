@@ -177,6 +177,13 @@ model machinery; direction features, BOND self-training and the virtual EVENT no
 are cut/shelved). Plan of record:
 [`docs/phases/phase_8_relation_model.md`](docs/phases/phase_8_relation_model.md).
 
+**8b (coverage) started — first rules-first win landed.** Deterministic apposition
+rules for **HAS_OCCUPATION + HAS_AGE** (the two unambiguous attribute relations):
+linked entity coverage on gold **35.7% → 49.6% (+14.0 pts)** from these two alone,
+recall guard clean, every edge auditable to two spans. Not yet trained/measured —
+awaits gold-draft review + silver re-emit (see §7). Fuzzier PLACE/status relations
+(ORIGIN_OF/LOCATED_IN/HAS_STATUS) deferred pending a corpus-evidence pass.
+
 **Assets in hand:** validated ingestion over all 67,980 docs (parse rate 1.000);
 whole-corpus characterization; mined lexicons with measured recall; leak-free
 stratified + chronological splits; DAPT B1 backbone; 115-doc all-human gold
@@ -201,7 +208,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 6 Silver labeling | ✅ | Silver-v2 labeler micro F1 0.585→**0.667**; emitted over 48.9k train docs | [phase_6](docs/phases/phase_6_silver_labeling.md) |
 | 7 Entity NER | ✅ | **DAPT beats no-DAPT control +9.5 strict F1** (PERSON +19, PLACE +11) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 7b Two-stage silver→gold | ✅ | gold-FT recipe → **strict 0.737 / relaxed 0.837**; GCE rejected (−5.7) | [phase_7](docs/phases/phase_7_entity_ner.md) |
-| 8 Relation model | ✅→🔶 | span-pair RE **0.713** (oracle); reframed as OIKONOMIA-RE program | [phase_8](docs/phases/phase_8_relation_model.md) |
+| 8 Relation model | ✅→🔶 | span-pair RE **0.713** (oracle); 8a closed (data-bound); 8b coverage started (+14 pts) | [phase_8](docs/phases/phase_8_relation_model.md) |
 | 9 Corpus→DB · 10 Analysis · 11 Release | ⬜ | not started | — |
 
 ---
@@ -209,6 +216,23 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 ## 7. Current machine state — READ THIS FIRST in a new session
 
 _Last updated: 2026-07-23. Branch **`main`**; working tree clean._
+
+**Phase 8b — first coverage win landed (HAS_OCCUPATION + HAS_AGE).** Deterministic
+apposition rule (`src/oikonomia/labeling/apposition.py`): each OCCUPATION/AGE →
+nearest PERSON/PERSON_ROLE that *ends before* it, ≤40 chars; a headcount guard
+skips counted occupations (`ἱερεῖς β` is a HAS_QUANTITY, not a title). Wired
+through the single authority — `RELATION_SIGNATURES` (+2), `LOCAL_FAMILY` (both
+gap-capped), silver labeler (`_attribute_relations`), tests, and an **auditable
+gold draft** (`tools/build_attribute_draft.py` → `data/gold/attribute_draft.jsonl`,
+242 edges / 70 docs, NEVER touches `annotated.jsonl`). On gold: coverage **35.7% →
+49.6% (+14.0 pts)**, recall guard **0 uncovered**, all 242 edges candidate-covered.
+**Not yet trained.** Measurable only when BOTH sides carry the types — so the next
+steps are, together: (a) owner reviews `attribute_draft.jsonl`; (b) merge approved
+edges into gold (append-only, by index); (c) re-emit silver (fresh sha) so training
+carries them; then (d) owner push + xval. Doing (c) alone would train relations the
+gold can't score → misleading F1. **NEXT rule work:** the fuzzier ORIGIN_OF /
+LOCATED_IN / HAS_STATUS — deferred pending their own corpus-evidence pass (PLACE
+apposition is looser and needs prepositional cues; HAS_STATUS overlaps PERSON_ROLE).
 
 **Phase 8a — CLOSED; every model-side accuracy knob measured neutral.** Three clean
 `xval` runs (fingerprint `sha=96428892f944 docs=48891`, gold_docs=98) land in one
@@ -241,24 +265,26 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/oik silver score          # entity micro F1 ~0.667 exact / ~0.752 relaxed
 #    After ANY labeler/lexicon/patterns edit: oik silver distmap → oik silver label (~5 min; sha changes)
 
-# 4. PHASE 8a — CLOSED. All model-side knobs neutral: baseline 0.713 / dir-features
-#    0.710 / constrain-decode 0.7145 — one number under different seeds. Constraints
-#    kept ON as a DB well-formedness invariant (not for F1). No more head/decode runs.
-#    NEXT is laptop work, no GPU → 8b rules-first coverage.
+# 4. PHASE 8a — CLOSED (all model-side knobs neutral). PHASE 8b IN PROGRESS:
+#    HAS_OCCUPATION + HAS_AGE apposition rule DONE (coverage +14 pts on gold, guard
+#    clean). Review the auditable draft, then merge + re-emit silver together:
+.venv/bin/python tools/build_attribute_draft.py --preview 20   # regenerate + eyeball
 #    Plan of record: docs/phases/phase_8_relation_model.md
 ```
 
 **Then, in leverage order (LEAN plan — full detail in the phase-8 doc):**
-close 8a on the `--constrain-decode` number (the last model-side knob; direction
-features already **DROPPED** as null) → **8b coverage, rules-first** (deterministic
-apposition rules for HAS_OCCUPATION/HAS_AGE/HAS_STATUS/ORIGIN_OF/LOCATED_IN, each
-edge auditable to two spans; target linked coverage ~25%→~70% — the biggest lever
-and pure laptop work) → **more direction gold** (the only lever for
-PAID_BY/PAID_TO) → **8d deterministic** kinship/gender parse + event assembly in
-the DB layer. **Owed:** end-to-end eval (predicted entities → RE, the real number
-vs the 0.713 oracle ceiling). **Cut/shelved:** direction features (null), BOND
-self-training (un-auditable), virtual EVENT node as a model construct. **GPU runs
-are owner-triggered** (the owner controls Modal spend).
+**(1) land the two attribute relations end-to-end** — owner reviews
+`data/gold/attribute_draft.jsonl`; a session then merges approved edges into gold
+(append-only, by index) **and** re-emits silver (`oik silver label`, fresh sha) so
+both sides carry them; owner push + xval measures HAS_OCCUPATION/HAS_AGE F1. **(2)
+extend 8b coverage** with the fuzzier ORIGIN_OF/LOCATED_IN/HAS_STATUS (each needs a
+corpus-evidence pass first — PLACE apposition is looser, needs prepositional cues;
+HAS_STATUS overlaps PERSON_ROLE — do NOT guess them). **(3) more direction gold**
+(the only lever for PAID_BY/PAID_TO). **(4) 8d deterministic** kinship/gender parse
++ event assembly in the DB layer. **Owed:** end-to-end eval (predicted entities →
+RE, the real number vs the 0.713 oracle ceiling). **Cut/shelved:** direction
+features (null), BOND self-training (un-auditable), virtual EVENT node as a model
+construct. **GPU runs are owner-triggered** (the owner controls Modal spend).
 
 ### Operational gotchas (do not relearn these the hard way)
 
@@ -266,6 +292,10 @@ are owner-triggered** (the owner controls Modal spend).
   `write_text`-overwrites the whole file from a stale 85-doc SPEC and would drop
   the owner's 10 hard docs + the 20 added since. Append rows; compute offsets by
   forward-scanning surface strings against `corpus.parquet` text.
+- **`tools/build_attribute_draft.py` is the SAFE 8b tool** (do not confuse with the
+  above): it only *reads* `annotated.jsonl` and writes the separate
+  `attribute_draft.jsonl`; it refuses `--out == --gold`. Merging its approved edges
+  into gold is still a manual append-by-index step, done with the silver re-emit.
 - **Gold `text` must be byte-identical to `corpus.parquet.edited_text`.** The
   numeral-coverage gate keys on an exact `text` match and **silently disables
   itself** on any doc where it differs. Always source gold text from

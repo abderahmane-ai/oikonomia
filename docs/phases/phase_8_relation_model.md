@@ -95,6 +95,54 @@ from init alone — that is the noise floor):
 - Escalate to the learned model only where rules demonstrably fail.
 - Target linked coverage ~25% → ~70% (79% of persons are currently in no relation).
 
+**DONE (2026-07-23) — `HAS_OCCUPATION` + `HAS_AGE`, the two unambiguous wins.**
+The pure rule is `oikonomia.labeling.apposition.attribute_relations`: each
+`OCCUPATION`/`AGE` links to the nearest `PERSON`/`PERSON_ROLE` that *ends before*
+it, within a 40-char gap. Direction is fixed by the schema and by Greek word order
+(subject precedes the attribute); anchoring on the *preceding* subject is what
+survives dense signalement registers, where the next registrant's name sits right
+after an age (33 such false attractors in gold). A **headcount guard** skips a
+counted occupation (`ἱερεῖς β` = "priests: 2", a `HAS_QUANTITY` head, not a title
+— schema-consistent with guidelines §5).
+
+Measured on the 115-doc gold (rule applied over gold entities; the edges are a
+*proposal*, not merged):
+
+| | edges | of entities |
+|---|---|---|
+| `HAS_OCCUPATION` | 156 | 192 OCCUPATION |
+| `HAS_AGE` | 86 | 133 AGE |
+
+- **Linked entity coverage 35.7% → 49.6% (+14.0 pts)** from these two rules alone;
+  PERSON 21.2% → 41.5% (178 → 349 linked), OCCUPATION 2.1% → 83%, AGE 0 → 65%.
+- **Recall guard: 0 uncovered**, and all 242 new edges are candidate-covered — the
+  two signatures don't break any existing gold relation, and the model can learn
+  and the DB can store every new edge.
+- Wired through the single authority: `RELATION_SIGNATURES` (+2 types),
+  `LOCAL_FAMILY` (both gap-capped), the silver labeler (`_attribute_relations`,
+  provisional confidence 0.80/0.70), and an **auditable gold draft**
+  (`tools/build_attribute_draft.py` → `data/gold/attribute_draft.jsonl`, 242 edges
+  / 70 docs) that never touches `annotated.jsonl` — the Phase-5c review pattern.
+- Tests: `tests/test_apposition.py` (13 hand-computed cases incl. the false
+  attractor + headcount boundary), plus silver-wiring and encoder-signature tests.
+
+**Sequencing to a measured F1** (deliberately *not* done here): the two relations
+are measurable only when **both** sides carry them — silver re-emitted (training
+signal) *and* the gold draft reviewed+merged (eval labels). Doing only one gives a
+misleading number (new-relation predictions score as false positives against a
+gold that lacks them), and silver re-emission changes the fingerprint the next
+Modal push reads. So: owner reviews the draft → next session merges approved edges
+into gold (append-only, by index) **and** re-emits silver (fresh sha) → owner
+push + xval measures `HAS_OCCUPATION`/`HAS_AGE` F1 and the coverage-driven
+end-to-end number.
+
+**NEXT in 8b — the fuzzier attribute relations** (`HAS_STATUS`, `ORIGIN_OF`,
+`LOCATED_IN`). Deferred deliberately: PLACE→PERSON apposition is looser (median gap
+20 vs 1 for occupation) and needs **prepositional cues** (ἀπό/ἐκ for origin, ἐν for
+location) plus a schema-direction decision; `HAS_STATUS` overlaps the existing
+dual use of `PERSON_ROLE` (a status word δοῦλος *is* a `PERSON_ROLE`). These want
+their own corpus-evidence pass before a rule is written — do not guess them.
+
 #### 8c — data, not machinery
 - **More direction gold** — the only proven lever for PAID_BY/PAID_TO: mine train
   for payment-verb docs, hand-label ~dozens, append to gold (append-only; offsets
