@@ -167,7 +167,10 @@ nearest-pair baseline 0.443. Payment **direction learned** (PAID_TO 0.0→0.30) 
 data audit showed 0.713 is strong on the economic core but **coverage is
 schema-bound** (PLACE/AGE/OCCUPATION and 79% of every PERSON are in no relation
 at all) and silver is useless for the deliverable-critical relations (direction,
-price). Plan approved: `~/.claude/plans/fizzy-wondering-eich.md`.
+price). Plan approved: `~/.claude/plans/fizzy-wondering-eich.md`. **8a's
+direction-feature experiment came back flat (0.710 vs 0.713); direction is
+data-bound, not feature-bound** (§7) — the levers are more direction gold and the
+8b coverage program, not head tuning.
 
 **Assets in hand:** validated ingestion over all 67,980 docs (parse rate 1.000);
 whole-corpus characterization; mined lexicons with measured recall; leak-free
@@ -200,14 +203,26 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 
 ## 7. Current machine state — READ THIS FIRST in a new session
 
-_Last updated: 2026-07-23. Branch **`main` @ `8606a1f`**; working tree clean
-apart from the untracked `docs/` reorg (this cleanup)._
+_Last updated: 2026-07-23. Branch **`main`**; working tree clean._
 
-**The immediate next move** is the Phase-8a GPU measurement. The direction
-features + wide context + constrained decoding are already built, tested and
-committed (`ae07578`, `efd89c3`, `75e2590`); the `xval` run is their first GPU
-execution (torch is untested locally — the encode_doc pure path was simulated
-over all 9,468 gold candidates, 0 errors).
+**Phase 8a — direction features + wide context: MEASURED, came back FLAT.**
+`xval --backbone b1 --loss ce` ran clean (fingerprint matched
+`sha=96428892f944 docs=48891`, gold_docs=98): silver→gold **rel micro F1 0.710**
+(P 0.761 R 0.665) vs the committed **0.713** baseline — a wash (−0.003, within CV
+noise). The always-on direction-feature embeddings + wide context did **not**
+deliver the direction win they were built for: **PAID_TO 0.300→0.253, PAID_BY
+0.145→0.136** (both nominally down; ~17 direction edges per held-out fold, so
+noise). Mixed elsewhere: HAS_UNIT 0.87→0.92 and CHARGED_UNDER 0.375→0.471 up;
+HAS_PRICE 0.44→0.385 and DATED_TO down. **Finding: direction is data-bound, not
+feature-bound** — 87 gold direction edges is too thin for the head to learn a
+robust payer/payee signal regardless of features. This matches the plan's audit
+(direction/price are gold-only and gold-starved) → reach 8b + more direction gold
+sooner rather than tuning the head.
+
+**Two 8a levers still untested (cheap, owner-triggered):** `--constrain-decode`
+(the schema-constraint half of 8a — verified recall-safe on gold; should lift
+precision on the functional relations without costing recall — **run this next**)
+and `--no-relation-weight 0.3` (recall for the 24:1 imbalance).
 
 ### Resume checklist (in order)
 
@@ -226,13 +241,11 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/oik silver score          # entity micro F1 ~0.667 exact / ~0.752 relaxed
 #    After ANY labeler/lexicon/patterns edit: oik silver distmap → oik silver label (~5 min; sha changes)
 
-# 4. PHASE 8a — measure the direction+constraints lift vs the committed 0.713 baseline:
-.venv/bin/oik relation prepare      # recall guard MUST print 0 uncovered
-.venv/bin/oik relation score        # nearest-pair baseline bar: rel micro F1 0.443
-.venv/bin/modal run --detach modal_app/relations.py::xval --backbone b1 --loss ce
-#    Watch per-type PAID_BY/PAID_TO (target PAID_TO 0.30→0.50+) and precision.
-#    Fallback recall lever: --no-relation-weight 0.3.  No re-push needed
-#    (relation_labels.json + silver/gold already on the oikonomia-ner Volume).
+# 4. PHASE 8a — direction features MEASURED (flat: 0.710 vs 0.713 baseline; see above).
+#    Still untested — the constraint-decode arm (should lift precision, recall-safe):
+.venv/bin/modal run --detach modal_app/relations.py::xval --backbone b1 --loss ce --constrain-decode
+#    Optional recall lever for the 24:1 imbalance: --no-relation-weight 0.3
+#    No re-push needed (relation_labels.json + silver/gold already on the oikonomia-ner Volume).
 ```
 
 **Then, in leverage order:** 8a end-to-end pipeline eval (predicted entities → RE,
