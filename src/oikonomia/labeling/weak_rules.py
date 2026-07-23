@@ -56,6 +56,16 @@ DEFAULT_WINDOW = 40
 # direction-agnostic.
 DATE_ADJACENCY = 4
 
+# A measure word governing a numeral routinely straddles a line break — the
+# currency ends one line and the number opens the next ("νομισμάτιον\nἓν",
+# "δραχμὰς\nΒ"). Same-line matching alone misses every such amount (a big
+# MONEY_AMOUNT recall hole, and it starves payment-direction of its amount).
+# So currency/unit matching also reaches an *immediately adjacent* line, but
+# only within this tight bound — the facing gap across a canonical newline is 1
+# — so the account rule "the next line is a new transaction" still holds for the
+# looser commodity/date links, which stay same-line.
+CROSS_LINE_ADJACENCY = 3
+
 # Columns the corpus-wide baseline run needs.
 BASELINE_COLUMNS = ("document_json",)
 
@@ -119,19 +129,31 @@ def _nearest(
     candidates: list[tuple[int, WeakEntity, int]],
     lines: _LineIndex,
     window: int,
+    *,
+    cross_line: int = 0,
 ) -> int | None:
-    """Index of the nearest candidate in the same line, preferring the left.
+    """Index of the nearest candidate, preferring the left.
 
     Distance is measured between the facing edges of the two spans. Ties break
     left because that is the direction the corpus measurement found units to
     lie in; a right-preferring tie-break would systematically mis-attach the
     ``ἀρτάβαι`` of the *next* entry.
+
+    Same-line candidates match within ``window``. With ``cross_line`` > 0 an
+    *immediately adjacent* line is allowed too, within that tighter bound — for
+    a measure word that governs a numeral across a line break; a wider relaxation
+    would break the account rule that the next line is a new transaction.
     """
     anchor_line = lines.line_of(anchor.start)
     best: tuple[int, int, int] | None = None  # (distance, side_rank, index)
 
     for idx, ent, ent_line in candidates:
-        if ent_line != anchor_line:
+        gap = abs(ent_line - anchor_line)
+        if gap == 0:
+            limit = window
+        elif gap == 1 and cross_line > 0 and anchor_line >= 0 and ent_line >= 0:
+            limit = cross_line
+        else:
             continue
         if ent.span.end <= anchor.start:
             distance, side_rank = anchor.start - ent.span.end, 0  # left
@@ -139,7 +161,7 @@ def _nearest(
             distance, side_rank = ent.span.start - anchor.end, 1  # right
         else:
             distance, side_rank = 0, 0  # overlapping
-        if distance > window:
+        if distance > limit:
             continue
         key = (distance, side_rank, idx)
         if best is None or key < best:
@@ -205,13 +227,19 @@ def label_document(
     for num_idx in numeral_indices:
         num = entities[num_idx]
 
-        # A numeral governed by a currency term is money, not a count.
-        cur_idx = _nearest(num.span, by_cat.get(CURRENCY, []), lines, window)
+        # A numeral governed by a currency term is money, not a count. Currency
+        # and unit reach one line across (CROSS_LINE_ADJACENCY) — they routinely
+        # end a line with the number opening the next.
+        cur_idx = _nearest(
+            num.span, by_cat.get(CURRENCY, []), lines, window, cross_line=CROSS_LINE_ADJACENCY
+        )
         if cur_idx is not None:
             entities[num_idx] = num.model_copy(update={"label": MONEY_AMOUNT})
             _link("HAS_CURRENCY", num_idx, cur_idx)
         else:
-            unit_idx = _nearest(num.span, by_cat.get(UNIT, []), lines, window)
+            unit_idx = _nearest(
+                num.span, by_cat.get(UNIT, []), lines, window, cross_line=CROSS_LINE_ADJACENCY
+            )
             if unit_idx is not None:
                 _link("HAS_UNIT", num_idx, unit_idx)
 

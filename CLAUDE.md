@@ -795,11 +795,31 @@ growth *is* the deliverable as much as the spans are.
 
 ### 🔶 Phase 6 — Weak/silver labeling (labeler built + validated; full train emission done)
 
-**Status: the silver labeler is built, scored against the 65-doc gold draft,
-and run over the whole train split.** `data/processed/silver.jsonl` (gitignored)
-— **48,941 docs, 1,110,796 entities, 327,789 relations**, every span carrying a
-calibrated `confidence`. This is *training* material (`provenance: silver`) —
-not gold, not the database.
+#### ✅ Silver v2 — accuracy pass on the 115-doc all-human gold (2026-07-23)
+
+A diagnose-then-fix pass, every change measured with `oik silver score`. **Entity
+micro F1 (exact span): 0.585 → 0.667** (+0.082), no label regressed:
+
+| label | before | after | fix |
+|---|---|---|---|
+| **AGE** | 0.000 | **0.970** | bug: `ἐτῶν N` was mislabeled DATE_REF (year-word); AGE rule only reclassified QUANTITY so it never fired. Now built from the `<num>` after ἐτῶν (gen. pl.), distinct from ἔτους/ἔτει regnal years. +133 AGE **and** −133 DATE_REF false positives. |
+| **OCCUPATION** | 0.275 | **0.649** | +33 corpus-attested title entries (βοηθός, στρατηγός, νοτάριος, διάκονος, ἰατρός, ναύκληρος, ποιμήν …). Precision *rose* to 0.876. |
+| **DATE_REF** | 0.386 | **0.518** | Καίσαρος/Αὐτοκράτορος/Σεβαστοῦ removed from the DATE_REF lexicon — gold's "ruler keeps titulature" rule tags them PERSON, so as DATE_REF they were 65 FPs. |
+| **PERSON** | 0.683 | **0.715** | side-effect of the above — the titles now absorb into the ruler PERSON span. |
+| **COMMODITY** | 0.444 | **0.554** | +property/land/animal entries (οἰκία, γῆ, ὄνος-not-ὄνομα, κάμηλος, πωμάριον, παράδεισος). |
+| MONEY_AMOUNT | 0.650 | 0.652 | `_nearest` now reaches one line across for currency/unit (`νομισμάτιον\nἓν`), the EOL-currency/BOL-numeral split; also unblocks direction's amount. |
+
+Also: payment-direction verbs widened (leases/orders — τελεσ, δωσ, δεδωκ, παρασχ,
+μετρησ, διαστ, διαγραψ, εδεξ); direction still recall-bound (rule ceiling — it is
+the Phase-8 model's job, not the silver's). `oik lexicon verify` 0 unattested;
+ruff/mypy/408 tests green. **`silver.jsonl` must be re-emitted** (`oik silver
+distmap` → `oik silver label`) and re-pushed for these gains to reach the model.
+
+**Status: the silver labeler is built, scored against the gold, and run over the
+whole train split.** `data/processed/silver.jsonl` (gitignored)
+— **48,941 docs, 1,110,796 entities, 327,789 relations** (pre-v2; re-emit),
+every span carrying a calibrated `confidence`. This is *training* material
+(`provenance: silver`) — not gold, not the database.
 
 **The scorer came first** (`labeling/score.py`, `oik silver score`): scores any
 labeler against the gold per label, strict (exact span) and relaxed (overlap),

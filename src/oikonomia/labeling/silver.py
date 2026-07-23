@@ -49,7 +49,6 @@ from oikonomia.labeling.weak_rules import (
     DATE_REF,
     DEFAULT_WINDOW,
     MONEY_AMOUNT,
-    QUANTITY,
     WeakEntity,
     WeakLabeling,
     WeakRelation,
@@ -375,13 +374,27 @@ class SilverLabeler:
         tokens = _tokens(text)
         age_tokens = [t for t in tokens if _stem_match(t.folded, self.p.age_marker_stems)]
 
-        # AGE: reclassify a QUANTITY sitting next to ἐτῶν.
-        for i, ent in enumerate(entities):
-            if ent.label != QUANTITY:
-                continue
-            if any(_facing_distance(ent.span, CharSpan(start=t.start, end=t.end)) <= AGE_ADJACENCY
-                   for t in age_tokens):
-                entities[i] = ent.model_copy(update={"label": AGE})
+        # AGE: a <num> immediately AFTER ἐτῶν ("(ὡς) ἐτῶν N" = "N years old"),
+        # the genitive plural — distinct from ἔτους/ἔτει/ἔτος (regnal year →
+        # DATE_REF). The baseline swallows the numeral into a DATE_REF span
+        # ("ἐτῶν μα") because ἐτῶν is a year-word, so reclassifying only QUANTITY
+        # missed every age (133 gold, 0 found). Build AGE from the numeral span
+        # itself (gold AGE is the numeral only) and drop whatever baseline entity
+        # covers it. Ordering is load-bearing: "N ἐτῶν" (τεσσάρων ἐτῶν, "four
+        # years" — a lease term) has the numeral *before* ἐτῶν and is excluded.
+        etwn_ends = [t.end for t in age_tokens]
+        age_spans = [
+            n for n in numeral_spans
+            if any(0 <= n.start - e <= AGE_ADJACENCY for e in etwn_ends)
+        ]
+        if age_spans:
+            entities = [
+                e
+                for e in entities
+                if not any(n.start < e.span.end and e.span.start < n.end for n in age_spans)
+            ]
+            for n in age_spans:
+                entities.append(WeakEntity(label=AGE, span=n, text=n.slice(text)))
 
         occ = _Occupied([(e.span.start, e.span.end) for e in entities])
 

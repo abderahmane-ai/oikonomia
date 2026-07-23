@@ -200,17 +200,26 @@ payment_receiver_stems:
   - κομισαμ    # κομισάμενος
   - παρελαβ    # παρέλαβον — "I received"
   - εχειν      # ὁμολογεῖ ... ἔχειν παρὰ X — "acknowledges having (received) from X"
+  - εδεξ       # ἐδεξάμην — "I received (it back)" (settlements)
+  - απελαβ     # ἀπέλαβον / ἀπολαβεῖν — "received back"
 
 # Giver verbs: subject = PAYER, dative/εἰς = PAYEE. High precision on the payer.
 payment_giver_stems:
   - διεγραψ    # διέγραψε(ν) — paid through a bank (tax receipts)
+  - διαγραψ    # διαγράψω / διαγράψας — will pay / having paid into the bank
   - διαγεγραφ  # διαγέγραφα
   - μεμετρηκ   # μεμέτρηκα — measured out grain (payment in kind)
   - εμετρησ    # ἐμέτρησα
+  - μετρησ     # μετρῆσαι / μέτρησον — measure out (grain orders); NB not μετρητ- (unit)
   - καταβαλ    # καταβάλλω / καταβαλεῖν — pay down
   - καταβεβλ   # καταβέβληκα
   - ετελεσ     # ἐτέλεσα — paid (a tax)
   - τετελεκ    # τετέλεκα
+  - τελεσ      # τελέσω — "I will pay" (lease rent)
+  - δεδωκ      # δέδωκα / δέδωκεν — "has given" (deliveries, requisitions)
+  - διαστ      # διαστείλατε — "pay out" (disbursement orders)
+  - παρασχ     # παρασχεῖν / παράσχου — "provide to" (lease rent, ration orders)
+  - δωσ        # δώσω / δώσομεν — "I will give" (lease rent, promised payment)
 
 # Impersonal bank receipt: payee = ἐπὶ τὴν τράπεζαν, payer = the taxpayer named
 # after the bank clause. Lower precision (payer must be picked past the banker).

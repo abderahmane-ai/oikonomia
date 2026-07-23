@@ -174,6 +174,21 @@ def test_confidence_unseen_form_gets_prior():
     assert ent.confidence == UNSEEN_DIST_PRIOR
 
 
+def test_age_numeral_after_etwn_is_age():
+    # "(ὡς) ἐτῶν N" = "N years old"; the numeral is AGE, not the DATE_REF the
+    # baseline would emit for the year-word ἐτῶν.
+    ents = _label("ὡς ἐτῶν λη", numerals=[(8, 10)])
+    assert ("λη", "AGE") in ents
+    assert ("ἐτῶν λη", "DATE_REF") not in ents
+
+
+def test_numeral_before_etwn_is_not_age():
+    # "N ἐτῶν" (τεσσάρων ἐτῶν, "four years" — a lease term): the numeral precedes
+    # ἐτῶν and must NOT be read as an age.
+    ents = _label("τῶν δ ἐτῶν", numerals=[(4, 5)])
+    assert ("δ", "AGE") not in ents
+
+
 def test_party_of_links_preposition_introduced_person():
     lab = _labeler()
     text = "ὁμολογῶ παρὰ Πανίσκου"

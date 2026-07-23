@@ -97,3 +97,72 @@ entries:
       - κτηνων    # 27
       - κτηνοσ    # 21
       - κτηνη    # 18
+
+  # --- Phase-6 recall pass (2026-07-23): the property/land/animal goods the
+  # gold repeatedly tags COMMODITY (sales, leases, loans on security) but the
+  # commodity lexicon lacked (recall was 0.310). Corpus-attested inflections
+  # (`oik lexicon verify`). NB the ονο- trap: ὄνομα "name" (ονοματ-) is NOT a
+  # commodity, so only the ὄνος "donkey" forms are listed.
+  - id: house
+    gloss: "oikia — house / dwelling (a property good in sales and leases)"
+    forms:
+      - οικιασ    # 388
+      - οικιαν    # 318
+      - οικια    # 222
+      - οικιων    # 11
+      - οικιδιον    # 11
+  - id: land
+    gloss: "ge — land (the object of a sale/lease); excludes geras 'old age'"
+    forms:
+      - γησ    # 358
+      - γην    # 154
+      - γη    # 104
+      - γηι    # 10
+      - γηδιον
+      - σποριμησ    # sowable land
+      - σποριμον
+  - id: donkey
+    gloss: "onos — donkey; ONLY these forms (not ονοματ- 'name')"
+    forms:
+      - ονον    # 136
+      - ονοι    # 71
+      - ονοισ    # 56
+      - ονου
+      - ονων
+      - ονοσ
+  - id: camel
+    gloss: "kamelos — camel"
+    forms:
+      - καμηλον    # 31
+      - καμηλων    # 52
+      - καμηλουσ    # 44
+      - καμηλοισ    # 34
+      - καμηλοι    # 17
+      - καμηλοσ
+      - καμηλου
+  - id: orchard
+    gloss: "pomarion — fruit-orchard (a leased property)"
+    forms:
+      - πωμαριου    # 11
+      - πωμαριον    # 6
+  - id: garden
+    gloss: "paradeisos — garden / park"
+    forms:
+      - παραδεισου    # 78
+      - παραδεισωι    # 5
+      - παραδεισον
+      - παραδεισοσ
+  - id: cell
+    gloss: "kella — room / cell (a leased unit)"
+    forms:
+      - κελλασ    # 10
+      - κελλαν    # 7
+      - κελλησ    # 5
+      - κελλων    # 5
+      - κελλαισ    # 5
+  - id: arakos
+    gloss: "arakos — a leguminous fodder crop"
+    forms:
+      - αρακου    # 32
+      - αρακοσ    # 26
+      - αρακω    # 6

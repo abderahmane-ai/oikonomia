@@ -89,16 +89,9 @@ entries:
     gloss: "the five epagomenal days closing the Egyptian year"
     forms:
       - επαγομενων    # 427
-  - id: caesar
-    gloss: "Kaisaros — regnal dating by the emperor's name"
-    forms:
-      - καισαροσ    # 2824
-  - id: autokrator
-    gloss: "Autokratoros — 'Imperator' in a regnal date"
-    forms:
-      - αυτοκρατοροσ    # 2011
-  - id: sebastos
-    gloss: "Sebastos — 'Augustus' in a regnal date"
-    forms:
-      - σεβαστου    # 1428
-      - σεβαστων    # 432
+  # NB (2026-07-23): Καίσαρος / Αὐτοκράτορος / Σεβαστοῦ were DATE_REF terms
+  # (regnal dating), but the gold's "ruler name keeps its titulature" rule tags
+  # them as part of the emperor's PERSON span — so as DATE_REF they produced 65
+  # false positives that also collided with PERSON. The real date signal is the
+  # year (ἔτους N) and the months, which remain. Removed from DATE_REF; the
+  # capitalised-run PERSON logic now absorbs them into the ruler name.

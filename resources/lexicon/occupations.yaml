@@ -204,5 +204,238 @@ entries:
       - ιερεωσ    # 156
       - ιερει    # 116
       - ιερεων    # 109
+      - ιερευσι    # dative plural (ἱερεῦσι)
       - ιερεισ    # 19
       - ιερεα    # 12
+
+  # --- Phase-6 recall pass (2026-07-23): titles the gold showed the labeler
+  # missing wholesale (OCCUPATION recall was 0.167). Every form below is a
+  # corpus-attested noun inflection (checked by `oik lexicon verify`); abstract
+  # nouns (βοήθεια "help"), the -εῖον workplaces (ἐλαιουργεῖον, ἀρτοκοπεῖον),
+  # verbs (οἰκονομεῖν) and the name-colliding γεωργός≈Γεώργιος are deliberately
+  # excluded.
+  - id: assistant
+    gloss: "boethos — assistant / adjutant (excludes boetheia 'help')"
+    forms:
+      - βοηθου    # 556
+      - βοηθω    # 188
+      - βοηθοσ    # 183
+      - βοηθον    # 51
+      - βοηθωι
+  - id: strategos
+    gloss: "strategos — nome governor (excludes strategia, the district/office)"
+    forms:
+      - στρατηγω    # 1109
+      - στρατηγωι    # 596
+      - στρατηγου    # 421
+      - στρατηγοσ    # 353
+      - στρατηγον    # 113
+      - στρατηγοισ    # 90
+  - id: epistrategos
+    gloss: "epistrategos — regional governor"
+    forms:
+      - επιστρατηγου    # 123
+      - επιστρατηγω    # 75
+      - επιστρατηγωι    # 61
+      - επιστρατηγον    # 23
+      - επιστρατηγοσ    # 22
+  - id: notarios
+    gloss: "notarios — notary"
+    forms:
+      - νοταριου    # 158
+      - νοταριοσ    # 104
+      - νοταριω    # 72
+      - νοταριον    # 9
+      - νοταριων    # 8
+      - νοταριοισ    # 4
+  - id: deacon
+    gloss: "diakonos — deacon (excludes diakonia 'service', diakonein verb)"
+    forms:
+      - διακονοσ    # 425
+      - διακονου    # 376
+      - διακονω    # 86
+      - διακονον    # 20
+  - id: physician
+    gloss: "iatros — physician (excludes iatrikon adj., the name Iatrokles)"
+    forms:
+      - ιατρου    # 97
+      - ιατροσ    # 89
+      - ιατρω    # 28
+      - ιατρον    # 21
+      - ιατρωι    # 15
+      - ιατρων    # 8
+  - id: builder
+    gloss: "oikodomos — builder (excludes oikodome 'building', oikodomein verb)"
+    forms:
+      - οικοδομοσ    # 68
+      - οικοδομου    # 65
+      - οικοδομω    # 49
+      - οικοδομοισ    # 31
+  - id: baker
+    gloss: "artokopos — baker (excludes artokopeion, the bakery)"
+    forms:
+      - αρτοκοπου    # 38
+      - αρτοκοπω    # 36
+      - αρτοκοποσ    # 26
+      - αρτοκοπων    # 13
+      - αρτοκοπωι    # 5
+  - id: chartularius
+    gloss: "chartoularios — chartulary/record-keeper"
+    forms:
+      - χαρτουλαριου    # 54
+      - χαρτουλαριω    # 47
+      - χαρτουλαριοσ    # 26
+      - χαρτουλαριον    # 10
+      - χαρτουλαριων    # 8
+      - χαρτουλαριοισ    # 3
+  - id: officialis
+    gloss: "officialis — office clerk"
+    forms:
+      - οφφικιαλιου    # 40
+      - οφφικιαλιω    # 37
+      - οφφικιαλιοισ    # 24
+      - οφφικιαλιοσ    # 21
+      - οφφικιαλιον    # 10
+      - οφφικιαλιων    # 10
+  - id: beneficiarius
+    gloss: "beneficiarius — soldier on special duty"
+    forms:
+      - βενεφικιαριω    # 37
+      - βενεφικιαριοσ    # 22
+      - βενεφικιαριου    # 21
+      - βενεφικιαριων    # 19
+      - βενεφικιαριον    # 3
+  - id: attendant
+    gloss: "hyperetes — attendant / process-server"
+    forms:
+      - υπηρετου    # 168
+      - υπηρετησ    # 127
+      - υπηρετων    # 88
+      - υπηρετη    # 55
+      - υπηρετην    # 31
+      - υπηρετηι    # 25
+      - υπηρεταισ    # 18
+      - υπηρετασ    # 12
+  - id: steward
+    gloss: "oikonomos — steward (excludes oikonomia, oikonomein verb)"
+    forms:
+      - οικονομου    # 207
+      - οικονομοσ    # 124
+      - οικονομωι    # 86
+  - id: contract_keeper
+    gloss: "syngraphophylax — keeper of the contract"
+    forms:
+      - συγγραφοφυλαξ    # 101
+      - συγγραφοφυλακι    # 18
+      - συγγραφοφυλακα    # 5
+  - id: recorder
+    gloss: "hypomnematographos — official recorder"
+    forms:
+      - υπομνηματογραφου    # 52
+      - υπομνηματογραφω    # 36
+      - υπομνηματογραφοσ    # 23
+      - υπομνηματογραφων    # 8
+      - υπομνηματογραφωι    # 6
+      - υπομνηματογραφον    # 3
+  - id: reader
+    gloss: "anagnostes — lector / reader"
+    forms:
+      - αναγνωστησ    # 40
+      - αναγνωστου    # 35
+      - αναγνωστη    # 15
+      - αναγνωστην    # 6
+  - id: law_scribe
+    gloss: "nomographos — law-scribe"
+    forms:
+      - νομογραφου    # 43
+      - νομογραφοσ    # 31
+      - νομογραφω    # 10
+      - νομογραφων    # 4
+      - νομογραφωι    # 3
+  - id: chief_prophet
+    gloss: "archiprophetes — chief prophet"
+    forms:
+      - αρχιπροφητου    # 6
+      - αρχιπροφητησ    # 5
+      - αρχιπροφητη    # 4
+  - id: chief_guard
+    gloss: "archiphylakites — chief of police"
+    forms:
+      - αρχιφυλακιτηι    # 73
+      - αρχιφυλακιτου    # 34
+      - αρχιφυλακιτησ    # 12
+      - αρχιφυλακιταισ    # 12
+      - αρχιφυλακιτην    # 9
+      - αρχιφυλακιτη    # 8
+  - id: vicarius
+    gloss: "bikarios — vicar / deputy"
+    forms:
+      - βικαριου    # 8
+      - βικαριων    # 6
+      - βικαριοσ    # 3
+  - id: actuarius
+    gloss: "aktarios — army accountant"
+    forms:
+      - ακταριω    # 6
+      - ακταριου    # 5
+  - id: horse_breeder
+    gloss: "hippotrophos — keeper of the royal horses"
+    forms:
+      - ιπποτροφοσ
+      - ιπποτροφου    # 3
+  - id: scriniarius
+    gloss: "skriniarios — record-office clerk"
+    forms:
+      - σκρινιαριου    # 15
+      - σκρινιαριω    # 15
+      - σκρινιαριοσ    # 12
+  - id: conductor
+    gloss: "konductor — lessee/contractor of a revenue"
+    forms:
+      - κονδουκτοροσ    # 6
+      - κονδουκτορα    # 4
+      - κονδουκτωρ    # 4
+  - id: lesonis
+    gloss: "lesonis — temple administrator (excludes lesoneia, the office)"
+    forms:
+      - λεσωνου    # 8
+      - λεσωνισ    # 7
+      - λεσωνιοσ    # 4
+  - id: skipper
+    gloss: "naukleros — ship's captain / skipper"
+    forms:
+      - ναυκληροσ    # 79
+      - ναυκληρου    # 29
+      - ναυκληρον    # 10
+      - ναυκληρωι    # 9
+      - ναυκληρων    # 9
+      - ναυκληροισ    # 7
+      - ναυκληρω    # 5
+  - id: shepherd
+    gloss: "poimen — shepherd (excludes poimenikes adj.)"
+    forms:
+      - ποιμην    # 116
+      - ποιμενων    # 92
+      - ποιμενοσ    # 73
+      - ποιμενι    # 40
+      - ποιμενεσ    # 23
+      - ποιμενασ    # 18
+      - ποιμενα    # 16
+  - id: labourer
+    gloss: "ergates — day-labourer"
+    forms:
+      - εργατων
+      - εργατασ
+      - εργατου
+      - εργατησ
+  - id: letter_writer
+    gloss: "epistolographos — correspondence clerk (excludes epistolographeion)"
+    forms:
+      - επιστολογραφωι    # 6
+      - επιστολογραφοσ
+      - επιστολογραφου
+      - επιστολογραφω
+  - id: second_stolistes
+    gloss: "deuterostolistes — second robing-priest"
+    forms:
+      - δευτεροστολιστησ
