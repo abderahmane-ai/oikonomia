@@ -1,16 +1,14 @@
 """Assemble a labeled document into monetary fact rows — the atomic economic fact.
 
-One row per MONEY_AMOUNT that carries a currency: its normalized value, and
-whatever the relation graph attaches to it — the commodity it prices (HAS_PRICE),
-that commodity's quantity+unit (HAS_QUANTITY/HAS_UNIT, giving a per-unit price),
-and the tax it discharges (CHARGED_UNDER). Every row keeps ``(tm_id, char-span)``
-so a historian can open the papyrus and check it.
+One row per MONEY_AMOUNT that carries a currency: its normalized value plus
+whatever the relation graph attaches — the commodity it prices (HAS_PRICE), that
+commodity's quantity+unit (HAS_QUANTITY/HAS_UNIT → a per-unit price), the tax it
+discharges (CHARGED_UNDER). Every row keeps ``(tm_id, char-span)`` provenance.
 
-This is deterministic graph-walking, not learning: it reads the entities/relations
-some labeler already produced and the corpus's decoded ``<num>`` values, and joins
-the document's HGV date and Pleiades place. Noise in, noise out — the point is
-that the noise is *auditable and filterable* (by confidence, by resolvability),
-which a black-box graph is not.
+Deterministic graph-walking, not learning: it reads entities/relations from some
+labeler, the corpus's decoded ``<num>`` values, and the document's HGV date +
+Pleiades place. Noise in, noise out — but the noise stays auditable and filterable
+(by confidence, by resolvability), which a black-box graph is not.
 """
 
 from __future__ import annotations

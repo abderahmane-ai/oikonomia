@@ -55,7 +55,7 @@ to feed the starved rare classes and hand-annotated the first 10 into gold; a
    gold doc byte-identical, gate live on every doc, **0 errors**.
 2. **Annotated 13 more hard docs from scratch** (`77576 78637 77107 75749 79378
    702571 793 5344 7560 5414 703351 76201 43027`) via surface-string forward-scan
-   (offsets computed, never hand-written — same method as
+   (offsets computed, never hand-written — via the since-removed
    `tools/build_gold_draft.py`, text pulled from `corpus.parquet`, **not** the
    corrupted batch files). +352 entities / +81 relations. The pre-existing
    `entities` in `hard_data_batch.jsonl` are low-quality auto-suggestions

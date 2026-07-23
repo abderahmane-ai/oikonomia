@@ -172,13 +172,17 @@ Full rationale + first result: [`docs/phases/phase_9_database.md`](docs/phases/p
   data-bound and parked (PAID_BY 0.15). **Freeze; revisit only if a finding needs
   more.** Diagnosis of the direction ceiling: [`docs/phases/phase_8_relation_model.md`].
 
-**Phase 9 — first database rows exist and the numbers are real.** `oik db build`
-assembles a **monetary fact table** (`src/oikonomia/db/`): 20k-doc sample →
-**99,494 facts, 98% normalized, 100% provenance** (every row → tm_id + char span),
-silver/gold systems kept separate. Two validation views recover known history:
-**2c AD wheat ≈ 12 dr/artaba** (lit. ~7–8) and the **silver→gold monetization
-transition** (textbook Egyptian coinage history, unsupervised). The bottleneck is
-now extraction precision + sample size, **not** entity F1.
+**Phase 9 — the full-corpus database exists and the numbers are real.** `oik db
+build --sample 0` over all 61,249 text docs → **195,906 monetary facts, 99%
+normalized, 100% provenance** (every row → tm_id + char span), silver 140k / gold
+54.8k kept separate. Two validation views recover known history: **2c AD wheat ≈
+12 dr/artaba** (lit. ~7–8) and the **silver→gold monetization transition**
+(textbook Egyptian coinage history, unsupervised). The profile surfaced **two
+ready findings in the same table**: **7,725 commodity prices** (wheat/wine/oil/
+barley span 8–9 centuries) and **6,623 tax payments** (named: demosia 9 centuries,
+laographia poll tax 574, phoros, prosdiagraphomena) — taxes are *cleaner* (no
+per-unit division). Bottleneck is extraction precision + the per-unit math, **not**
+entity F1.
 
 **The decisive enabler (audited, don't re-derive):** `corpus.parquet` already
 carries `tm_id` (100%), `date_lo/hi` (95–98%, HGV), `place_pleiades/tm` (74–76%,
@@ -216,7 +220,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 7 Entity NER | ✅ | **DAPT beats no-DAPT control +9.5 strict F1** (PERSON +19, PLACE +11) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 7b Two-stage silver→gold | ✅ | gold-FT recipe → **strict 0.737 / relaxed 0.837**; GCE rejected (−5.7) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); 8a closed (data-bound); 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
-| 9 Corpus→DB | 🔶 ACTIVE | monetary fact table: **99,494 facts, 98% normalized, 100% provenance**; wheat + monetization views validate | [phase_9](docs/phases/phase_9_database.md) |
+| 9 Corpus→DB | 🔶 ACTIVE | full-corpus fact table: **195,906 facts, 99% normalized, 100% provenance**; price + tax + monetization findings ready | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis · 11 Release | ⬜ | findings (price series, women-as-principals) + HF model release | — |
 
 ---
@@ -233,12 +237,19 @@ data-bound at PAID_BY 0.15 and parked). The active work is **Phase 9: the
 database** — deterministic, laptop, no GPU. Every hour goes to fact assembly,
 normalization, and the first finding, not to moving 0.71 → 0.75.
 
-**Phase 9 state — the machine works.** `oik db build` → `data/processed/db/
-monetary.parquet` (gitignored, re-derivable). 20k-doc sample: **99,494 monetary
-facts, 98% normalized, 100% provenance, silver/gold systems separate.** Validation:
-2c AD wheat ≈ 12 dr/artaba (lit. ~7–8) and the silver→gold monetization transition
-(textbook). Code: `src/oikonomia/db/{money,dates,facts}.py` + `cli/db_cmd.py`.
+**Phase 9 state — the full-corpus database exists.** `oik db build --sample 0` →
+`data/processed/db/monetary.parquet` (gitignored, re-derivable, ~2.6 MB / 195,906
+rows): **99% normalized, 100% provenance, silver 140k / gold 54.8k.** Validation:
+2c AD wheat ≈ 12 dr/artaba (lit. ~7–8) and the silver→gold monetization transition.
+**Two findings are ready in the table: 7,725 prices (wheat/wine/oil/barley, 8–9
+centuries) and 6,623 tax payments (demosia/laographia/phoros — cleaner, no
+per-unit math).** Code: `src/oikonomia/db/{money,dates,facts}.py` + `cli/db_cmd.py`.
 Detail: [`docs/phases/phase_9_database.md`](docs/phases/phase_9_database.md).
+
+**NEXT decision (owner leaning taxes):** develop the **tax finding** first
+(laographia + demosia by century/region — cleanest signal, minimal hardening),
+harden the **price** series in parallel (fix the per-unit over-division, robust
+outlier filter). Both come from the same fact table.
 
 **Triage (what is shelved/frozen — do not reopen without a finding that demands it):**
 
@@ -262,10 +273,10 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/oik splits check
 .venv/bin/oik gold check            # 115 docs, all human_validated, 0 errors + numerals_checked
 
-# 3. PHASE 9 (ACTIVE) — rebuild the fact table and confirm the validation views:
-.venv/bin/oik db build --sample 20000
-#    Expect ~99k facts, 98% normalized, 100% provenance; wheat 2c AD ~12 dr/artaba,
-#    silver→gold monetization transition. Full corpus: --sample 0 (~minutes).
+# 3. PHASE 9 (ACTIVE) — rebuild the full-corpus fact table (~minutes) + validation:
+.venv/bin/oik db build --sample 0
+#    Expect ~195,906 facts, 99% normalized, 100% provenance; wheat 2c AD ~12 dr/artaba,
+#    silver→gold monetization transition. Use --sample 20000 for a fast check.
 #    (Silver labeler doubles as the DB extraction engine; silver.jsonl is NOT needed
 #     for `oik db build`, which relabels on the fly.)
 ```
@@ -285,14 +296,13 @@ the binding constraint — the audits say it is not.
 
 ### Operational gotchas (do not relearn these the hard way)
 
-- **Gold is append-only.** Do **NOT** run `tools/build_gold_draft.py` — it
-  `write_text`-overwrites the whole file from a stale 85-doc SPEC and would drop
-  the owner's 10 hard docs + the 20 added since. Append rows; compute offsets by
-  forward-scanning surface strings against `corpus.parquet` text.
-- **`tools/build_attribute_draft.py` is the SAFE 8b tool** (do not confuse with the
-  above): it only *reads* `annotated.jsonl` and writes the separate
-  `attribute_draft.jsonl`; it refuses `--out == --gold`. Merging its approved edges
-  into gold is still a manual append-by-index step, done with the silver re-emit.
+- **Gold is append-only.** Add rows; compute offsets by forward-scanning surface
+  strings against `corpus.parquet` text — never regenerate the whole file. (The old
+  `tools/build_gold_draft.py`, which `write_text`-overwrote gold from a stale SPEC,
+  was removed 2026-07-23; recover from git if its annotation record is ever needed.)
+- **`tools/build_attribute_draft.py` is the SAFE draft tool**: it only *reads*
+  `annotated.jsonl` and writes the separate `attribute_draft.jsonl`; refuses
+  `--out == --gold`. Merging approved edges into gold is a manual append-by-index step.
 - **Gold `text` must be byte-identical to `corpus.parquet.edited_text`.** The
   numeral-coverage gate keys on an exact `text` match and **silently disables
   itself** on any doc where it differs. Always source gold text from
@@ -322,6 +332,8 @@ the binding constraint — the audits say it is not.
   2,995 entities / 710 relations (incl. 87 PAID_*), 0 errors. `direction_draft.jsonl`
   is the auditable record of the merged direction edges.
 - `data/processed/relations/relation_labels.json` — gitignored; `oik relation prepare`.
+- `data/processed/db/monetary.parquet` — **2.6 MB, 195,906 rows** (Phase 9 fact
+  table). Regen: `oik db build --sample 0` (~minutes). Gitignored, re-derivable.
 - **Modal Volume `oikonomia-dapt`:** `shards/{train,dev}.bin`,
   `checkpoints/full/final` (**B1** — load this for b1). Stale `checkpoints/b1-*`
   from the first sweep are safe to `modal volume rm -r`.
@@ -330,8 +342,8 @@ the binding constraint — the audits say it is not.
   `xval` measures and saves no persistent model — the shippable NER model is a
   later `launch`-style full train once the recipe is frozen (it now is).
 
-**Quality gate at last save:** ruff (src tests modal_app) · mypy (67 files) ·
-tests · caches cleared — all green. `oik gold check` 0 errors.
+**Quality gate at last save:** ruff (src tests modal_app) · mypy (73 files) ·
+487 tests · caches cleared — all green. `oik gold check` 0 errors.
 
 ---
 
