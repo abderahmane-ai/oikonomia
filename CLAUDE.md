@@ -132,10 +132,13 @@ uv run oik silver label                       # emit silver over train (~5 min);
 .venv/bin/modal run --detach modal_app/ner.py::push               # upload silver/gold/labels (prints a fingerprint)
 .venv/bin/modal run --detach modal_app/ner.py::xval --backbone b1 --loss ce   # paired 5-fold CV
 
-# --- Relations (Phase 8) — also the venv's modal ---
+# --- Relations (Phase 8) — FROZEN; GPU runs owner-triggered, not the default path ---
 .venv/bin/oik relation prepare                # freeze relation_labels.json; recall guard MUST be 0 uncovered
 .venv/bin/oik relation score                  # nearest-pair baseline (the bar): rel micro F1 0.443
-.venv/bin/modal run --detach modal_app/relations.py::xval --backbone b1 --loss ce
+
+# --- Database (Phase 9) — the ACTIVE deliverable; deterministic, laptop, no GPU ---
+.venv/bin/oik db build --sample 20000         # corpus → monetary fact table (+ wheat-price validation view)
+.venv/bin/oik db build --sample 0             # whole corpus (~minutes); writes data/processed/db/monetary.parquet
 ```
 
 Explicit cache-clear (if `make clean` is unavailable). **Never use `find -delete`
@@ -152,43 +155,47 @@ find . -path ./.venv -prune -o -name "*.pyc" -exec rm -f {} + 2>/dev/null || tru
 
 ## 5. Where the project stands
 
-**~68% of the 12-phase project. Phases 0–7b + 5c done and *measured*; Phase 8
-(relations) reframed as the OIKONOMIA-RE program, in progress.**
+**PIVOTED (2026-07-23): models frozen at a publishable bar; now building the
+database (Phase 9) — deliverable #2/#3 — driven by a concrete finding.** The
+objective (§1) is a queryable, auditable database of economic life + the historical
+findings it enables. After 8 phases the *reading* was solid but **zero database
+rows existed and zero historical questions were answered**; the relation-F1 grind
+(esp. 8a direction) was polishing scaffolding. So: freeze the models, build the DB.
+Full rationale + first result: [`docs/phases/phase_9_database.md`](docs/phases/phase_9_database.md).
 
-**Settled entity recipe (frozen):** DAPT **B1** (GreBerta + papyri **full-FT**
-DAPT) → silver-pretrain (Silver-v2, plain **CE**) → **gold fine-tune**. On the
-115-doc all-human gold (5-fold CV): **strict F1 0.737 / relaxed 0.837**. AGE
-solved (0.974). The remaining entity ceiling is **label consistency of TAX_TERM
-(0.39) and PERSON_ROLE (0.36)** — proven immune to *both* more volume and better
-silver; the lever is cleaner/split labels, not data.
+**The models are DONE, not abandoned (deliverable #1, publishable):**
+- Entity NER: DAPT **B1** (GreBerta full-FT) → silver-pretrain → gold-FT →
+  **strict F1 0.737 / relaxed 0.837** (5-fold CV, 115-doc gold). Ceiling is
+  TAX_TERM/PERSON_ROLE *label consistency*, not data.
+- Relation RE: span-pair (SpERT) + B1 + silver→gold → **0.713 oracle**. Strong on
+  adjacency (HAS_UNIT/CURRENCY 0.87–0.88) + PARTY_OF (0.65); direction is
+  data-bound and parked (PAID_BY 0.15). **Freeze; revisit only if a finding needs
+  more.** Diagnosis of the direction ceiling: [`docs/phases/phase_8_relation_model.md`].
 
-**First relation model measured:** span-pair (SpERT-style, single encode) + B1 +
-silver→gold → **rel micro F1 0.713** (oracle entities, 5-fold CV), vs the
-nearest-pair baseline 0.443. Payment **direction learned** (PAID_TO 0.0→0.30) but
-**it is the bottleneck** (PAID_BY 0.15). The owner then reframed Phase 8 into a
-**maximal program** — full prosopographical DB + max architecture — because the
-data audit showed 0.713 is strong on the economic core but **coverage is
-schema-bound** (PLACE/AGE/OCCUPATION and 79% of every PERSON are in no relation
-at all) and silver is useless for the deliverable-critical relations (direction,
-price). **8a's direction-feature experiment then came back flat (0.710 vs 0.713);
-direction is data-bound, not feature-bound** — so the maximal program was
-**descoped to a lean, auditable core** (rules-first coverage + more gold, not more
-model machinery; direction features, BOND self-training and the virtual EVENT node
-are cut/shelved). Plan of record:
-[`docs/phases/phase_8_relation_model.md`](docs/phases/phase_8_relation_model.md).
+**Phase 9 — first database rows exist and the numbers are real.** `oik db build`
+assembles a **monetary fact table** (`src/oikonomia/db/`): 20k-doc sample →
+**99,494 facts, 98% normalized, 100% provenance** (every row → tm_id + char span),
+silver/gold systems kept separate. Two validation views recover known history:
+**2c AD wheat ≈ 12 dr/artaba** (lit. ~7–8) and the **silver→gold monetization
+transition** (textbook Egyptian coinage history, unsupervised). The bottleneck is
+now extraction precision + sample size, **not** entity F1.
 
-**8b (coverage) started — first rules-first win landed.** Deterministic apposition
-rules for **HAS_OCCUPATION + HAS_AGE** (the two unambiguous attribute relations):
-linked entity coverage on gold **35.7% → 49.6% (+14.0 pts)** from these two alone,
-recall guard clean, every edge auditable to two spans. Not yet trained/measured —
-awaits gold-draft review + silver re-emit (see §7). Fuzzier PLACE/status relations
-(ORIGIN_OF/LOCATED_IN/HAS_STATUS) deferred pending a corpus-evidence pass.
+**The decisive enabler (audited, don't re-derive):** `corpus.parquet` already
+carries `tm_id` (100%), `date_lo/hi` (95–98%, HGV), `place_pleiades/tm` (74–76%,
+authority-linked), `canonical_genres` (100%), and EpiDoc-**decoded `<num>` values**.
+So dates/places/numerals are *given* — the DB layer normalizes + assembles, it does
+not re-extract them, and the weak `DATED_TO`/PLACE relations are bypassed.
 
-**Assets in hand:** validated ingestion over all 67,980 docs (parse rate 1.000);
-whole-corpus characterization; mined lexicons with measured recall; leak-free
-stratified + chronological splits; DAPT B1 backbone; 115-doc all-human gold
-(2,995 entities / 710 relations incl. 87 PAID_BY/PAID_TO); a scored,
-confidence-aware silver labeler over the 48.9k-doc train split.
+**8b (relation coverage) — HAS_OCCUPATION + HAS_AGE apposition rules landed**
+(gold coverage 35.7%→49.6%); the attribute draft (`data/gold/attribute_draft.jsonl`)
+awaits owner review. This is *relation* work, now secondary to the DB; merge it
+opportunistically, not as the critical path.
+
+**Assets in hand:** validated ingestion over all 67,980 docs (parse rate 1.000)
+with HGV date/place/genre + decoded numerals as parquet columns; mined lexicons
+with canonical ids (currency/commodity/unit) that make DB normalization free;
+DAPT B1 backbone; frozen entity + relation models; 115-doc all-human gold; the
+deterministic silver labeler (doubles as the DB's extraction engine).
 
 ---
 
@@ -208,8 +215,9 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 6 Silver labeling | ✅ | Silver-v2 labeler micro F1 0.585→**0.667**; emitted over 48.9k train docs | [phase_6](docs/phases/phase_6_silver_labeling.md) |
 | 7 Entity NER | ✅ | **DAPT beats no-DAPT control +9.5 strict F1** (PERSON +19, PLACE +11) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 7b Two-stage silver→gold | ✅ | gold-FT recipe → **strict 0.737 / relaxed 0.837**; GCE rejected (−5.7) | [phase_7](docs/phases/phase_7_entity_ner.md) |
-| 8 Relation model | ✅→🔶 | span-pair RE **0.713** (oracle); 8a closed (data-bound); 8b coverage started (+14 pts) | [phase_8](docs/phases/phase_8_relation_model.md) |
-| 9 Corpus→DB · 10 Analysis · 11 Release | ⬜ | not started | — |
+| 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); 8a closed (data-bound); 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
+| 9 Corpus→DB | 🔶 ACTIVE | monetary fact table: **99,494 facts, 98% normalized, 100% provenance**; wheat + monetization views validate | [phase_9](docs/phases/phase_9_database.md) |
+| 10 Analysis · 11 Release | ⬜ | findings (price series, women-as-principals) + HF model release | — |
 
 ---
 
@@ -217,36 +225,29 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 
 _Last updated: 2026-07-23. Branch **`main`**; working tree clean._
 
-**Phase 8b — first coverage win landed (HAS_OCCUPATION + HAS_AGE).** Deterministic
-apposition rule (`src/oikonomia/labeling/apposition.py`): each OCCUPATION/AGE →
-nearest PERSON/PERSON_ROLE that *ends before* it, ≤40 chars; a headcount guard
-skips counted occupations (`ἱερεῖς β` is a HAS_QUANTITY, not a title). Wired
-through the single authority — `RELATION_SIGNATURES` (+2), `LOCAL_FAMILY` (both
-gap-capped), silver labeler (`_attribute_relations`), tests, and an **auditable
-gold draft** (`tools/build_attribute_draft.py` → `data/gold/attribute_draft.jsonl`,
-242 edges / 70 docs, NEVER touches `annotated.jsonl`). On gold: coverage **35.7% →
-49.6% (+14.0 pts)**, recall guard **0 uncovered**, all 242 edges candidate-covered.
-**Not yet trained.** Measurable only when BOTH sides carry the types — so the next
-steps are, together: (a) owner reviews `attribute_draft.jsonl`; (b) merge approved
-edges into gold (append-only, by index); (c) re-emit silver (fresh sha) so training
-carries them; then (d) owner push + xval. Doing (c) alone would train relations the
-gold can't score → misleading F1. **NEXT rule work:** the fuzzier ORIGIN_OF /
-LOCATED_IN / HAS_STATUS — deferred pending their own corpus-evidence pass (PLACE
-apposition is looser and needs prepositional cues; HAS_STATUS overlaps PERSON_ROLE).
+**THE PIVOT — read before doing anything.** The deliverable is a **queryable,
+auditable economic database + findings** (§1). The models are frozen at a
+publishable bar (entity 0.737, relation 0.713 oracle). **Do NOT resume relation-F1
+tuning** — it is measured out (8a: every model-side knob neutral; direction is
+data-bound at PAID_BY 0.15 and parked). The active work is **Phase 9: the
+database** — deterministic, laptop, no GPU. Every hour goes to fact assembly,
+normalization, and the first finding, not to moving 0.71 → 0.75.
 
-**Phase 8a — CLOSED; every model-side accuracy knob measured neutral.** Three clean
-`xval` runs (fingerprint `sha=96428892f944 docs=48891`, gold_docs=98) land in one
-noise band: baseline **0.713**, + direction-features/wide-context **0.710**, +
-`--constrain-decode` **0.7145** — the silver-only F1 alone wobbles 0.643→0.655
-run-to-run, so this spread is pure seed noise. Direction features did **not**
-deliver the payer/payee win they were built for (PAID_TO/PAID_BY nominally down;
-~17 direction edges/fold = noise), and constraints did **not** raise precision
-(0.757→0.752). **Finding: direction is data-bound, not feature-bound** (87 gold
-direction edges is too thin regardless of features); no head/decode tweak moves the
-~0.71 core. Direction features **dropped**; constraints **kept ON as a DB
-well-formedness invariant** (one currency per amount, one tax per payment — not for
-F1); `--no-relation-weight 0.3` left untested, low priority. **The lever is data +
-coverage → pivot to 8b now.** Full detail: the phase-8 doc.
+**Phase 9 state — the machine works.** `oik db build` → `data/processed/db/
+monetary.parquet` (gitignored, re-derivable). 20k-doc sample: **99,494 monetary
+facts, 98% normalized, 100% provenance, silver/gold systems separate.** Validation:
+2c AD wheat ≈ 12 dr/artaba (lit. ~7–8) and the silver→gold monetization transition
+(textbook). Code: `src/oikonomia/db/{money,dates,facts}.py` + `cli/db_cmd.py`.
+Detail: [`docs/phases/phase_9_database.md`](docs/phases/phase_9_database.md).
+
+**Triage (what is shelved/frozen — do not reopen without a finding that demands it):**
+
+| Verdict | Items |
+|---|---|
+| **DELETED from plan** | direction features (null), `constrain-decode`/`--no-relation-weight` as F1 levers, PL-Marker, BOND self-training, model EVENT node, the maximal OIKONOMIA-RE program. Code left dormant (ripping out forces a re-verify retrain); do not build on it. |
+| **FROZEN (publishable, deliverable #1)** | entity NER 0.737, relation RE 0.713. A `launch`-style full train happens only when the DB needs the shippable model. |
+| **SHELVED (revisit only if a finding needs it)** | relation-model tuning, silver re-emission cycles, splits, ORIGIN_OF/LOCATED_IN/HAS_STATUS as model targets, more direction gold (→ only for a credit-flow finding). |
+| **PARKED review artifact** | `data/gold/attribute_draft.jsonl` (8b HAS_OCCUPATION/HAS_AGE, 242 edges) — owner reviews when convenient; merging is opportunistic, not critical path. |
 
 ### Resume checklist (in order)
 
@@ -261,30 +262,26 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/oik splits check
 .venv/bin/oik gold check            # 115 docs, all human_validated, 0 errors + numerals_checked
 
-# 3. Silver-v2 intact? Re-emit if silver.jsonl missing/stale:
-.venv/bin/oik silver score          # entity micro F1 ~0.667 exact / ~0.752 relaxed
-#    After ANY labeler/lexicon/patterns edit: oik silver distmap → oik silver label (~5 min; sha changes)
-
-# 4. PHASE 8a — CLOSED (all model-side knobs neutral). PHASE 8b IN PROGRESS:
-#    HAS_OCCUPATION + HAS_AGE apposition rule DONE (coverage +14 pts on gold, guard
-#    clean). Review the auditable draft, then merge + re-emit silver together:
-.venv/bin/python tools/build_attribute_draft.py --preview 20   # regenerate + eyeball
-#    Plan of record: docs/phases/phase_8_relation_model.md
+# 3. PHASE 9 (ACTIVE) — rebuild the fact table and confirm the validation views:
+.venv/bin/oik db build --sample 20000
+#    Expect ~99k facts, 98% normalized, 100% provenance; wheat 2c AD ~12 dr/artaba,
+#    silver→gold monetization transition. Full corpus: --sample 0 (~minutes).
+#    (Silver labeler doubles as the DB extraction engine; silver.jsonl is NOT needed
+#     for `oik db build`, which relabels on the fly.)
 ```
 
-**Then, in leverage order (LEAN plan — full detail in the phase-8 doc):**
-**(1) land the two attribute relations end-to-end** — owner reviews
-`data/gold/attribute_draft.jsonl`; a session then merges approved edges into gold
-(append-only, by index) **and** re-emits silver (`oik silver label`, fresh sha) so
-both sides carry them; owner push + xval measures HAS_OCCUPATION/HAS_AGE F1. **(2)
-extend 8b coverage** with the fuzzier ORIGIN_OF/LOCATED_IN/HAS_STATUS (each needs a
-corpus-evidence pass first — PLACE apposition is looser, needs prepositional cues;
-HAS_STATUS overlaps PERSON_ROLE — do NOT guess them). **(3) more direction gold**
-(the only lever for PAID_BY/PAID_TO). **(4) 8d deterministic** kinship/gender parse
-+ event assembly in the DB layer. **Owed:** end-to-end eval (predicted entities →
-RE, the real number vs the 0.713 oracle ceiling). **Cut/shelved:** direction
-features (null), BOND self-training (un-auditable), virtual EVENT node as a model
-construct. **GPU runs are owner-triggered** (the owner controls Modal spend).
+**Then, in priority order (Phase 9 → findings; full detail in the phase-9 doc):**
+**(1) harden the wheat price slice** — outlier filter, fix per-unit semantics
+(`unit_price = value/quantity` over-divides when the amount is already per-unit),
+full-corpus run → a defensible series with error bars vs Rathbone/Bagnall. **(2)
+second finding — "women as economic principals"**: gender (deterministic from
+names/morphology) + PARTY_OF (0.65) + guardian-`κύριος`; and **split the PERSON
+blob** to recover `CHILD_OF` kinship (43% of gold PERSON spans are name+patronymic
+collapsed into one node — the biggest prosopography gap). **(3) entity identity /
+coreference** for cross-document prosopography. **(4) release the frozen models**
+(deliverable #1, already at bar). **Do NOT** reopen relation-F1 work, silver
+re-emission, or Modal xval unless a *specific finding* proves the frozen model is
+the binding constraint — the audits say it is not.
 
 ### Operational gotchas (do not relearn these the hard way)
 

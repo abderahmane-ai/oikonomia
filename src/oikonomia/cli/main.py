@@ -7,6 +7,7 @@ import typer
 from oikonomia import __version__
 from oikonomia.cli.corpus_cmd import corpus_app
 from oikonomia.cli.dapt_cmd import dapt_app
+from oikonomia.cli.db_cmd import db_app
 from oikonomia.cli.gold_cmd import gold_app
 from oikonomia.cli.ingest_cmd import ingest_app
 from oikonomia.cli.lexicon_cmd import lexicon_app
@@ -28,6 +29,7 @@ app.add_typer(gold_app, name="gold")
 app.add_typer(silver_app, name="silver")
 app.add_typer(ner_app, name="ner")
 app.add_typer(relation_app, name="relation")
+app.add_typer(db_app, name="db")
 
 
 @app.command("version")
