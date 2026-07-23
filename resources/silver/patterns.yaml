@@ -175,3 +175,59 @@ month_stems:
 # ἐτῶν κ ("of 20 years"). A numeral immediately next to this marker is an AGE,
 # not a quantity.
 age_marker_stems: [ετων]
+
+# --- PAYMENT DIRECTION (PAID_BY / PAID_TO) ----------------------------------
+# Who paid whom is read off the VERB, because the same case flips role by verb:
+# 'ἐσχηκέναι παρὰ σοῦ' (subject RECEIVED -> subject is payee, παρά is payer) vs
+# 'διέγραψεν X τῷ Y' (subject PAID -> subject is payer, dative is payee). The
+# three classes and their co-occurrence with παρά / a destination preposition
+# were mined over the whole corpus (scratchpad/mine_payment_verbs.py):
+#   receiver verbs co-occur with παρά 40-65%; giver/impersonal with εἰς/ἐπί.
+# Every rule fires only when an AMOUNT (MONEY_AMOUNT/COMMODITY) sits near the
+# verb — the filter that separates 'received the money' from 'received the
+# letter' (κομίζομαι) and the παρά-of-a-petition-sender trap. Stems are folded.
+
+# Receiver verbs: subject = PAYEE, παρά+gen = PAYER. High precision on the payer.
+payment_receiver_stems:
+  - απεχ       # ἀπέχω — "I have (received) in full"
+  - απεσχ      # ἀπέσχον
+  - απεσχηκ    # ἀπεσχηκέναι
+  - εσχηκ      # ἐσχηκέναι — "having received" (loans, receipts)
+  - εσχον      # ἔσχον
+  - ειληφ      # εἴληφα — "I have taken/received"
+  - κεκομισ    # κεκόμισμαι — "I have recovered"
+  - εκομισ     # ἐκομισάμην
+  - κομισαμ    # κομισάμενος
+  - παρελαβ    # παρέλαβον — "I received"
+  - εχειν      # ὁμολογεῖ ... ἔχειν παρὰ X — "acknowledges having (received) from X"
+
+# Giver verbs: subject = PAYER, dative/εἰς = PAYEE. High precision on the payer.
+payment_giver_stems:
+  - διεγραψ    # διέγραψε(ν) — paid through a bank (tax receipts)
+  - διαγεγραφ  # διαγέγραφα
+  - μεμετρηκ   # μεμέτρηκα — measured out grain (payment in kind)
+  - εμετρησ    # ἐμέτρησα
+  - καταβαλ    # καταβάλλω / καταβαλεῖν — pay down
+  - καταβεβλ   # καταβέβληκα
+  - ετελεσ     # ἐτέλεσα — paid (a tax)
+  - τετελεκ    # τετέλεκα
+
+# Impersonal bank receipt: payee = ἐπὶ τὴν τράπεζαν, payer = the taxpayer named
+# after the bank clause. Lower precision (payer must be picked past the banker).
+payment_impersonal_stems:
+  - τετακ      # τέτακται — "it has been paid (to the bank)"
+
+# Folded dative endings — the giver-verb's following name is usually the PAYEE
+# in the dative (Ἀντιπάτρωι, Σεκούνδῳ→σεκουνδω, Πελαίαι, Ζήνωνι). Both the
+# adscript (ωι) and subscript (ῳ→ω after folding) forms occur in the corpus.
+# Checked on the span's HEAD token (filiation that follows is genitive).
+dative_endings: [ωι, ω, αι, οισ, αισ, ι]
+
+# Officials named in the dating/registration formula, not payers. A παρά-name
+# followed by one of these — "ἐφʼ Ἑρμίου τοῦ παρὰ Πανίσκου ἀγορανόμου" (before
+# X the agoranomos) — is the scribe/official, and was wrongly taken as the payer
+# before this guard. So a παρά-name whose next token is one of these is excluded
+# from the payer candidates.
+official_stems:
+  - αγορανομ   # ἀγορανόμος — market official who registers the deal (dating clause)
+  - μνημον     # μνήμων — registrar

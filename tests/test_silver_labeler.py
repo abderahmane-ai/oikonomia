@@ -29,6 +29,11 @@ def _labeler(**overrides) -> SilverLabeler:
         titulature_stems=["σεβαστ", "αυτοκρατ", "καισ"],
         party_prepositions=["παρα"],
         age_marker_stems=["ετων"],
+        payment_receiver_stems=["εσχηκ", "απεχ", "εχειν"],
+        payment_giver_stems=["μεμετρηκ", "διεγραψ"],
+        payment_impersonal_stems=["τετακ"],
+        dative_endings=["ωι", "ω", "αι", "ι"],
+        official_stems=["αγορανομ"],
     )
     for k, v in overrides.items():
         setattr(patterns, k, v)
@@ -176,3 +181,102 @@ def test_party_of_links_preposition_introduced_person():
     labels = {e.label for e in result.entities}
     assert "TRANSACTION" in labels and "PERSON" in labels
     assert any(r.type == "PARTY_OF" for r in result.relations)
+
+
+# --- Payment direction (PAID_BY / PAID_TO) ----------------------------------
+# _direction_relations is tested directly with hand-built entities, because the
+# amount spans (MONEY_AMOUNT/COMMODITY) it needs come from the lexicon/numeral
+# machinery the rest of the pipeline owns; here the interest is the verb→role map.
+
+
+def _direction(text: str, ents: list[tuple[str, str]]) -> set[tuple[str, str, str]]:
+    """Run the direction labeler on hand-placed entities (label, substring)."""
+    from oikonomia.labeling.silver import _tokens
+    from oikonomia.labeling.weak_rules import WeakEntity
+
+    entities = []
+    for label, sub in ents:
+        i = text.index(sub)
+        entities.append(WeakEntity(label=label, span=CharSpan(start=i, end=i + len(sub)), text=sub))
+    rels = _labeler()._direction_relations(entities, _tokens(text))
+    return {(r.type, entities[r.head].text, entities[r.tail].text) for r in rels}
+
+
+def test_receiver_verb_with_para_names_the_payer():
+    # 'Ὧρος received from Didymos 100 dr' — subject is payee, παρά is payer.
+    rels = _direction(
+        "Ὧρος ἐσχηκέναι παρὰ Δίδυμος δραχμὰς ρ",
+        [("PERSON", "Ὧρος"), ("PERSON", "Δίδυμος"), ("MONEY_AMOUNT", "ρ")],
+    )
+    assert ("PAID_BY", "Δίδυμος", "ρ") in rels
+    assert ("PAID_TO", "Ὧρος", "ρ") in rels
+
+
+def test_giver_verb_subject_is_payer_dative_is_payee():
+    # 'Horos measured out to Didymos wheat' — subject pays, dative receives.
+    rels = _direction(
+        "μεμέτρηκεν Ὧρος Διδύμωι πυροῦ",
+        [("PERSON", "Ὧρος"), ("PERSON", "Διδύμωι"), ("COMMODITY", "πυροῦ")],
+    )
+    assert ("PAID_BY", "Ὧρος", "πυροῦ") in rels
+    assert ("PAID_TO", "Διδύμωι", "πυροῦ") in rels
+
+
+def test_agent_of_para_is_not_the_payer():
+    # 'ὁ παρὰ Σώσου' is Sosos' clerk (article before παρά), never the payer.
+    rels = _direction(
+        "Ὧρος ἐσχηκέναι δραχμὰς ρ ὁ παρὰ Σώσου",
+        [("PERSON", "Ὧρος"), ("MONEY_AMOUNT", "ρ"), ("PERSON", "Σώσου")],
+    )
+    assert not any(t == "PAID_BY" and h == "Σώσου" for t, h, _ in rels)
+    assert ("PAID_TO", "Ὧρος", "ρ") in rels
+
+
+def test_official_after_para_name_is_excluded():
+    # 'παρὰ Σώσου ἀγορανόμου' — the dating official, not a payer.
+    rels = _direction(
+        "ἀπέχειν δραχμὰς ρ παρὰ Σώσου ἀγορανόμου",
+        [("MONEY_AMOUNT", "ρ"), ("PERSON", "Σώσου")],
+    )
+    assert not any(t == "PAID_BY" for t, _, _ in rels)
+
+
+def test_no_amount_no_direction():
+    # 'received the letter from Didymos' — no amount, so not a transfer.
+    rels = _direction(
+        "ἐσχηκέναι παρὰ Δίδυμος",
+        [("PERSON", "Δίδυμος")],
+    )
+    assert rels == set()
+
+
+def test_giver_dative_recipient_is_payee_not_payer():
+    # 'he paid to Sekoundos (dative) 100 dr' — the dative name by the giver verb
+    # is the PAYEE, and must never be taken as the payer.
+    rels = _direction(
+        "διέγραψε Σεκούνδῳ δραχμὰς ρ",
+        [("PERSON", "Σεκούνδῳ"), ("MONEY_AMOUNT", "ρ")],
+    )
+    assert ("PAID_TO", "Σεκούνδῳ", "ρ") in rels
+    assert not any(t == "PAID_BY" and h == "Σεκούνδῳ" for t, h, _ in rels)
+
+
+def test_para_with_article_names_the_payer():
+    # 'received from THE Julius' — an article between παρά and the name.
+    rels = _direction(
+        "Ὧρος ἐσχηκέναι παρὰ τοῦ Ἰουλίου δραχμὰς ρ",
+        [("PERSON", "Ὧρος"), ("PERSON", "Ἰουλίου"), ("MONEY_AMOUNT", "ρ")],
+    )
+    assert ("PAID_BY", "Ἰουλίου", "ρ") in rels
+    assert ("PAID_TO", "Ὧρος", "ρ") in rels
+
+
+def test_paron_participle_is_not_the_para_preposition():
+    # 'Ὧρος being present received 100 dr' — παρών is not παρά, so Ὧρος (before
+    # the verb) is the payee, and there is no παρά-marked payer.
+    rels = _direction(
+        "Ὧρος παρὼν ἐσχηκέναι δραχμὰς ρ",
+        [("PERSON", "Ὧρος"), ("MONEY_AMOUNT", "ρ")],
+    )
+    assert not any(t == "PAID_BY" for t, _, _ in rels)
+    assert ("PAID_TO", "Ὧρος", "ρ") in rels

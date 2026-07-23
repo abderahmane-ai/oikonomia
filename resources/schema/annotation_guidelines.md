@@ -1,4 +1,4 @@
-# OIKONOMIA annotation guidelines (v0.3)
+# OIKONOMIA annotation guidelines (v0.4)
 
 Scope: entity and relation annotation over Greek documentary papyri from the
 DDbDP, at corpus rev `d7a34f302d1e44e271256092c2b780733187b478`.
@@ -484,6 +484,51 @@ proper name that its identity is genuinely uncertain, leave it (rule IX). The
 name-coverage check will list it as an advisory; a residue of such advisories on
 damaged documents is expected and is *reviewed*, not *cleared by guessing*.
 
+### Payment direction — `PAID_BY` / `PAID_TO` (v0.4)
+
+The direction of a transfer — *who gave the amount, who received it* — is the
+verb of an economic sentence, and it is what makes the database say "X paid Y to
+Z" instead of only "X and Z were involved". Two relations carry it, both
+pointing **person → the thing transferred**: `PAID_BY` (payer) and `PAID_TO`
+(payee), from a `PERSON`/`PERSON_ROLE` to the `MONEY_AMOUNT` or `COMMODITY` that
+changes hands. They are *in addition to* `PARTY_OF`: a payer is both a party to
+the transaction (`PARTY_OF → TRANSACTION`) and the giver of the sum
+(`PAID_BY → MONEY_AMOUNT`); the two edges record two different facts.
+
+**Only annotate direction when an amount actually changes hands.** A payment has
+a sum (of money) or a quantity (of goods) that moves. If nothing is transferred
+— a petition that opens *"παρὰ Θέωνος"* ("from Theon", i.e. its sender), a
+received *letter*, a submitted *document* — there is **no** `PAID_BY`/`PAID_TO`,
+even though παρά is present. The amount is the test; παρά alone is not.
+
+**Read the role off the verb**, because the same case flips meaning by verb:
+
+| Verb class | examples | subject is | παρά + genitive is | dative / εἰς / ἐπί is |
+|---|---|---|---|---|
+| **receiver** | ἀπέχω, ἐσχηκέναι, εἴληφα, κεκόμισμαι, (ὁμολογεῖ) ἔχειν | **payee** | **payer** | — |
+| **giver** | διαγράφω, δίδωμι, μετρέω (grain), καταβάλλω, τελέω | **payer** | — | **payee** |
+| **impersonal** | τέτακται (paid into a bank) | — | (payer, rare) | payee = the bank |
+
+Worked: *"ὁμολογῶ **ἐσχηκέναι** με **παρὰ σοῦ** … χρυσίου νομισμάτια"* — I (subject
+= payee) received from you (παρά = payer) gold coins (the amount): the *you* is
+`PAID_BY`, the *I* is `PAID_TO`. *"**διέγραψεν** Ἀπολλόδοτος … Ἀντιπάτρῳ"* —
+Apollodotos (subject = payer) `PAID_BY`, Antipatros (dative = payee) `PAID_TO`.
+*"**μεμέτρηκεν** Ψενθώτης … Πελαίᾳ … πυροῦ"* — grain (in-kind) counts: Psenthotes
+`PAID_BY → πυροῦ`, Pelaia `PAID_TO → πυροῦ`.
+
+**`ὁ παρὰ X` is X's agent, never the payer.** The article before παρά gives it
+away: *"ἐφʼ Ἑρμίου **τοῦ παρὰ Πανίσκου** ἀγορανόμου"* ("before Hermias, the one
+under Paniskos the market-official") and *"Ἀμμώνιος **ὁ παρὰ Σώσου** κεχρημάτικα"*
+(the clerk's subscription) name officials in the dating/registration frame, not
+parties to the transfer. A real payer is a bare *"παρὰ Παοῦτος"*. Likewise a
+name in the opening date formula (*"ἐπὶ Σώσου ἀγορανόμου"*) is the official who
+registers the deed, not a payer.
+
+**Payments in kind count.** Wages, rent and loans were often paid in grain, wine
+or oil (*μεμέτρηκεν … πυροῦ ἀρτάβας*, *δέδωκα … κριθῆς*). The transferred
+`COMMODITY` is the tail of `PAID_BY`/`PAID_TO`, exactly as a `MONEY_AMOUNT` is —
+the price/wage series depends on not dropping them.
+
 ## 6. The batch file, and how to work it
 
 The batch is **`data/gold/to_annotate.jsonl`** — one JSON object per line,
@@ -545,6 +590,12 @@ the first 15 documents are annotated to this guide and pass `oik gold check`.
   expected to grow; version it when rules change.
 
 ## 8. Status
+
+v0.4 — added the **payment-direction rule** (§5, `PAID_BY`/`PAID_TO`): the
+verb-class map for reading payer/payee, the amount-required filter, and the
+`ὁ παρὰ X` agent trap. Grounded in a whole-corpus mining of the payment verbs
+(receiver verbs co-occur with παρά 40–65%) and driving the Phase 5c gold
+direction pass. The silver labeler emits these relations from the same map.
 
 v0.3 — the first 50 documents are now **completeness-verified**: `oik gold
 check` runs a mechanical numeral-coverage gate (every corpus `<num>` is labelled

@@ -72,6 +72,10 @@ AGE = "AGE"
 PARTY_OF = "PARTY_OF"
 DATED_TO = "DATED_TO"
 HAS_PRICE = "HAS_PRICE"
+# Payment direction: who gave the amount (PAID_BY) and who received it (PAID_TO).
+# PERSON/PERSON_ROLE -> MONEY_AMOUNT/COMMODITY (see validate.RELATION_SIGNATURES).
+PAID_BY = "PAID_BY"
+PAID_TO = "PAID_TO"
 
 # How close (characters) a numeral must sit to ``ἐτῶν`` to be an AGE.
 AGE_ADJACENCY = 8
@@ -116,6 +120,19 @@ RELATION_CONFIDENCE: dict[str, float] = {
     HAS_PRICE: 0.30,
 }
 
+# Payment-direction confidence, keyed by the *construction* that fired, not the
+# type — because precision varies far more by how the role was recovered than by
+# payer-vs-payee. These are PROVISIONAL priors (the cleanest, "παρά + a receiver
+# verb", is the mined 40-65%-reliable one); replace them with the measured
+# precisions from `oik silver score` once the gold carries PAID_BY/PAID_TO.
+PAID_CONFIDENCE: dict[str, float] = {
+    "recv_para": 0.82,  # receiver verb + παρά PERSON -> that PERSON is the payer
+    "give_subj": 0.60,  # giver verb's nearest PERSON (subject) -> payer
+    "recv_subj": 0.45,  # receiver verb's preceding PERSON (subject) -> payee
+    "give_dat": 0.45,   # giver verb's following dative PERSON -> payee
+    "impersonal": 0.40,  # τέτακται's following PERSON -> payer (taxpayer)
+}
+
 # folded surface form -> {label: occurrences} across the corpus. Full
 # distribution, not just the majority: the majority is the systematic bias for
 # confusable forms (validated — a plain majority-vote flips 96% of PLACE to
@@ -157,6 +174,11 @@ class Patterns(BaseModel):
     month_stems: list[str] = Field(default_factory=list)
     party_prepositions: list[str] = Field(default_factory=list)
     age_marker_stems: list[str] = Field(default_factory=list)
+    payment_receiver_stems: list[str] = Field(default_factory=list)
+    payment_giver_stems: list[str] = Field(default_factory=list)
+    payment_impersonal_stems: list[str] = Field(default_factory=list)
+    dative_endings: list[str] = Field(default_factory=list)
+    official_stems: list[str] = Field(default_factory=list)
 
 
 def load_patterns(resources_root: Path) -> Patterns:
@@ -412,6 +434,7 @@ class SilverLabeler:
 
         entities = [e.model_copy(update={"confidence": self._confidence(e)}) for e in entities]
         relations.extend(self._relations(entities, tokens))
+        relations.extend(self._direction_relations(entities, tokens))
         return WeakLabeling(entities=entities, relations=relations)
 
     def _confidence(self, ent: WeakEntity) -> float:
@@ -529,6 +552,151 @@ class SilverLabeler:
             m = _nearest_idx(c, money)
             if m is not None and _facing_distance(entities[c].span, entities[m].span) <= self.window:
                 _link(HAS_PRICE, c, m)
+
+        return rels
+
+    def _is_dative(self, text: str) -> bool:
+        """Whether a person span's HEAD name looks dative — a weak payee cue.
+
+        The head token carries the case; filiation that follows is genitive, so
+        only the first token is tested. A heuristic (endings overlap other
+        cases), which is why the constructions that rely on it are low-confidence.
+        """
+        head = normalize(text).text.split()
+        return bool(head) and any(head[0].endswith(e) for e in self.p.dative_endings)
+
+    def _direction_relations(
+        self, entities: list[WeakEntity], tokens: list[Tok]
+    ) -> list[WeakRelation]:
+        """PAID_BY / PAID_TO — payment direction, anchored on the payment verb.
+
+        For each payment verb (classed giver/receiver/impersonal from the mined
+        verb map) that has an amount within reach, the verb *class* decides how
+        the surrounding names map to payer and payee:
+
+        * receiver verb — a παρά-marked name is the payer (the cleanest signal);
+          the preceding name (the subject) is the payee;
+        * giver verb — the nearest name (the subject) is the payer; a following
+          dative name is the payee;
+        * impersonal τέτακται — the following name (the taxpayer) is the payer.
+
+        Firing requires an amount (MONEY_AMOUNT/COMMODITY) near the verb — the
+        filter that separates a transferred sum from a received *letter* or a
+        submitted *petition*, the false positives a bare παρά rule collects.
+        """
+        amounts = [i for i, e in enumerate(entities) if e.label in (MONEY_AMOUNT, COMMODITY)]
+        persons = [i for i, e in enumerate(entities) if e.label in (PERSON, PERSON_ROLE)]
+        if not amounts or not persons:
+            return []
+
+        start_to_tok = {t.start: k for k, t in enumerate(tokens)}
+
+        def prev_fold(ei: int) -> str:
+            ti = start_to_tok.get(entities[ei].span.start)
+            return tokens[ti - 1].folded if ti is not None and ti > 0 else ""
+
+        agent_articles = set(self.p.name_bridge_articles) | {"ο", "η"}
+
+        def is_para(ei: int) -> bool:
+            """A name introduced by the *preposition* παρά (not παρών "present").
+
+            Covers both the bare 'παρὰ Παοῦτος' and 'παρὰ τοῦ Ἰουλίου' where an
+            article stands between παρά and the name (very common: "from the X").
+            """
+            if prev_fold(ei) in {"παρα", "παρ"}:
+                return True
+            ti = start_to_tok.get(entities[ei].span.start)
+            return (
+                ti is not None
+                and ti >= 2
+                and tokens[ti - 1].folded in agent_articles
+                and tokens[ti - 2].folded in {"παρα", "παρ"}
+            )
+
+        def para_is_agent(ei: int) -> bool:
+            """παρά-name that is an agent-of reference, not a payer.
+
+            'ὁ παρὰ Σώσου (κεχρημάτικα)' (Sosos' clerk) and 'τοῦ παρὰ Πανίσκου
+            ἀγορανόμου' (before Paniskos the agoranomos) both put an article
+            immediately before παρά; a real payer has a bare 'παρὰ Παοῦτος'. An
+            official title right after the name is the same tell from the far side.
+            """
+            ti = start_to_tok.get(entities[ei].span.start)
+            if ti is not None and ti >= 2 and tokens[ti - 2].folded in agent_articles:
+                return True
+            nxt = next((t for t in tokens if t.start >= entities[ei].span.end), None)
+            return nxt is not None and _stem_match(nxt.folded, self.p.official_stems)
+
+        def nearest(anchor: CharSpan, cands: Iterable[int], *, side: int = 0) -> int | None:
+            """Nearest candidate to ``anchor``; side>0 after only, side<0 before."""
+            best: tuple[int, int] | None = None
+            for c in cands:
+                s = entities[c].span
+                if (side > 0 and s.start < anchor.end) or (side < 0 and s.end > anchor.start):
+                    continue
+                d = _facing_distance(anchor, s)
+                if best is None or d < best[0]:
+                    best = (d, c)
+            return best[1] if best else None
+
+        rels: list[WeakRelation] = []
+        seen: set[tuple[str, int, int]] = set()
+
+        def emit(rtype: str, head: int | None, tail: int | None, key: str) -> None:
+            if head is None or tail is None or head == tail or (rtype, head, tail) in seen:
+                return
+            seen.add((rtype, head, tail))
+            rels.append(
+                WeakRelation(
+                    type=rtype,
+                    head=head,
+                    tail=tail,
+                    distance=_facing_distance(entities[head].span, entities[tail].span),
+                    confidence=PAID_CONFIDENCE[key],
+                )
+            )
+
+        reach = self.window * 4
+        # παρά-introduced names are payer candidates — but not the 'ὁ παρὰ X'
+        # agent/official of a dating or subscription clause, who is not a party.
+        para = {i for i in persons if is_para(i) and not para_is_agent(i)}
+        for tok in tokens:
+            if _stem_match(tok.folded, self.p.payment_receiver_stems):
+                cls = "recv"
+            elif _stem_match(tok.folded, self.p.payment_giver_stems):
+                cls = "give"
+            elif _stem_match(tok.folded, self.p.payment_impersonal_stems):
+                cls = "impersonal"
+            else:
+                continue
+            vspan = CharSpan(start=tok.start, end=tok.end)
+            amount = nearest(vspan, amounts)
+            if amount is None or _facing_distance(vspan, entities[amount].span) > reach:
+                continue  # precision filter: no amount near the verb -> not a transfer
+
+            # Everything is kept inside the verb's own clause (within `reach`), so
+            # a παρά from another clause or the dating formula cannot be borrowed.
+            near = [i for i in persons if _facing_distance(vspan, entities[i].span) <= reach]
+            if cls == "recv":
+                payer = nearest(vspan, [i for i in near if i in para and entities[i].span.start >= vspan.start], side=1)
+                payee = nearest(vspan, [i for i in near if i != payer], side=-1)
+                emit(PAID_BY, payer, amount, "recv_para")
+                emit(PAID_TO, payee, amount, "recv_subj")
+            elif cls == "give":
+                # The dative name after the verb is the PAYEE (διέγραψε Σεκούνδῳ
+                # "paid to Secundus"); the payer is a non-dative subject, never
+                # that dative recipient sitting next to the verb.
+                dative_after = [
+                    i for i in near
+                    if entities[i].span.start >= vspan.start and self._is_dative(entities[i].text)
+                ]
+                payee = nearest(vspan, dative_after, side=1)
+                payer = nearest(vspan, [i for i in near if i != payee and not self._is_dative(entities[i].text)])
+                emit(PAID_BY, payer, amount, "give_subj")
+                emit(PAID_TO, payee, amount, "give_dat")
+            else:  # impersonal τέτακται — the following name is the taxpayer (payer)
+                payer = nearest(vspan, [i for i in near if entities[i].span.start >= vspan.start], side=1)
+                emit(PAID_BY, payer, amount, "impersonal")
 
         return rels
 

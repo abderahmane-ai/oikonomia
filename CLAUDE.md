@@ -1068,6 +1068,97 @@ per config. Ruff + compile clean.
 ceiling under everything and firms the CV. Later: soft confidence-weighting,
 self-training on the 68k unlabeled corpus (BOND), CRF head — only if 1–2 fall short.
 
+### 🔶 Phase 5c — Payment direction (PAID_BY / PAID_TO): silver engine built + tested; gold pass next
+
+**Why (owner decision):** the gold captured *who was involved* (`PARTY_OF`) but
+not *who paid whom* — direction was folded away. Direction is ~40% prevalent
+(`παρά`/payment-verb markers, measured) and deliverable-core (price/wage series
+need payer vs payee; "women as principals" needs active vs passive). `PAID_BY`/
+`PAID_TO` were **already defined** in the schema (validate.py signatures:
+PERSON/PERSON_ROLE → MONEY_AMOUNT/COMMODITY) but never used. Decision: **label
+direction before the Phase 8 model** so the model is built once on the complete
+schema. Rare *attested* relations (DATED_TO 32, HAS_PRICE 16, CHARGED_UNDER 13)
+are NOT pre-labeled — the RE model decides which are volume-bound (the TAX_TERM
+vs AGE lesson); the rule baseline scoring them ~0.10 is a *rule* failure, not a
+data shortage.
+
+**The signal is the VERB, not the case** (mined whole-corpus,
+`scratchpad/mine_payment_verbs.py`): the same case flips role by verb —
+*ἐσχηκέναι παρὰ σοῦ* (subject=payee, παρά=payer) vs *διέγραψεν X τῷ Y*
+(subject=payer, dative=payee). Three classes: **receiver** (ἀπέχω, ἐσχηκέναι,
+εἴληφα, κεκόμισμαι, ἔχειν — subject=payee, παρά=payer; co-occur with παρά
+**40–65%**), **giver** (διαγράφω, μετρέω-grain, δίδωμι, καταβάλλω, τελέω —
+subject=payer, dative/εἰς=payee), **impersonal** (τέτακται — payee=bank).
+
+**Built (green):**
+- `resources/silver/patterns.yaml` — `payment_{receiver,giver,impersonal}_stems`,
+  `dative_endings`, `official_stems`. `SilverLabeler._direction_relations`
+  (verb-anchored PAID_BY/PAID_TO, confidence-tiered in `PAID_CONFIDENCE`).
+- **Precision filter: an amount (MONEY_AMOUNT/COMMODITY) must sit near the verb**
+  — kills the παρά-of-a-petition trap and "received the *letter*".
+- **Four systematic false-payer/direction bugs fixed** (each caught by smoke-
+  testing on real gold docs, not reasoning): (a) `ὁ παρὰ X` / `τοῦ παρὰ X
+  ἀγορανόμου` is X's *agent/official* (dating clause, scribal subscription),
+  never the payer — excluded by the article-before-παρά rule; (b) παρά tightened
+  to not match παρών ("being present"); (c) **a giver verb's following *dative*
+  name is the PAYEE, not the payer** (*διέγραψε Σεκούνδῳ* "paid TO Secundus") —
+  was flipping payer/payee on every *διέγραψε τοῖς πράκτορσι* tax receipt;
+  (d) **`παρὰ τοῦ X`** (article between παρά and the name, "from THE X") now
+  recognised as a payer — was silently missed.
+- 10 hand-computed tests (`tests/test_silver_labeler.py`). **Gate green: ruff,
+  mypy (61 files), 409 tests.** Guidelines **v0.4** (§5 payment-direction rule).
+- **Coverage:** ~6,460 direction edges over the 48,941 train docs (8.6% of docs),
+  confidence-tiered (precision-first; the ~40% marker rate includes excluded
+  petitions). Confidences in `PAID_CONFIDENCE` are **PROVISIONAL** — replace with
+  measured precisions once gold direction exists.
+
+**Gold direction — VALIDATED + MERGED into the gold (2026-07-23).** The owner
+gave the scope call (leases-with-future-rent, sales, in-kind distributions all
+count as valid direction) and authorised merging every direction edge that is
+correct. Done this session:
+
+- **A Gemini review was checked and rejected.** An external model proposed
+  swapping `PAID_BY`/`PAID_TO` on 8 of the 18 draft docs from a **case rule**
+  ("nominative = payer, dative = payee"). That is exactly the heuristic §5 (v0.4)
+  rejects — *the same case flips role by verb*. Every one of the 8 is a
+  receiver-verb receipt/sale (ἔσχον/ἀπέσχον/ἔχειν) where the nominative subject is
+  the **payee**; applying the swaps would have inverted the economics of each
+  sale/loan. All 18 original docs re-verified correct against the verb rule.
+  Gemini's one real catch — 4 `head_text`/`tail_text` cache strings truncated at
+  a `\n` — was fixed (indices were always correct; only the denormalised text
+  cache was stale).
+- **The prior 64/11/17/18 triage was unrecoverable** (its builder
+  `scratchpad/build_direction_draft.py` was deleted), so the payment-doc set was
+  **re-derived from scratch over all 89 gold docs that carry a MONEY_AMOUNT or
+  COMMODITY**. Each was read and classed: **~50 are genuine no-direction**
+  (petitions, property/livestock registrations, admin letters, tax-assessment
+  registers, fragmentary accounts, or docs whose only "party" is a
+  matronymic/dating-consul — e.g. 15488 `Πτολέμας`); **20 new payment docs** got
+  direction (loans, sales-tax/poll-tax receipts, fodder receipts, disbursement &
+  ration orders, and 7 leases under the owner's scope call).
+- **Result: `data/gold/annotated.jsonl` now carries payment direction —
+  38 docs, 87 `PAID_BY`/`PAID_TO` edges** (18 original + 20 new). `oik gold check`
+  **0 errors**, `numerals_checked`, relations **623 → 710**. All 87 pass the
+  signature check (head∈{PERSON,PERSON_ROLE}, tail∈{MONEY_AMOUNT,COMMODITY}).
+  `data/gold/direction_draft.jsonl` is kept as the complete auditable record of
+  what was merged (38 docs, texts synced to gold).
+
+The direction edges are Claude's linguistic calls, verified against §5 v0.4
+(not individually eyeballed by the owner); the owner authorised the merge. The
+20 new docs: `3141 5414 7797 15362 15454 15887 16396 16690 22840 36928 36941
+38767 40966 41308 75749 76915 77107 78637 144620 702571`.
+
+**Next:** (1) re-`push` gold to the `oikonomia-ner` Volume; (2) `oik silver
+score` for per-direction precision → replace the **PROVISIONAL** `PAID_CONFIDENCE`
+priors with measured values, tune recall (add verbs) if precision allows;
+(3) re-emit `oik silver label`; (4) Phase 8 relation model on the
+direction-augmented schema.
+
+**Known residual (upstream, not direction):** the base capital-run PERSON merger
+joins adjacent names with no bridge token (*Ψενθώτης Νεχούτου Πελαίαι Φίβιος* =
+2 people as 1 span), which corrupts a giver-verb payer span and hides the dative
+payee. Belongs to the PERSON LF, not `_direction_relations`.
+
 ---
 
 ## 7. Verified fact ledger
@@ -1361,10 +1452,16 @@ rules), a mechanical span + **numeral-coverage** validator (`oik gold check`),
 a proximity baseline at a 74.50% numeral link rate, leak-free stratified +
 chronological splits, and a scored, confidence-aware silver labeler.
 
-Remaining: **Phase 8 relation model** (next big build) · Phase 9 corpus
-inference → DB · Phase 10 historical analysis · Phase 11 release. Phase 5 gold is
-in strong shape (115 human-validated docs, 0 errors); any further gold work is
-optional label-quality, not volume.
+**Phase 5c IN PROGRESS — payment direction (`PAID_BY`/`PAID_TO`)**, a
+deliverable-driven prelude to Phase 8: the silver direction engine is built +
+tested (green), and the gold direction draft is 46/64 reviewed (47 edges) in
+`data/gold/direction_draft.jsonl`, awaiting owner validation (§6, §9).
+
+Remaining: **finish Phase 5c** (validate draft + 18 unread/17 flagged docs →
+merge → re-score) · **Phase 8 relation model** (the big build, on the
+direction-augmented schema) · Phase 9 corpus inference → DB · Phase 10 historical
+analysis · Phase 11 release. Entity-side gold is in strong shape (115
+human-validated docs, 0 errors).
 
 **The entity model is validated: strict 0.710 / relaxed 0.811 on the 115-doc
 all-human gold, with gold fine-tune the proven lever (+0.136).** AGE is solved
@@ -1379,22 +1476,69 @@ did nothing); they need cleaner/more-consistent labels or a different lever.
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-22 (**Gold extended 85→115**: owner reviewed the 20
-model-drafts (→human_validated) and hand-annotated 10 "hard" docs; this session
-fixed 3 silent text-corruption bugs in those 10 (see §7 "Gold `text` must be
-byte-identical") + 3 phantom skips, annotated 13 more hard docs, then targeted
-**AGE** with 7 census/signalement docs (`25173 26167 27453 11440 29529 12351
-12906`) → **AGE 6→133**. `annotated.jsonl` = **115 docs / 2,995 entities / 623
-relations, `oik gold check` 0 errors, numerals_checked, all byte-identical to
-corpus**. Session lift: AGE +127, PERSON +288, TAX_TERM +45, FRACTION +35,
-OCCUPATION +70, PERSON_ROLE +23. 398 tests, ruff + mypy clean, caches cleared.
-**Prior state (still
-current):** Phase 4 DAPT full FT wins → `checkpoints/full/final` = B1; **Phase 7
-entity NER: DAPT beats control +9.5 strict F1** (b1 0.589 vs b0 0.495),
-`models/{b0,b1}/final` on the `oikonomia-ner` Volume; **Phase 7b two-stage
-silver→gold: on the 115-doc all-human gold strict 0.710 / relaxed 0.811, AGE
-0.0→0.947; TAX_TERM (0.44) and PERSON_ROLE (0.40) are the stubborn classes**.
-Harness: `oikonomia/ner/`, `oik ner prepare`, `modal_app/ner.py` (`xval`).)._
+_Last updated: 2026-07-23 (**Phase 5c — payment direction VALIDATED + MERGED
+into the gold**). Owner gave the scope call (leases/sales/in-kind all count) and
+authorised the merge. This session rejected an external (Gemini) case-rule review
+of the draft, re-derived the payment-doc set over all 89 money/commodity gold
+docs (prior triage lost with its deleted builder), annotated 20 new payment docs,
+and **merged 87 `PAID_BY`/`PAID_TO` edges across 38 docs into
+`annotated.jsonl`** (relations 623→710, `oik gold check` 0 errors). Did NOT train
+anything. Gold entities are unchanged; only relations were added.
+
+**Gold direction — DONE (this session):**
+- `annotated.jsonl` now carries **38 direction docs / 87 `PAID_BY`/`PAID_TO`
+  edges** (18 original draft + 20 new). All pass the signature check;
+  `oik gold check` 0 errors, `numerals_checked`, relations **710**.
+- `data/gold/direction_draft.jsonl` = the auditable record of what was merged
+  (38 docs, `head_text`/`tail_text` synced to gold; the 4 Gemini-flagged
+  truncations fixed — indices were always correct).
+- 20 new docs: `3141 5414 7797 15362 15454 15887 16396 16690 22840 36928 36941
+  38767 40966 41308 75749 76915 77107 78637 144620 702571`. ~50 other
+  money/commodity gold docs were read and judged genuine no-direction.
+- The `PAID_CONFIDENCE` priors in `patterns.yaml` are still **PROVISIONAL** —
+  measure them with `oik silver score` now that gold direction exists.
+
+**Silver direction engine (built the prior session, unchanged, green):**
+- Verb-anchored `PAID_BY`/`PAID_TO` in `SilverLabeler._direction_relations`
+  (verb map mined whole-corpus: receiver verbs → subject=payee, παρά=payer;
+  giver verbs → subject=payer, dative=payee; τέτακται impersonal). Patterns in
+  `resources/silver/patterns.yaml` (`payment_*_stems`, `dative_endings`,
+  `official_stems`). Precision filter: an amount must sit near the verb.
+- **4 systematic bugs fixed** (see §6 Phase 5c): `ὁ/τοῦ παρὰ X` agent-of,
+  παρών≠παρά, giver-dative-is-payee, `παρὰ τοῦ X` payer.
+- Guidelines **v0.4** (§5 payment-direction rule). 10 hand-computed tests.
+- Coverage: ~6,460 silver direction edges over the 49k train docs.
+
+**Prior state (still current, unchanged this session):** Phase 4 DAPT full FT
+wins → `checkpoints/full/final` = B1; Phase 7 entity NER DAPT beats control +9.5
+strict F1, `models/{b0,b1}/final` on `oikonomia-ner` Volume; Phase 7b two-stage
+silver→gold strict 0.710 / relaxed 0.811, AGE 0.947. `annotated.jsonl` = 115
+docs, all human_validated, 0 errors, byte-identical; now +87 direction relations._
+
+**Built (green — ruff, mypy 61 files, 409 tests, caches cleared):**
+- Verb-anchored `PAID_BY`/`PAID_TO` in `SilverLabeler._direction_relations`
+  (verb map mined whole-corpus: receiver verbs → subject=payee, παρά=payer;
+  giver verbs → subject=payer, dative=payee; τέτακται impersonal). Patterns in
+  `resources/silver/patterns.yaml` (`payment_*_stems`, `dative_endings`,
+  `official_stems`). Precision filter: an amount must sit near the verb.
+- **4 systematic bugs fixed** (see §6 Phase 5c): `ὁ/τοῦ παρὰ X` agent-of,
+  παρών≠παρά, giver-dative-is-payee, `παρὰ τοῦ X` payer.
+- Guidelines **v0.4** (§5 payment-direction rule). 10 hand-computed tests.
+- Coverage: ~6,460 direction edges over the 49k train docs (`PAID_CONFIDENCE`
+  values are PROVISIONAL until measured on gold).
+
+**Gold direction DRAFT (owner-validation pending):**
+`data/gold/direction_draft.jsonl` (git-tracked, **separate** from the untouched
+human-validated `annotated.jsonl`). **46 of 64 payment docs reviewed** — 18 docs
+/ **47 signature-checked edges** (0 errors), 11 confident-none, 17 flagged for
+review. The hand pass corrected real auto-labeler errors (matronymics read as
+subject, pronoun payers, direction flips) — it is load-bearing.
+
+**Prior state (still current, unchanged this session):** Phase 4 DAPT full FT
+wins → `checkpoints/full/final` = B1; Phase 7 entity NER DAPT beats control +9.5
+strict F1, `models/{b0,b1}/final` on `oikonomia-ner` Volume; Phase 7b two-stage
+silver→gold strict 0.710 / relaxed 0.811, AGE 0.947. `annotated.jsonl` = 115
+docs, all human_validated, 0 errors, byte-identical.)._
 
 ### Modal Volumes (state that lives off-repo)
 - `oikonomia-dapt`: `shards/{train,dev}.bin`, `checkpoints/full/final` (**B1
@@ -1411,12 +1555,21 @@ Harness: `oikonomia/ner/`, `oik ner prepare`, `modal_app/ner.py` (`xval`).)._
   DAPT one runs with global modal (ships nothing local).
 
 ### Quality gate at last save
-**`oik gold check` 0 errors, `numerals_checked`, 115 docs, all byte-identical to
-corpus.** src/ untouched since the last full gate (ruff · mypy · **398 tests**
-all PASS). This session changed only `CLAUDE.md` and `data/gold/annotated.jsonl`
-(gold grown 85→115, then all flipped to `human_validated`). Caches cleared.
-**NOT yet committed** — `git status`: `M CLAUDE.md`, `M data/gold/annotated.jsonl`,
-`?? uv.lock`. Commit when ready (owner's call).
+**Green: ruff (src tests modal_app) · mypy (61 files) · 406 tests · caches
+cleared.** `oik gold check` **0 errors** after the direction merge
+(`numerals_checked`, relations 710). Committed this session on a branch (the
+prior session's engine work + this session's validation/merge together).
+`git status` before commit:
+- `M data/gold/annotated.jsonl` (**merged 87 `PAID_*` direction relations**)
+- `?? → tracked data/gold/direction_draft.jsonl` (38-doc auditable record)
+- `M src/oikonomia/labeling/silver.py` (the direction labeler + 4 fixes)
+- `M resources/silver/patterns.yaml` (payment verb map)
+- `M resources/schema/annotation_guidelines.md` (v0.4)
+- `M tests/test_silver_labeler.py` (10 direction tests)
+- `M CLAUDE.md`
+
+Prior committed state (HEAD `0e06588`): 115-doc gold, all human_validated, no
+direction relations.
 
 ### Gold annotation (115 docs — ALL human_validated)
 - **Now 115 docs, `oik gold check` 0 errors, numerals_checked, byte-identical,
@@ -1571,6 +1724,15 @@ cd /Users/abdoumagico/Development/ACHATES
 #   .venv/bin/modal run --detach modal_app/ner.py::xval --backbone b1 --loss ce
 #   (re-`push` first only if annotated.jsonl/silver.jsonl/labels.json changed)
 
+# 3d. Phase 5c (IN PROGRESS) — payment direction PAID_BY/PAID_TO.
+#   The silver engine is built+green; the gold draft awaits owner validation:
+head -5 data/gold/direction_draft.jsonl        # 18 docs / 47 hand-verified edges
+#   Smoke-test the labeler on real docs (scratchpad helper is gone; regenerate):
+#     builds candidates over gold's own entities via SilverLabeler._direction_relations
+#   Remaining: validate the 47 edges + finish 18 unread + 17 flagged docs (§6/§9),
+#   then MERGE validated edges into annotated.jsonl (append to each doc's
+#   "relations" — do NOT regenerate the file), re-push, oik silver score.
+
 # 4. (Optional) more gold candidates: AGE-dense train docs, or undone to_annotate
 .venv/bin/python /path/to/scratchpad/find_age_docs2.py   # ranked AGE candidates (regen if lost)
 ```
@@ -1581,12 +1743,27 @@ gold-FT, 5-fold CV on the 115-doc all-human gold), AGE solved (0.947). Gold is
 115 docs, all `human_validated`, 0 errors. **Nothing here is blocked on more
 gold volume.**
 
-**The two real next moves (pick one):**
+**The immediate next move: FINISH PHASE 5c (payment direction).** This session
+built the silver direction engine (green) and drafted 46/64 gold payment docs
+into `data/gold/direction_draft.jsonl` (47 signature-checked `PAID_BY`/`PAID_TO`
+edges + 11 confident-none + 17 flagged). To finish:
+1. **Owner validates** the 47 draft edges and the 11 "none" calls.
+2. **Scope call** (owner's, blocks the 17 flagged): does direction cover leases
+   (future rent), sales (buyer→seller money), and in-kind distribution lists —
+   or only completed money/goods receipts? Decide, then annotate the flagged +
+   the 18 unread docs.
+3. **Merge** validated edges into `annotated.jsonl` (append per-doc, never
+   regenerate), re-`push`, `oik silver score` → real per-direction precision →
+   update the PROVISIONAL `PAID_CONFIDENCE`, tune recall.
+Then Phase 8 trains on the direction-augmented schema. `git status` this session
+is uncommitted on `main` — branch + commit the engine+draft when ready (§9).
+
+**After Phase 5c, the two moves for Phase 8 / entity polish:**
 
 1. **Phase 8 — relation model.** The next big build and the scientific risk:
    silver PARTY_OF precision ≈ 0.28. The gold already carries 623 relations
-   (PARTY_OF, HAS_*, DATED_TO, CHARGED_UNDER) as the eval/fine-tune anchor. This
-   is the largest remaining piece of the pipeline.
+   (PARTY_OF, HAS_*, DATED_TO, CHARGED_UNDER) — now plus direction — as the
+   eval/fine-tune anchor. This is the largest remaining piece of the pipeline.
 
 2. **Entity-model polish — the stubborn classes.** TAX_TERM (0.44, flat) and
    PERSON_ROLE (0.40, *regresses* under gold-FT) are the entity ceiling and do
