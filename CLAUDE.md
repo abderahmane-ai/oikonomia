@@ -1015,6 +1015,35 @@ DAPT backbone + silver (plain CE) + gold fine-tune → strict 0.672 / relaxed
 **Caveat (now retired — see the re-run below):** 20 of the 85 gold docs were
 un-reviewed `model_draft`s, giving the 0.672 mild circularity.
 
+#### ✅ Silver-v2 re-run — better silver reached the model (2026-07-23)
+
+After the Silver-v2 accuracy pass (§6 Phase 6; entity labeler micro F1 0.585 →
+0.667) the corpus silver was re-emitted (`oik silver distmap` → `label`:
+48,891 docs, AGE labels ~149 → 4,888) and re-`push`/`xval --backbone b1 --loss
+ce`. **Result (5-fold CV, best measured to date):**
+
+| stage | strict F1 | relaxed F1 | vs prior |
+|---|---|---|---|
+| silver-only | **0.654** | **0.753** | +0.081 / +0.075 |
+| **silver→gold (CE)** | **0.737** | **0.837** | +0.018 / +0.013 |
+
+- **The silver ceiling rose +0.081** — the whole point of Silver-v2. Silver-only
+  per-label: **AGE 0.0 → 0.966**, **OCCUPATION 0.27 → 0.604**, **DATE_REF 0.39 →
+  0.523**, COMMODITY 0.44 → 0.538, PERSON 0.68 → 0.708.
+- **The gold-fine-tune Δ *shrank* +0.136 → +0.083** — the healthy direction:
+  better silver leaves gold less to correct. Final model still ends higher.
+- silver→gold per-label gains: PERSON 0.751→0.775, MONEY 0.738→0.758, OCCUPATION
+  0.680→0.746, PLACE 0.611→0.650, AGE 0.941→0.974, DATE_REF 0.669→0.690.
+- **Unmoved (the real remaining bottleneck): TAX_TERM 0.39, PERSON_ROLE 0.36** —
+  confirmed not a silver/volume problem; they need label *consistency*.
+- **A stale-data trap was found and fixed** (`modal_app/ner.py`): `train` never
+  reloaded the NER Volume, so a warm container trained on the *pre-push* silver
+  (the first Silver-v2 xval silently reused old data — `silver=48941`, AGE 0.0).
+  Now `train` calls `ner_volume.reload()`, and a content fingerprint
+  (`sha+docs+age`) is printed by both `push` and `train` (and `push` hard-fails
+  on mismatch). The current silver is `sha=96428892f944 docs=48891 age=4888`;
+  that line must match on both sides for a run to be trustworthy.
+
 #### ✅ Re-run on the 115-doc, ALL-human-validated gold (2026-07-22)
 
 Gold grown 85→115 (AGE un-starved 6→133; TAX_TERM/FRACTION/PERSON_ROLE ~2×) and
@@ -1483,11 +1512,12 @@ direction-augmented schema) · Phase 9 corpus inference → DB · Phase 10 histo
 analysis · Phase 11 release. Entity-side gold is in strong shape (115
 human-validated docs, 0 errors).
 
-**The entity model is validated: strict 0.710 / relaxed 0.811 on the 115-doc
-all-human gold, with gold fine-tune the proven lever (+0.136).** AGE is solved
-(0.947) and every gold doc is human_validated. The remaining *entity-side*
-ceiling is **TAX_TERM (0.44, flat) and PERSON_ROLE (0.40, still regresses under
-gold fine-tune)** — these do NOT respond to more volume (proven: doubling them
+**The entity model is validated: strict 0.737 / relaxed 0.837 on the 115-doc
+all-human gold** (Silver-v2 re-run 2026-07-23; was 0.710/0.811 pre-v2). Silver-v2
+raised the *silver-only* ceiling +0.081 (0.573→0.654), so the gold-fine-tune Δ
+shrank +0.136→+0.083 (better silver, less to correct). AGE solved (0.974). The
+remaining *entity-side* ceiling is **TAX_TERM (0.39) and PERSON_ROLE (0.36)** —
+these do NOT respond to more volume *or* better silver (now proven both ways;
 did nothing); they need cleaner/more-consistent labels or a different lever.
 **Phase 8 (relations) is the next scientific risk** (silver PARTY_OF precision
 ≈ 0.28).
@@ -1758,10 +1788,11 @@ head -5 data/gold/direction_draft.jsonl        # 18 docs / 47 hand-verified edge
 ```
 
 **Where the project stands.** Phases 0–7b are done and *measured*: the entity
-model is validated at **strict 0.710 / relaxed 0.811** (DAPT + silver-CE +
-gold-FT, 5-fold CV on the 115-doc all-human gold), AGE solved (0.947). Gold is
-115 docs, all `human_validated`, 0 errors. **Nothing here is blocked on more
-gold volume.**
+model is validated at **strict 0.737 / relaxed 0.837** (DAPT + Silver-v2 +
+gold-FT, 5-fold CV on the 115-doc all-human gold; Silver-v2 lifted the
+silver-only ceiling 0.573→0.654). AGE solved (0.974). Gold is 115 docs, all
+`human_validated`, 0 errors. **Nothing here is blocked on more gold volume** —
+the next entity lever is TAX_TERM/PERSON_ROLE label *consistency*, not data.
 
 **The immediate next move: FINISH PHASE 5c (payment direction).** This session
 built the silver direction engine (green) and drafted 46/64 gold payment docs
