@@ -7,7 +7,10 @@ not needed to continue work lives elsewhere:
 - **Phase history** → [`docs/phases/*.md`](docs/phases) (one file per phase).
 - **Load-bearing facts** ("never re-derive") → [`docs/fact-ledger.md`](docs/fact-ledger.md).
 - **Architecture detail** → [`docs/architecture.md`](docs/architecture.md).
-- **Approved Phase-8 plan** → `~/.claude/plans/fizzy-wondering-eich.md`.
+- **Phase-8 plan of record (lean/descoped)** →
+  [`docs/phases/phase_8_relation_model.md`](docs/phases/phase_8_relation_model.md).
+  The original maximal OIKONOMIA-RE plan (now descoped) is archived at
+  `~/.claude/plans/fizzy-wondering-eich.md`.
 
 **Update §5–§7 of this file at the end of every phase or coherent unit of work.**
 Do not let ancient logs accumulate here — archive them into `docs/phases/`.
@@ -167,10 +170,12 @@ nearest-pair baseline 0.443. Payment **direction learned** (PAID_TO 0.0→0.30) 
 data audit showed 0.713 is strong on the economic core but **coverage is
 schema-bound** (PLACE/AGE/OCCUPATION and 79% of every PERSON are in no relation
 at all) and silver is useless for the deliverable-critical relations (direction,
-price). Plan approved: `~/.claude/plans/fizzy-wondering-eich.md`. **8a's
-direction-feature experiment came back flat (0.710 vs 0.713); direction is
-data-bound, not feature-bound** (§7) — the levers are more direction gold and the
-8b coverage program, not head tuning.
+price). **8a's direction-feature experiment then came back flat (0.710 vs 0.713);
+direction is data-bound, not feature-bound** — so the maximal program was
+**descoped to a lean, auditable core** (rules-first coverage + more gold, not more
+model machinery; direction features, BOND self-training and the virtual EVENT node
+are cut/shelved). Plan of record:
+[`docs/phases/phase_8_relation_model.md`](docs/phases/phase_8_relation_model.md).
 
 **Assets in hand:** validated ingestion over all 67,980 docs (parse rate 1.000);
 whole-corpus characterization; mined lexicons with measured recall; leak-free
@@ -248,14 +253,17 @@ cd /Users/abdoumagico/Development/ACHATES
 #    No re-push needed (relation_labels.json + silver/gold already on the oikonomia-ner Volume).
 ```
 
-**Then, in leverage order:** 8a end-to-end pipeline eval (predicted entities → RE,
-the real deliverable number vs the 0.713 oracle ceiling) → **8b schema extension**
-(the coverage win: HAS_OCCUPATION/HAS_AGE/HAS_STATUS, ORIGIN_OF/LOCATED_IN, a
-virtual EVENT node, party-role + transaction-type; target linked coverage
-~25%→~70% — the single biggest lever) → 8c per-type silver + BOND self-training
-→ 8d deterministic kinship/gender parse + DB frame assembly. PL-Marker typed
-markers only if 8a plateaus. Build 8b pure pieces on the laptop; **GPU runs are
-owner-triggered** (the owner controls Modal spend).
+**Then, in leverage order (LEAN plan — full detail in the phase-8 doc):**
+close 8a on the `--constrain-decode` number (the last model-side knob; direction
+features already **DROPPED** as null) → **8b coverage, rules-first** (deterministic
+apposition rules for HAS_OCCUPATION/HAS_AGE/HAS_STATUS/ORIGIN_OF/LOCATED_IN, each
+edge auditable to two spans; target linked coverage ~25%→~70% — the biggest lever
+and pure laptop work) → **more direction gold** (the only lever for
+PAID_BY/PAID_TO) → **8d deterministic** kinship/gender parse + event assembly in
+the DB layer. **Owed:** end-to-end eval (predicted entities → RE, the real number
+vs the 0.713 oracle ceiling). **Cut/shelved:** direction features (null), BOND
+self-training (un-auditable), virtual EVENT node as a model construct. **GPU runs
+are owner-triggered** (the owner controls Modal spend).
 
 ### Operational gotchas (do not relearn these the hard way)
 

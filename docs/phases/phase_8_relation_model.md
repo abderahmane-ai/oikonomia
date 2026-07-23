@@ -23,16 +23,27 @@
 
 ---
 
-### 🔶 OIKONOMIA-RE — Maximal Relation-Extraction Program
+### 🔶 Phase 8 plan — LEAN / DESCOPED (decided 2026-07-23)
 
-#### 8a — Accuracy on current 9 types
-Three pieces, built + committed (`ae07578`, `efd89c3`, `75e2590`):
-- Neuro-symbolic direction features: verb-class / verb-position / payer-marking
-  (always-on in the head).
-- Wide between-span context vector (reaches before the payer).
-- Functional schema constraints (`constrain` in `relations/decode.py`), applied
-  only under `--constrain-decode`.
-- Single-encode SpERT-style neural head in `modal_app/relations.py`.
+**Why descoped.** The original spec (OIKONOMIA-RE, `~/.claude/plans/
+fizzy-wondering-eich.md`) was a *maximal* program — neuro-symbolic direction
+features, BOND self-training over 68k docs, a model-predicted virtual EVENT node.
+8a's flat result is the evidence against that direction: **the bottleneck is data,
+not model machinery.** And deliverable #2 requires every DB fact to trace to a
+character span — which argues for *auditable rules* over black-box learned
+machinery on the relations that are essentially adjacency. So the plan is cut to
+the debuggable, high-ROI core; the glamorous / un-auditable pieces are dropped or
+shelved.
+
+**Organizing principle:** prefer the simplest auditable mechanism (a rule) for any
+relation that is mostly adjacency; reserve the learned span-pair model for the
+genuinely ambiguous economic core (which already works — 0.713 oracle).
+
+#### 8a — accuracy on the current 9 types — CLOSING
+Built + committed (`ae07578`, `efd89c3`, `75e2590`): direction features
+(verb-class / position / payer-marking, always-on), a wide between-span context
+vector, functional schema constraints (`constrain` in `relations/decode.py`, under
+`--constrain-decode`), single-encode SpERT head in `modal_app/relations.py`.
 
 **MEASURED 2026-07-23 — direction-features + wide-context arm came back FLAT.**
 `xval --backbone b1 --loss ce` (no `--constrain-decode`; fingerprint matched
@@ -48,27 +59,45 @@ PAID_TO 0.300 → **0.253** ↓, PAID_BY 0.145 → 0.136, PARTY_OF 0.652 → 0.6
 HAS_PRICE 0.444 → 0.385 ↓, DATED_TO 0.369 → 0.353, HAS_QUANTITY 0.744 → 0.736,
 HAS_UNIT 0.874 → **0.918** ↑, CHARGED_UNDER 0.375 → **0.471** ↑.
 
-**Finding: direction is data-bound, not feature-bound.** The always-on features
-did not deliver the payer/payee win they were built for (PAID_TO/PAID_BY nominally
+**Finding: direction is data-bound, not feature-bound.** The always-on features did
+not deliver the payer/payee win they were built for (PAID_TO/PAID_BY nominally
 *down*); with ~17 direction edges per held-out fold every move is noise. 87 gold
-direction edges is too thin regardless of features — the lever is more direction
-gold + the 8b coverage program, not head tuning.
+direction edges is too thin regardless of features.
 
-**Still untested (cheap, owner-triggered):**
-- `--constrain-decode` — the schema-constraint half of 8a (each MONEY→1 CURRENCY,
-  QUANTITY→1 UNIT, payment→1 tax; verified recall-safe on gold). Expected to lift
-  precision on the functional relations without costing recall. Run this next.
-- `--no-relation-weight 0.3` — recall lever for the 24:1 negative imbalance.
+**Verdict on 8a:**
+- Direction features + wide context — **DROPPED** (measured null).
+- Schema constraints (`--constrain-decode`) — the one keep-worthy piece
+  (deterministic, recall-safe, auditable). Freeze on/off by its measured number
+  (run pending/optional). This is the last model-side accuracy knob; no more.
+- `--no-relation-weight 0.3` — optional recall lever for the 24:1 imbalance.
 
-#### 8b — Schema Expansion (Coverage Win)
-- Extend `RELATION_SIGNATURES`: `HAS_OCCUPATION`, `HAS_AGE`, `HAS_STATUS`, `ORIGIN_OF`, `LOCATED_IN`.
-- Introduce document-level Virtual `EVENT` node.
-- Party role typing and Transaction classification.
+#### 8b — coverage (the real prize) — RULES-FIRST, laptop, no GPU
+- Deterministic **apposition rules** for `HAS_OCCUPATION` / `HAS_AGE` /
+  `HAS_STATUS` / `ORIGIN_OF` / `LOCATED_IN`: person → attribute, adjacency-based,
+  every edge auditable to its two spans. These attributes sit next to the name in
+  the large majority of cases, so rules capture most of the coverage cheaply.
+- Escalate to the learned model only where rules demonstrably fail.
+- Target linked coverage ~25% → ~70% (79% of persons are currently in no relation).
 
-#### 8c — Data Engine (Per-Type Silver + BOND)
-- Apposition silver rules for local attribute relations.
-- BOND self-training across 67,980 corpus documents.
+#### 8c — data, not machinery
+- **More direction gold** — the only proven lever for PAID_BY/PAID_TO: mine train
+  for payment-verb docs, hand-label ~dozens, append to gold (append-only; offsets
+  forward-scanned against `corpus.parquet`).
+- **BOND self-training — SHELVED.** Un-auditable (silently retrains on its own
+  guesses; failure is invisible) and unproven here. Revisit only if a *measured*
+  gap demands it.
 
-#### 8d — DB Assembly Layer
-- Morphological genitive parse for `CHILD_OF` kinship & gender.
-- HGV date & Pleiades place linking hooks for Phase 9.
+#### 8d — DB assembly (deterministic; Phase-9-adjacent)
+- Morphological genitive parse for `CHILD_OF` kinship + gender (needed for the
+  "women as principals" finding). Deterministic, auditable.
+- **Event assembly by grouping a document's relations at DB-build time** — NOT a
+  model-predicted virtual EVENT node (which would break span-traceability).
+- HGV date + Pleiades place linking hooks for Phase 9.
+
+#### Measurement still owed
+- End-to-end eval (**predicted** entities → RE) — the real deliverable number vs
+  the 0.713 oracle ceiling.
+
+**Cut / shelved:** direction features (null); BOND self-training (un-auditable,
+unproven); virtual EVENT node as a model construct (do it in the DB layer).
+PL-Marker typed markers only if the economic core plateaus.
