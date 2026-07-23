@@ -25,7 +25,7 @@ import typer
 from oikonomia.config import load_settings
 from oikonomia.corpus.io import corpus_path, iter_batches
 from oikonomia.db.facts import DocMeta, Ent, Rel, assemble_monetary
-from oikonomia.db.money import SILVER
+from oikonomia.db.prices import SPECS, clean_prices, price_series
 from oikonomia.labeling.lexicon import load_lexicon
 from oikonomia.labeling.matcher import Matcher
 from oikonomia.labeling.silver import SilverLabeler, load_patterns
@@ -38,6 +38,11 @@ SetOpt = Annotated[list[str] | None, typer.Option("--set", help="Dotted config o
 
 _COLUMNS = ["tm_id", "date_lo", "date_hi", "place_pleiades", "canonical_genres", "document_json"]
 FACTS_NAME = "db/monetary.parquet"
+PRICES_NAME = "db/prices.parquet"
+
+# Published anchors for the validation view (dr/artaba), so the series is judged
+# against scholarship, not eyeballed. Rough consensus ranges, not point claims.
+_WHEAT_LIT = {"Ptolemaic (3-1c BC)": "~1-2", "Roman (1-2c AD)": "~7-12", "3c AD+": "inflation ↑"}
 
 
 def _clean(x: object) -> float | None:
@@ -153,18 +158,59 @@ def _summarize(df: pd.DataFrame, n_docs: int, out_path: Path) -> None:
         top = priced["commodity_id"].value_counts().head(8).to_dict()
         typer.echo(f"  top priced commodities: {top}")
 
-    # Validation view: median wheat price per artaba by century (silver only).
-    wheat = df[
-        (df["commodity_id"] == "wheat")
-        & (df["system"] == SILVER)
-        & (df["unit_price_base"].notna())
-        & (df["unit_id"] == "artaba")
-    ]
-    if not wheat.empty:
-        typer.echo("\n  WHEAT price (drachmas / artaba), median by century — check vs Rathbone/Bagnall:")
-        g = wheat.groupby("century")["unit_price_base"].agg(["median", "count"]).sort_index()
-        for cen, r in g.iterrows():
-            label = f"{abs(int(cen))}{'c BC' if cen < 0 else 'c AD'}"
-            typer.echo(f"    {label:>7}: {r['median']:8.2f} dr/artaba  (n={int(r['count'])})")
+    # Validation view: the CLEANED wheat series (see db/prices.py), not the raw
+    # ratio — median by century vs the published literature.
+    ser = price_series(df, SPECS["wheat"], bucket="century", min_n=4)
+    if not ser.empty:
+        typer.echo("\n  WHEAT price (dr/artaba), cleaned median [IQR] by century — vs Rathbone/Bagnall:")
+        for _, r in ser.iterrows():
+            typer.echo(f"    {_cen(r['century']):>7}: {r['median']:7.2f} [{r['p25']:.1f}-{r['p75']:.1f}]  (n={int(r['n'])})")
+        typer.echo(f"    literature: {_WHEAT_LIT}")
     else:
-        typer.echo("\n  (no wheat/artaba unit-prices in this sample — widen --sample)")
+        typer.echo("\n  (no clean wheat/artaba prices in this sample — widen --sample)")
+
+
+def _cen(c: float) -> str:
+    c = int(c)
+    return f"{abs(c)}c {'BC' if c < 0 else 'AD'}"
+
+
+@db_app.command("prices")
+def prices(
+    env: EnvOpt = "local",
+    set_: SetOpt = None,
+    facts: Annotated[Path | None, typer.Option("--facts", help="Fact table (default: processed/db/monetary.parquet).")] = None,
+    out: Annotated[Path | None, typer.Option("--out", help="Cleaned price observations (default: processed/db/prices.parquet).")] = None,
+) -> None:
+    """Clean commodity price observations into a series (median [IQR] n per century).
+
+    Reads the monetary fact table, applies the price-cleaning rules
+    (:mod:`oikonomia.db.prices`), writes the surviving per-observation prices
+    (auditable, with provenance) and prints the per-century series per staple.
+    """
+    s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    facts_path = facts or (Path(s.paths.processed) / FACTS_NAME)
+    if not facts_path.is_file():
+        typer.secho(f"{facts_path} missing — run `oik db build` first.", fg="red")
+        raise typer.Exit(1)
+    df = pd.read_parquet(facts_path)
+
+    kept: list[pd.DataFrame] = []
+    for name, spec in SPECS.items():
+        clean = clean_prices(df, spec)
+        kept.append(clean.assign(commodity=name))
+        ser = price_series(df, spec, bucket="century", min_n=4)
+        head = f"{name} ({spec.unit}, dr/{spec.unit})"
+        typer.echo(f"\n=== {head} — {len(clean)} clean obs ===")
+        if ser.empty:
+            typer.echo("  (too few clean observations for a series)")
+            continue
+        for _, r in ser.iterrows():
+            typer.echo(f"  {_cen(r['century']):>7}: {r['median']:7.2f} [{r['p25']:.1f}-{r['p75']:.1f}]  (n={int(r['n'])})")
+    typer.echo(f"\n  wheat literature anchors: {_WHEAT_LIT}")
+
+    out_path = out or (Path(s.paths.processed) / PRICES_NAME)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    all_clean = pd.concat(kept, ignore_index=True) if kept else pd.DataFrame()
+    all_clean.to_parquet(out_path, index=False)
+    typer.echo(f"\nWrote {out_path}: {len(all_clean)} clean price observations (with provenance)")

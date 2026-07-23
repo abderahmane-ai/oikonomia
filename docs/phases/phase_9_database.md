@@ -78,24 +78,61 @@ dominates 6c–8c AD. This is the **textbook coinage history of Egypt, recovered
 unsupervised** — and it depends only on `MONEY_AMOUNT`+`CURRENCY` (0.88) + HGV
 dates, *not* the noisy price relation, so it is the more robust first finding.
 
-### Honest caveats (where the next iteration goes — and it is NOT model F1)
+### The wheat price series — first validated finding (`oik db prices`)
 
-- **`HAS_PRICE` noise** (rule/model 0.30–0.44) drives price-view outliers (2c BC
-  0.07 is a mis-parse; small-n centuries are unreliable).
-- **Per-unit semantics**: `unit_price = value / quantity` assumes the amount is the
-  *total* for that quantity; some amounts are already per-unit, and some linked
-  quantities are wrong (a 0.2-artaba link appeared). Needs a price-construction
-  model (τιμή / "per artaba" cues) and outlier filtering.
-- **Sample**: 18k docs; widen to the full 68k (the run is ~minutes, laptop).
+The raw `value/quantity` was dominated by extraction artifacts. Diagnosis on wheat
+found two, and `src/oikonomia/db/prices.py` filters them:
+
+- **the double-link** — **48%** of priced wheat rows had `value_num == quantity`
+  (the same numeral read as both price and amount), forcing the ratio to ~1.0 (the
+  "1 dr/artaba everywhere" artifact). Dropped.
+- **wrong unit / bronze** — commodities linked to a land area (`aroura`) or an
+  account total (quantities to 461,067), and `chalkous` bronze prices (the Ptolemaic
+  bronze/silver inflation, not a comparable signal). Requiring the commodity's own
+  measure (`artaba`), a silver denomination, and plausible quantity/price removes them.
+
+Precision over recall (this feeds a *published* number). The surviving **70 clean
+wheat observations** reproduce the literature — median [IQR] (n), silver system:
+
+| Century | dr/artaba | IQR | n | Published |
+|---|---|---|---|---|
+| 3c BC | 2.53 | 1.5–7.8 | 14 | ~1–2 (Ptolemaic) ✓ |
+| 1c AD | 2.44 | 1.5–16 | 5 | early Roman |
+| **2c AD** | **13.33** | **6.0–27.5** | 37 | **~7–12 (Roman) — IQR brackets it** |
+| 3c AD | 3.76 | 2.4–8.0 | 9 | inflation era (thin) |
+
+`oik db prices` writes `data/processed/db/prices.parquet` — 98 clean price
+observations (wheat/barley/wine), each with `(tm_id, span, date, place)` provenance.
+Barley/wine are thin (single well-populated centuries); oil too sparse for a series.
+
+**No model was used** — the price entities (wheat/drachma/artaba) are closed-class
+lexicon hits, so rules are at ceiling. The trained model's value is elsewhere (see
+below).
+
+### Honest caveats
+
+- **Small n** is the cost of precision filtering: 70 clean wheat obs. More would come
+  from better `HAS_PRICE`/`HAS_QUANTITY` linking — the one place the **trained
+  relation model could later raise recall** (it is not used in this rule-based path).
+- **3c AD (3.76) reads low** for the inflation onset — n=9, volatile; the great
+  inflation is 4c AD+, thin here.
+
+### Where the trained models fit (they are NOT used above — by design)
+
+The economic findings run on the lexicon + rules because prices/taxes are
+**closed-class vocabulary** the dictionary matches at ceiling; the neural model adds
+nothing there. The models earn their keep on:
+1. **deliverable #1** — a released papyri Greek NER+RE model, a contribution in itself;
+2. the **person/place-heavy findings** (women-as-principals, kinship, credit networks),
+   where PERSON/PLACE are open-class and rules fail (model beats rules +19 PERSON /
+   +11 PLACE) — those will run the trained entity model over the corpus (a Modal job).
 
 ### Next
 
-1. Harden the price slice: outlier filter, per-unit construction, full-corpus run;
-   produce a defensible wheat series with error bars vs the literature.
-2. **Second slice — "women as economic principals"** (the novel finding): needs
-   gender (deterministic from names/morphology) + `PARTY_OF` (0.65) + guardian-
-   `κύριος`, all slotting into the same DB layer; plus **split the PERSON blob** to
-   recover `CHILD_OF` kinship (43% of gold PERSON spans are a name+patronymic
-   collapsed into one node — the biggest structural gap for prosopography).
+1. **Tax finding** (cleanest signal — no per-unit math): *laographia* + *demosia* by
+   century/region, straight from the fact table (6,623 tax-linked amounts).
+2. **Women as economic principals** — the first finding that *needs* the trained
+   model: gender (deterministic) + `PARTY_OF` + guardian-`κύριος`, plus splitting the
+   PERSON blob for `CHILD_OF` kinship (43% of gold PERSON spans are collapsed).
 3. Entity identity/coreference for cross-document prosopography.
-4. Release the frozen entity+relation models (deliverable #1) — already at bar.
+4. Release the frozen entity+relation models (deliverable #1).

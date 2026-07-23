@@ -137,8 +137,8 @@ uv run oik silver label                       # emit silver over train (~5 min);
 .venv/bin/oik relation score                  # nearest-pair baseline (the bar): rel micro F1 0.443
 
 # --- Database (Phase 9) — the ACTIVE deliverable; deterministic, laptop, no GPU ---
-.venv/bin/oik db build --sample 20000         # corpus → monetary fact table (+ wheat-price validation view)
-.venv/bin/oik db build --sample 0             # whole corpus (~minutes); writes data/processed/db/monetary.parquet
+.venv/bin/oik db build --sample 0             # whole corpus (~minutes) → data/processed/db/monetary.parquet
+.venv/bin/oik db prices                       # clean price series (median [IQR] n) → db/prices.parquet
 ```
 
 Explicit cache-clear (if `make clean` is unavailable). **Never use `find -delete`
@@ -220,7 +220,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 7 Entity NER | ✅ | **DAPT beats no-DAPT control +9.5 strict F1** (PERSON +19, PLACE +11) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 7b Two-stage silver→gold | ✅ | gold-FT recipe → **strict 0.737 / relaxed 0.837**; GCE rejected (−5.7) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); 8a closed (data-bound); 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
-| 9 Corpus→DB | 🔶 ACTIVE | full-corpus fact table: **195,906 facts, 99% normalized, 100% provenance**; price + tax + monetization findings ready | [phase_9](docs/phases/phase_9_database.md) |
+| 9 Corpus→DB | 🔶 ACTIVE | **195,906 facts** (99% norm, 100% prov); **wheat price series validated** (2c AD 13.3 dr/artaba vs lit ~7–12); tax finding next | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis · 11 Release | ⬜ | findings (price series, women-as-principals) + HF model release | — |
 
 ---
@@ -246,10 +246,27 @@ centuries) and 6,623 tax payments (demosia/laographia/phoros — cleaner, no
 per-unit math).** Code: `src/oikonomia/db/{money,dates,facts}.py` + `cli/db_cmd.py`.
 Detail: [`docs/phases/phase_9_database.md`](docs/phases/phase_9_database.md).
 
-**NEXT decision (owner leaning taxes):** develop the **tax finding** first
-(laographia + demosia by century/region — cleanest signal, minimal hardening),
-harden the **price** series in parallel (fix the per-unit over-division, robust
-outlier filter). Both come from the same fact table.
+**Wheat price finding — DONE + validated (`oik db prices`).** `src/oikonomia/db/
+prices.py` cleans the fact table (drops the 48% `value_num==quantity` double-link
+artifact, bronze `chalkous`, wrong units, implausible qty/price). 70 clean wheat
+obs reproduce the literature: 3c BC **2.53** (lit ~1–2), **2c AD 13.33 [IQR 6–27.5]
+n=37** (lit ~7–12 — IQR brackets it), 3c AD 3.76. Writes `db/prices.parquet` (98
+obs, full provenance). Small n is the honest cost of precision filtering.
+
+**MODELS vs RULES — read this so it never confuses again.** The economic findings
+(prices/taxes) run on the **lexicon + rules**, NOT the trained neural models —
+correctly: prices need closed-class vocab (drachma/artaba/wheat) a gazetteer
+matches at ceiling, so the model adds nothing. The trained models earn their keep
+elsewhere: (1) as **deliverable #1** (a released papyri Greek NER+RE model — a
+contribution in itself), and (2) for the **person/place-heavy findings** (women-as-
+principals, kinship) where PERSON/PLACE are open-class and rules fail (model beats
+rules +19 PERSON / +11 PLACE). The entity model is saved on Modal but not yet wired
+into the DB; the relation model was only xval-measured, never saved.
+
+**NEXT decision (owner leaning taxes):** the **tax finding** (laographia + demosia
+by century/region — cleanest signal, no per-unit math, 6,623 tax-linked amounts,
+all from the same fact table). Then **women-as-principals** — the first finding that
+actually *needs* the trained entity model (a Modal inference run over the corpus).
 
 **Triage (what is shelved/frozen — do not reopen without a finding that demands it):**
 
@@ -334,6 +351,8 @@ the binding constraint — the audits say it is not.
 - `data/processed/relations/relation_labels.json` — gitignored; `oik relation prepare`.
 - `data/processed/db/monetary.parquet` — **2.6 MB, 195,906 rows** (Phase 9 fact
   table). Regen: `oik db build --sample 0` (~minutes). Gitignored, re-derivable.
+- `data/processed/db/prices.parquet` — **98 clean price obs** (wheat/barley/wine,
+  with provenance). Regen: `oik db prices`. Gitignored, re-derivable.
 - **Modal Volume `oikonomia-dapt`:** `shards/{train,dev}.bin`,
   `checkpoints/full/final` (**B1** — load this for b1). Stale `checkpoints/b1-*`
   from the first sweep are safe to `modal volume rm -r`.
