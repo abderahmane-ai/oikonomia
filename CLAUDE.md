@@ -1208,6 +1208,74 @@ joins adjacent names with no bridge token (*Ψενθώτης Νεχούτου Π
 2 people as 1 span), which corrupts a giver-verb payer span and hides the dative
 payee. Belongs to the PERSON LF, not `_direction_relations`.
 
+### 🔶 Phase 8 — Relation model (scaffolding BUILT + green; GPU run NOT yet done)
+
+**Status: the span-pair RE harness is built, tested and green; no GPU run has
+been launched.** Do not read a relation result into this yet — the number comes
+from `xval`.
+
+**Two owner decisions (locked this session):** (1) **architecture = span-pair,
+single encode per document (SpERT-style)** — typed markers (PURE) are the
+documented next lever; (2) **eval = oracle entities first** (train/score given
+gold spans; the clean RE number), end-to-end (B1-predicted entities → RE) as a
+follow-up.
+
+**Why RE is the scientific risk (measured, not asserted):** the rule linker is
+weak exactly where the schema matters — the **nearest-pair oracle baseline** (new,
+`oik relation score`, over gold entities) is recall-heavy / precision-poor:
+**micro F1 0.443, P 0.299, R 0.852**, and specifically **PAID_TO 0.000**
+(direction-blind), **PAID_BY P 0.045**, **PARTY_OF P 0.347**. That gap —
+precision and payment *direction* — is what a learned model has to close.
+
+**Built (all pure/torch-free in the library; torch only in `modal_app/`):**
+- `src/oikonomia/relations/encode.py` — typed candidate generation. `RELATION_SIGNATURES`
+  (imported from `gold.validate`, the one authority) → `admissible_types` /
+  `candidate_pairs` / `label_candidates` / `admissible_mask` /
+  `char_span_to_token_range` / `window_entities` / `uncovered_relations`
+  (the recall guard). A precomputed `_ADMISSIBLE`/`_LOCAL_ONLY` table makes each
+  pair O(1) (the 9-signature scan per pair crawled on the dense registers).
+  **Range-aware pruning:** local family {HAS_CURRENCY/UNIT/QUANTITY/PRICE,
+  CHARGED_UNDER} capped at 500 chars; long family {PARTY_OF, PAID_*, DATED_TO}
+  uncapped (they anchor on the ~1/doc TRANSACTION / reach across a clause —
+  measured gold gaps: local ≤411, long ≤874). `ENDPOINT_LABELS` (12) = the
+  type-embedding vocab, derived from the contract (AGE/PLACE/PRICE_TERM are never
+  relation endpoints, so need no embedding).
+- `src/oikonomia/relations/data.py` — `relations_of` (confidence-aware).
+- `src/oikonomia/cli/relation_cmd.py` — `oik relation prepare` (freezes
+  `processed/relations/relation_labels.json`; **recall guard = 0 uncovered over
+  all 710 gold relations ✓**; candidate stats) and `oik relation score` (the
+  nearest-pair baseline above). Registered in `cli/main.py`.
+- `modal_app/relations.py` — fork of `ner.py`. **`RelationHead`**: single encode
+  with B1; entity rep = max-pool of its tokens + a type embedding; pair feature =
+  `[rep_h ; rep_t ; between-span ctx ; CLS ; type_h ; type_t]` (the between-span
+  context is where the payment verb sits — the PAID_BY/PAID_TO signal); MLP over
+  10 relation labels (NO_RELATION + 9), **admissibility-masked** at inference so
+  an illegal type can never be emitted. Custom per-doc-batched fp32 training loop
+  (AdamW + linear warmup); **paired k-fold CV** identical in structure to
+  `ner.py` (silver-pretrain once → per fold: reset, score held-out = silver-only,
+  fine-tune on the fold's gold-train, score again = silver→gold; pool → the
+  `relations` block of `build_report`). `push` uploads `relation_labels.json`
+  only (silver/gold already on the `oikonomia-ner` Volume from Phase 7); `xval
+  --backbone b1 --loss ce [--no-relation-weight W] [--min-confidence C]`.
+- `tests/test_relation_encode.py` — 12 hand-computed tests (admissible pairs,
+  typed+gap pruning, the recall guard, `char_span_to_token_range` boundaries,
+  `window_entities` remap, mask).
+
+**Candidate density (from `oik relation prepare`, 4k-doc silver sample):**
+positive rate **0.0397** (~24:1 negatives) — hence the `--no-relation-weight`
+recall lever (default 1.0, unweighted/clean first). Typed generation is what
+makes 4% positive tractable at all; without it the O(n²) untyped negatives (and
+one 44,530-entity silver register) are unworkable — the harness **windows
+entities to the 512-token span before pairing** (`window_entities`, index-remapped)
+so the model only ever pairs what it can see, which also bounds the cost.
+
+**Next action:** `push` then `xval --backbone b1 --loss ce` on the venv's modal
+(the container imports `oikonomia`). The headline is the silver-only → silver→gold
+**relations micro-F1** (oracle entities), per type — watch PAID_BY/PAID_TO
+(direction the rules can't) and PARTY_OF (silver P≈0.28). **Not built:** the
+end-to-end pipeline eval (B1 predicted entities → RE) for the deliverable number,
+and the b0 control (add only if b1 is worth comparing).
+
 ---
 
 ## 7. Verified fact ledger
@@ -1485,7 +1553,8 @@ architecture claim on our own data rather than on the literature's.
 
 ## 8. Progress
 
-**~62% of the full project. Phases 0–7b done, Phase 5c done; Phase 8 is next.**
+**~64% of the full project. Phases 0–7b + 5c done; Phase 8 relation model
+SCAFFOLDING built + green (harness untrained — the number comes from `xval`).**
 **Phase 4 DAPT — full FT wins, `full/final` (B1) saved**; **Phase 5 — 115 gold
 docs, ALL human_validated, 2,995 entities + 710 relations (incl. 87 PAID_BY/
 PAID_TO direction), 0 errors**; **Phase 5c — payment direction merged**; **Phase
@@ -1505,10 +1574,14 @@ chronological splits, and a scored, confidence-aware silver labeler.
 (87 edges / 38 docs; §6, §9). **Silver-v2 DONE** — entity model strict 0.737 /
 relaxed 0.837 (§6 Phase-7b re-run). Entity side is validated and frozen.
 
-Remaining: **Phase 8 relation model** (the next big build, on the
-direction-augmented schema — the scientific risk) · Phase 9 corpus inference → DB
-· Phase 10 historical analysis · Phase 11 release. Entity-side gold is in strong
-shape (115 human-validated docs, 0 errors, 710 relations incl. direction).
+**Phase 8 relation model — scaffolding built this session (§6 Phase 8):**
+span-pair (SpERT-style, single encode), oracle-entity eval, typed candidate
+generation (recall guard 0 uncovered over all 710 gold relations), `modal_app/
+relations.py` paired-k-fold harness, `oik relation prepare`/`score`, 12 tests.
+Green (ruff/mypy/428 tests). **The GPU `xval` has NOT been run** — the
+nearest-pair *baseline* to beat is micro F1 0.443 (P 0.299, R 0.852; PAID_TO
+0.000, PARTY_OF P 0.347). Remaining: run `xval`, then end-to-end pipeline eval ·
+Phase 9 corpus inference → DB · Phase 10 analysis · Phase 11 release.
 
 **The entity model is validated: strict 0.737 / relaxed 0.837 on the 115-doc
 all-human gold** (Silver-v2 re-run 2026-07-23; was 0.710/0.811 pre-v2). Silver-v2
@@ -1524,7 +1597,30 @@ did nothing); they need cleaner/more-consistent labels or a different lever.
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-23 (**Phase 5c direction DONE + Silver-v2 DONE + trained**).
+_Last updated: 2026-07-23 (**Phase 8 relation scaffolding BUILT + green**). New
+this session (Phase 8, §6): `src/oikonomia/relations/{__init__,encode,data}.py`,
+`src/oikonomia/cli/relation_cmd.py` (+ registered in `cli/main.py`),
+`modal_app/relations.py`, `tests/test_relation_encode.py` (12 tests), and
+`data/processed/relations/relation_labels.json` (gitignored; regen with `oik
+relation prepare`). **Gate green: ruff (src tests modal_app) · mypy (65 files) ·
+428 tests · caches cleared.** The harness is **launch-ready but UNTRAINED** — no
+`modal run` has been done for relations. The torch model could not be run locally
+(the venv has no torch), so the `xval` GPU run is its first integration test.
+`oik relation prepare` recall guard = **0 uncovered** over all 710 gold relations;
+`oik relation score` nearest-pair baseline (the bar) = micro F1 **0.443** (P 0.299
+R 0.852; PAID_TO 0.000, PAID_BY P 0.045, PARTY_OF P 0.347). To run:
+`.venv/bin/modal run --detach modal_app/relations.py::push` then
+`::xval --backbone b1 --loss ce` (silver/gold already on the `oikonomia-ner`
+Volume from Phase 7; `push` only adds `relation_labels.json` and verifies they
+are present + prints the silver fingerprint to check for staleness). Recall lever
+for the ~24:1 negative imbalance (positive rate 0.0397): `--no-relation-weight`.
+
+**Prior state (Phase 0–7b + 5c, all still current, committed `main` @ `eff0c5f`):**
+entity model validated strict 0.737 / relaxed 0.837, DAPT B1 = `checkpoints/full/
+final`, gold 115 docs all human_validated (2,995 entities / 710 relations incl.
+87 PAID_*), silver `sha=96428892f944 docs=48891 age=4888`. Details below._
+
+_Earlier session (2026-07-23, **Phase 5c direction DONE + Silver-v2 DONE + trained**).
 Everything committed and green; **working tree clean, `main` @ `0ae8192`** (4 new
 commits this session: Phase-5c direction merge → Silver-v2 labeler → ner Volume
 reload/fingerprint fix → result record). Two threads landed:
@@ -1793,7 +1889,16 @@ cd /Users/abdoumagico/Development/ACHATES
 #   "volume silver.jsonl …" line — else it ran on stale data. Current silver:
 #   sha=96428892f944 docs=48891 age=4888. Expect silver→gold strict ~0.737.
 
-# 4. (Optional) more gold candidates: AGE-dense train docs, or undone to_annotate
+# 4. PHASE 8 — relation model: scaffolding is built + green. Verify + run:
+.venv/bin/oik relation prepare   # recall guard MUST be 0 uncovered; writes relation_labels.json
+.venv/bin/oik relation score     # nearest-pair baseline (the bar): micro F1 ~0.443
+.venv/bin/modal run --detach modal_app/relations.py::push               # adds relation_labels.json
+.venv/bin/modal run --detach modal_app/relations.py::xval --backbone b1 --loss ce
+#   CHECK the "training on silver sha=…" line matches push's (staleness guard).
+#   Headline = silver-only → silver→gold RELATIONS micro-F1 (oracle entities), per type.
+#   Recall lever for the ~24:1 imbalance: --no-relation-weight 0.3 (default 1.0).
+
+# 5. (Optional) more gold candidates: AGE-dense train docs, or undone to_annotate
 .venv/bin/python /path/to/scratchpad/find_age_docs2.py   # ranked AGE candidates (regen if lost)
 ```
 
@@ -1804,28 +1909,28 @@ silver-only ceiling 0.573→0.654). AGE solved (0.974). Gold is 115 docs, all
 `human_validated`, 0 errors. **Nothing here is blocked on more gold volume** —
 the next entity lever is TAX_TERM/PERSON_ROLE label *consistency*, not data.
 
-**The immediate next move: PHASE 8 — the relation model.** Phase 5c (direction)
-and Silver-v2 are done, committed, green; the entity side is validated (0.737)
-and frozen. Phase 8 is the next big build and the **scientific risk** of the
-project. What it has to work with:
-- **Gold: 115 docs, 710 relations** — `PARTY_OF` (147), `HAS_CURRENCY`/`HAS_UNIT`/
-  `HAS_QUANTITY`/`HAS_PRICE`, `DATED_TO`, `CHARGED_UNDER`, and now **`PAID_BY`
-  (44) / `PAID_TO` (43)** direction. The complete relation schema is in
-  `validate.RELATION_SIGNATURES`; the scorer already reports directed relations
-  (`oik silver score`, RELATIONS block).
-- **Silver: 349k relations** in `silver.jsonl` (`provenance: silver`, per-edge
-  `confidence`). But silver relation quality is weak — measured on gold: PARTY_OF
-  P≈0.28, direction recall ≈5% (rule ceiling), HAS_PRICE ~0. So Phase 8 is
-  exactly the "learn what the rules can't" problem, mirroring the entity story.
-- **Backbone: B1** (`checkpoints/full/final`, the papyri-DAPT'd GreBerta) — the
-  proven entity backbone. **Likely recipe by analogy to Phase 7b: silver-pretrain
-  the relation head, then gold fine-tune** (gold-FT was the entity lever; expect
-  the same). The `modal_app/ner.py` harness (Volume, fingerprint/reload, paired
-  k-fold CV, `build_report`) is the template to fork for a relation model.
-- **Decide first (real design choices):** span-pair classification over predicted/
-  gold entities vs a joint span+relation model (§7 ledger: joint wins *when well
-  designed*, underperforms a pipeline when not); how to feed entity spans at
-  train vs inference; confidence-weighting the silver like the entity CE run.
+**The immediate next move: RUN the Phase 8 `xval`.** The relation-model
+scaffolding is **built, tested and green** (§6 Phase 8) — the design forks are
+resolved (span-pair single-encode SpERT-style, oracle-entity eval), the harness
+`modal_app/relations.py` is a fork of `ner.py`, and every pure piece is tested.
+What remains is the GPU run and reading the number:
+1. `oik relation prepare` (recall guard 0 ✓) → `push` → `xval --backbone b1
+   --loss ce`. Headline = silver-only → silver→gold **relations micro-F1**
+   (oracle entities), per type. **Beat the baseline** (`oik relation score`:
+   micro F1 0.443, PAID_TO 0.000, PARTY_OF P 0.347).
+2. If the model collapses toward NO_RELATION (low recall — plausible at 4%
+   positive rate), rerun with `--no-relation-weight 0.3`. If PAID_BY/PAID_TO or
+   PARTY_OF stay weak, that is the finding to chase (typed markers are the next
+   architecture lever; confidence-weighting via `--min-confidence` the next
+   label lever — both already wired).
+3. Then build the **end-to-end pipeline eval** (B1 predicted entities → RE) for
+   the deliverable number, and (only if worth comparing) the b0 control.
+
+Working material: **gold 115 docs / 710 relations** (`validate.RELATION_SIGNATURES`
+is the contract); **silver 349k relations** (`silver.jsonl`, per-edge confidence,
+weak: PARTY_OF P≈0.28, direction recall ≈5%); **backbone B1** (`checkpoints/full/
+final`). The Phase-7b recipe (silver-pretrain → gold fine-tune, paired k-fold CV,
+`build_report`) is reused wholesale.
 
 **Parallel/optional — entity polish (not blocking Phase 8): the stubborn classes.**
 TAX_TERM (0.39) and PERSON_ROLE (0.36) are the entity ceiling and are now proven
