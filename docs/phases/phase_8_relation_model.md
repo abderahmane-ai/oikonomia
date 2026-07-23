@@ -137,11 +137,30 @@ push + xval measures `HAS_OCCUPATION`/`HAS_AGE` F1 and the coverage-driven
 end-to-end number.
 
 **NEXT in 8b — the fuzzier attribute relations** (`HAS_STATUS`, `ORIGIN_OF`,
-`LOCATED_IN`). Deferred deliberately: PLACE→PERSON apposition is looser (median gap
-20 vs 1 for occupation) and needs **prepositional cues** (ἀπό/ἐκ for origin, ἐν for
-location) plus a schema-direction decision; `HAS_STATUS` overlaps the existing
-dual use of `PERSON_ROLE` (a status word δοῦλος *is* a `PERSON_ROLE`). These want
-their own corpus-evidence pass before a rule is written — do not guess them.
+`LOCATED_IN`). Deferred deliberately, and the deferral is now **backed by a gold
+evidence pass** (2026-07-23), not a hunch:
+
+*Place relations (`ORIGIN_OF` / `LOCATED_IN`).* Of 233 PLACE entities, 154 (66%)
+have a PERSON/ROLE within 40 chars (median gap **10**, vs 1 for occupation), split
+93 before / 61 after — looser and less directional than apposition. The structure
+is **prepositional, not adjacency**: the token before a PLACE is ἀπό/ἀπ' (38 ×,
+*origin*), ἐν (23 ×, *location*), περί (12 ×, *near*), plus the article of
+`ἀπὸ τῆς κώμης`. Two design forks a pure rule cannot paper over:
+  1. **Many place links are PLACE → PLACE, not person → place** — a village/parcel
+     located *within* a nome (`Ὀξυρύγχων πόλεως περὶ Κερκεμοῦνιν`, `ἐκ τοῦ
+     Ἀνδρονίκου κλήρου`): the administrative hierarchy (κώμη < μερίς < νομός).
+     `LOCATED_IN` is really a place-hierarchy edge and needs its own signature.
+  2. **"from X" is not always a person's origin** — it also marks a *commodity's*
+     provenance (`τὸ εἶδος ἀπ' Ὀξυρύγχων`). `ORIGIN_OF` needs a schema-direction
+     decision and a head-label gate, not just an ἀπό cue.
+So: gate on the preposition (ἀπό/ἐκ → origin, ἐν → location), decide the
+signatures (`ORIGIN_OF`: PERSON/PERSON_ROLE → PLACE; `LOCATED_IN`: PLACE → PLACE),
+and only then write the rule.
+
+*`HAS_STATUS`.* Overlaps the existing dual use of `PERSON_ROLE` — a status word
+(δοῦλος, ἀπελεύθερος) *is* tagged `PERSON_ROLE`, which already heads PARTY_OF /
+PAID_* / the new HAS_* apposition. Adding HAS_STATUS means splitting the role
+vocabulary (status vs office) first; a schema question, not a rule.
 
 #### 8c — data, not machinery
 - **More direction gold** — the only proven lever for PAID_BY/PAID_TO: mine train
