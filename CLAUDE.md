@@ -1485,15 +1485,15 @@ architecture claim on our own data rather than on the literature's.
 
 ## 8. Progress
 
-**~60% of the full project.** Phases 0–3 complete; **Phase 4 DAPT RUN — full FT
-wins, `full/final` (B1) saved**; **Phase 5 — 115 gold docs, ALL human_validated,
-2,995 entities, 0 errors, all byte-identical to corpus; AGE un-starved 6→133**;
-**Phase 6 silver emitted over the train split** (1.11M entities
-/ 328k relations); **Phase 7 entity NER RUN — DAPT beats the no-DAPT control
-+9.5 strict F1** (b1 0.589 vs b0 0.495; PERSON +19, PLACE +11); **Phase 7b
-two-stage RUN — settled recipe DAPT + silver(CE) + gold-FT; on the 115-doc
-all-human gold strict 0.710 / relaxed 0.811, AGE 0.0→0.947** (GCE rejected −5.7).
-Foundation:
+**~62% of the full project. Phases 0–7b done, Phase 5c done; Phase 8 is next.**
+**Phase 4 DAPT — full FT wins, `full/final` (B1) saved**; **Phase 5 — 115 gold
+docs, ALL human_validated, 2,995 entities + 710 relations (incl. 87 PAID_BY/
+PAID_TO direction), 0 errors**; **Phase 5c — payment direction merged**; **Phase
+6 + Silver-v2 — silver labeler micro F1 0.585→0.667, re-emitted over the train
+split**; **Phase 7 entity NER — DAPT beats no-DAPT control +9.5 strict F1**;
+**Phase 7b two-stage — settled recipe DAPT + Silver-v2(CE) + gold-FT; on the
+115-doc all-human gold strict 0.737 / relaxed 0.837, AGE 0.974** (GCE rejected
+−5.7). Foundation:
 a validated corpus-ingestion pipeline built over all
 67,980 documents at parse rate 1.000, whole-corpus characterization, mined
 lexicons with measured recall, the annotation schema (guidelines v0.3, ten
@@ -1501,16 +1501,14 @@ rules), a mechanical span + **numeral-coverage** validator (`oik gold check`),
 a proximity baseline at a 74.50% numeral link rate, leak-free stratified +
 chronological splits, and a scored, confidence-aware silver labeler.
 
-**Phase 5c IN PROGRESS — payment direction (`PAID_BY`/`PAID_TO`)**, a
-deliverable-driven prelude to Phase 8: the silver direction engine is built +
-tested (green), and the gold direction draft is 46/64 reviewed (47 edges) in
-`data/gold/direction_draft.jsonl`, awaiting owner validation (§6, §9).
+**Phase 5c DONE — payment direction (`PAID_BY`/`PAID_TO`) merged into the gold**
+(87 edges / 38 docs; §6, §9). **Silver-v2 DONE** — entity model strict 0.737 /
+relaxed 0.837 (§6 Phase-7b re-run). Entity side is validated and frozen.
 
-Remaining: **finish Phase 5c** (validate draft + 18 unread/17 flagged docs →
-merge → re-score) · **Phase 8 relation model** (the big build, on the
-direction-augmented schema) · Phase 9 corpus inference → DB · Phase 10 historical
-analysis · Phase 11 release. Entity-side gold is in strong shape (115
-human-validated docs, 0 errors).
+Remaining: **Phase 8 relation model** (the next big build, on the
+direction-augmented schema — the scientific risk) · Phase 9 corpus inference → DB
+· Phase 10 historical analysis · Phase 11 release. Entity-side gold is in strong
+shape (115 human-validated docs, 0 errors, 710 relations incl. direction).
 
 **The entity model is validated: strict 0.737 / relaxed 0.837 on the 115-doc
 all-human gold** (Silver-v2 re-run 2026-07-23; was 0.710/0.811 pre-v2). Silver-v2
@@ -1526,14 +1524,28 @@ did nothing); they need cleaner/more-consistent labels or a different lever.
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-23 (**Phase 5c — payment direction VALIDATED + MERGED
-into the gold**). Owner gave the scope call (leases/sales/in-kind all count) and
-authorised the merge. This session rejected an external (Gemini) case-rule review
-of the draft, re-derived the payment-doc set over all 89 money/commodity gold
-docs (prior triage lost with its deleted builder), annotated 20 new payment docs,
-and **merged 87 `PAID_BY`/`PAID_TO` edges across 38 docs into
-`annotated.jsonl`** (relations 623→710, `oik gold check` 0 errors). Did NOT train
-anything. Gold entities are unchanged; only relations were added.
+_Last updated: 2026-07-23 (**Phase 5c direction DONE + Silver-v2 DONE + trained**).
+Everything committed and green; **working tree clean, `main` @ `0ae8192`** (4 new
+commits this session: Phase-5c direction merge → Silver-v2 labeler → ner Volume
+reload/fingerprint fix → result record). Two threads landed:
+
+1. **Silver-v2 (the headline).** Labeler accuracy pass (§6 Phase 6, entity micro
+   F1 0.585→0.667: AGE 0→0.97, OCCUPATION 0.28→0.65, DATE_REF 0.39→0.52, PERSON
+   0.68→0.72). Silver re-emitted (`data/processed/silver.jsonl` now **48,891 docs,
+   AGE labels 4,888**, `sha=96428892f944`), pushed, `xval b1 ce` re-run →
+   **entity model strict 0.710 → 0.737 / relaxed 0.837** (silver-only ceiling
+   0.573→0.654). See §6 Phase-7b "Silver-v2 re-run". Stubborn: TAX_TERM 0.39,
+   PERSON_ROLE 0.36 (immune to volume AND better silver → next lever is label
+   consistency, not data).
+2. **Phase 5c payment direction — VALIDATED + MERGED** (details below): 87
+   `PAID_BY`/`PAID_TO` edges across 38 gold docs, relations 623→710, `oik gold
+   check` 0 errors. Gold entities unchanged; only relations added.
+
+**`oikonomia-ner` Volume now holds the Silver-v2 silver + 115-doc gold** (pushed
+this session). Any future `xval`/`push` prints a fingerprint (`sha docs age`) on
+both sides — the `train` "training on silver …" line must match the `push`
+"volume silver.jsonl …" line, else it ran on stale data (a warm-container trap
+that bit the first Silver-v2 run; fixed with `ner_volume.reload()`).
 
 **Gold direction — DONE (this session):**
 - `annotated.jsonl` now carries **38 direction docs / 87 `PAID_BY`/`PAID_TO`
@@ -1559,11 +1571,13 @@ anything. Gold entities are unchanged; only relations were added.
 - Guidelines **v0.4** (§5 payment-direction rule). 10 hand-computed tests.
 - Coverage: ~6,460 silver direction edges over the 49k train docs.
 
-**Prior state (still current, unchanged this session):** Phase 4 DAPT full FT
-wins → `checkpoints/full/final` = B1; Phase 7 entity NER DAPT beats control +9.5
-strict F1, `models/{b0,b1}/final` on `oikonomia-ner` Volume; Phase 7b two-stage
-silver→gold strict 0.710 / relaxed 0.811, AGE 0.947. `annotated.jsonl` = 115
-docs, all human_validated, 0 errors, byte-identical; now +87 direction relations._
+**Prior state (still current):** Phase 4 DAPT full FT wins →
+`checkpoints/full/final` = B1; Phase 7 entity NER DAPT beats control +9.5 strict
+F1; Phase 7b two-stage silver→gold now **strict 0.737 / relaxed 0.837** (Silver-v2,
+was 0.710/0.811), AGE 0.974. `annotated.jsonl` = 115 docs, all human_validated,
+0 errors, byte-identical, +87 direction relations. `xval` saves no persistent
+model — the shippable NER model is a later `launch`-style full train once the
+recipe is frozen (it now is: DAPT + Silver-v2 + gold-FT)._
 
 **Built (green — ruff, mypy 61 files, 409 tests, caches cleared):**
 - Verb-anchored `PAID_BY`/`PAID_TO` in `SilverLabeler._direction_relations`
@@ -1766,22 +1780,18 @@ cd /Users/abdoumagico/Development/ACHATES
 # 3. Gold intact? (115 docs, ALL human_validated, 0 errors + numerals_checked)
 .venv/bin/oik gold check
 
-# 3b. Phase 6 silver intact? (re-emit if silver.jsonl missing)
-.venv/bin/oik silver score                  # entity micro F1 ~0.60 exact / ~0.72 relaxed
-#   oik silver distmap --sample 20000  ->  oik silver label   (rebuilds silver.jsonl, ~5 min)
+# 3b. Silver-v2 intact? (re-emit if silver.jsonl missing/stale)
+.venv/bin/oik silver score                  # entity micro F1 ~0.667 exact / ~0.752 relaxed
+#   After ANY labeler/lexicon/patterns edit, re-emit before pushing:
+#     oik silver distmap --sample 20000  ->  oik silver label   (~5 min; sha changes)
 
-# 3c. Re-run the entity xval any time (Volume already has the 115-doc gold):
+# 3c. Re-run the entity xval any time (Volume has Silver-v2 silver + 115-doc gold):
+#   .venv/bin/modal run --detach modal_app/ner.py::push     # re-push ONLY if
+#     annotated.jsonl / silver.jsonl / labels.json changed (push prints a sha)
 #   .venv/bin/modal run --detach modal_app/ner.py::xval --backbone b1 --loss ce
-#   (re-`push` first only if annotated.jsonl/silver.jsonl/labels.json changed)
-
-# 3d. Phase 5c (IN PROGRESS) — payment direction PAID_BY/PAID_TO.
-#   The silver engine is built+green; the gold draft awaits owner validation:
-head -5 data/gold/direction_draft.jsonl        # 18 docs / 47 hand-verified edges
-#   Smoke-test the labeler on real docs (scratchpad helper is gone; regenerate):
-#     builds candidates over gold's own entities via SilverLabeler._direction_relations
-#   Remaining: validate the 47 edges + finish 18 unread + 17 flagged docs (§6/§9),
-#   then MERGE validated edges into annotated.jsonl (append to each doc's
-#   "relations" — do NOT regenerate the file), re-push, oik silver score.
+#   CHECK: train's "training on silver sha=… docs=… age=…" MUST match push's
+#   "volume silver.jsonl …" line — else it ran on stale data. Current silver:
+#   sha=96428892f944 docs=48891 age=4888. Expect silver→gold strict ~0.737.
 
 # 4. (Optional) more gold candidates: AGE-dense train docs, or undone to_annotate
 .venv/bin/python /path/to/scratchpad/find_age_docs2.py   # ranked AGE candidates (regen if lost)
@@ -1794,36 +1804,38 @@ silver-only ceiling 0.573→0.654). AGE solved (0.974). Gold is 115 docs, all
 `human_validated`, 0 errors. **Nothing here is blocked on more gold volume** —
 the next entity lever is TAX_TERM/PERSON_ROLE label *consistency*, not data.
 
-**The immediate next move: FINISH PHASE 5c (payment direction).** This session
-built the silver direction engine (green) and drafted 46/64 gold payment docs
-into `data/gold/direction_draft.jsonl` (47 signature-checked `PAID_BY`/`PAID_TO`
-edges + 11 confident-none + 17 flagged). To finish:
-1. **Owner validates** the 47 draft edges and the 11 "none" calls.
-2. **Scope call** (owner's, blocks the 17 flagged): does direction cover leases
-   (future rent), sales (buyer→seller money), and in-kind distribution lists —
-   or only completed money/goods receipts? Decide, then annotate the flagged +
-   the 18 unread docs.
-3. **Merge** validated edges into `annotated.jsonl` (append per-doc, never
-   regenerate), re-`push`, `oik silver score` → real per-direction precision →
-   update the PROVISIONAL `PAID_CONFIDENCE`, tune recall.
-Then Phase 8 trains on the direction-augmented schema. `git status` this session
-is uncommitted on `main` — branch + commit the engine+draft when ready (§9).
+**The immediate next move: PHASE 8 — the relation model.** Phase 5c (direction)
+and Silver-v2 are done, committed, green; the entity side is validated (0.737)
+and frozen. Phase 8 is the next big build and the **scientific risk** of the
+project. What it has to work with:
+- **Gold: 115 docs, 710 relations** — `PARTY_OF` (147), `HAS_CURRENCY`/`HAS_UNIT`/
+  `HAS_QUANTITY`/`HAS_PRICE`, `DATED_TO`, `CHARGED_UNDER`, and now **`PAID_BY`
+  (44) / `PAID_TO` (43)** direction. The complete relation schema is in
+  `validate.RELATION_SIGNATURES`; the scorer already reports directed relations
+  (`oik silver score`, RELATIONS block).
+- **Silver: 349k relations** in `silver.jsonl` (`provenance: silver`, per-edge
+  `confidence`). But silver relation quality is weak — measured on gold: PARTY_OF
+  P≈0.28, direction recall ≈5% (rule ceiling), HAS_PRICE ~0. So Phase 8 is
+  exactly the "learn what the rules can't" problem, mirroring the entity story.
+- **Backbone: B1** (`checkpoints/full/final`, the papyri-DAPT'd GreBerta) — the
+  proven entity backbone. **Likely recipe by analogy to Phase 7b: silver-pretrain
+  the relation head, then gold fine-tune** (gold-FT was the entity lever; expect
+  the same). The `modal_app/ner.py` harness (Volume, fingerprint/reload, paired
+  k-fold CV, `build_report`) is the template to fork for a relation model.
+- **Decide first (real design choices):** span-pair classification over predicted/
+  gold entities vs a joint span+relation model (§7 ledger: joint wins *when well
+  designed*, underperforms a pipeline when not); how to feed entity spans at
+  train vs inference; confidence-weighting the silver like the entity CE run.
 
-**After Phase 5c, the two moves for Phase 8 / entity polish:**
-
-1. **Phase 8 — relation model.** The next big build and the scientific risk:
-   silver PARTY_OF precision ≈ 0.28. The gold already carries 623 relations
-   (PARTY_OF, HAS_*, DATED_TO, CHARGED_UNDER) — now plus direction — as the
-   eval/fine-tune anchor. This is the largest remaining piece of the pipeline.
-
-2. **Entity-model polish — the stubborn classes.** TAX_TERM (0.44, flat) and
-   PERSON_ROLE (0.40, *regresses* under gold-FT) are the entity ceiling and do
-   **not** respond to more volume (proven: doubling them moved nothing). The
-   lever is label *consistency*, not count — audit the PERSON_ROLE spans across
-   the gold for inconsistency (guardian formulas vs statuses vs unnamed roles
-   all share one label), consider splitting the label, then re-run `xval`.
-   Optional cheap test first: `xval --backbone b1 --loss ce --min-confidence 0.5`
-   (hard-drop the noisy silver tail).
+**Parallel/optional — entity polish (not blocking Phase 8): the stubborn classes.**
+TAX_TERM (0.39) and PERSON_ROLE (0.36) are the entity ceiling and are now proven
+immune to **both** more volume **and** better silver (Silver-v2 moved them ~0).
+The lever is label *consistency*, not count — audit the PERSON_ROLE gold spans
+(guardian formulas vs statuses vs unnamed roles all share one label), consider
+splitting the label, then re-`push` + re-`xval`. Cheap untried test:
+`xval --backbone b1 --loss ce --min-confidence 0.5` (hard-drop the noisy silver
+tail — but note Silver-v2 already improved silver quality, so the gain may be
+smaller than when first proposed).
 
 **If more gold is ever wanted** (not required): `scratchpad/find_age_docs2.py`
 lists ~900 more train AGE-docs; the appender pattern is `scratchpad/age_build.py`
