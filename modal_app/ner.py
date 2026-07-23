@@ -29,10 +29,25 @@ Run with the project venv's modal (the container imports `oikonomia`):
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
 import modal
+
+
+def _fingerprint(data: bytes) -> str:
+    """Content fingerprint of a silver/gold jsonl blob.
+
+    Printed by both ``push`` (what was uploaded) and ``train`` (what was read off
+    the Volume) so a stale-data run is obvious at a glance instead of inferred:
+    identical ``sha`` = identical bytes. ``age`` is a cheap canary for the
+    Silver-v2 AGE fix — it is ~1.6k in the new silver and ~0 in the old.
+    """
+    sha = hashlib.sha256(data).hexdigest()[:12]
+    docs = data.count(b"\n")
+    age = data.count(b'"AGE"')
+    return f"sha={sha} docs={docs} age={age}"
 
 APP_NAME = "oikonomia-ner"
 GPU = "A10"
@@ -72,12 +87,16 @@ dapt_volume = modal.Volume.from_name(DAPT_VOLUME, create_if_missing=True)
 
 
 @app.function(volumes={VOL_ROOT: ner_volume}, timeout=1800)
-def upload_data(blobs: dict[str, bytes]) -> dict[str, int]:
+def upload_data(blobs: dict[str, bytes]) -> dict[str, str]:
     out = Path(DATA_DIR)
     out.mkdir(parents=True, exist_ok=True)
-    written = {name: (out / name).write_bytes(blob) for name, blob in blobs.items()}
+    for name, blob in blobs.items():
+        (out / name).write_bytes(blob)
     ner_volume.commit()
-    return written
+    ner_volume.reload()
+    # Fingerprint the *committed* Volume file (not the in-memory blob) so the
+    # print reflects exactly what a later ``train`` will read back.
+    return {name: _fingerprint((out / name).read_bytes()) for name in blobs}
 
 
 @app.local_entrypoint()
@@ -87,8 +106,13 @@ def push() -> None:
     if missing:
         raise SystemExit(f"missing locally: {missing}\nrun `oik silver label` and `oik ner prepare`.")
     blobs = {name: p.read_bytes() for name, p in LOCAL.items()}
-    for name, size in upload_data.remote(blobs).items():
-        print(f"uploaded {name}: {size / 1e6:.1f} MB")
+    print(f"[push] local  silver.jsonl  {_fingerprint(blobs['silver.jsonl'])}")
+    volume_fp = upload_data.remote(blobs)
+    for name, fp in volume_fp.items():
+        print(f"[push] volume {name}  {fp}")
+    if _fingerprint(blobs["silver.jsonl"]) != volume_fp["silver.jsonl"]:
+        raise SystemExit("[push] FAILED: uploaded silver does not match local — retry the push.")
+    print("[push] OK — the sha above must match `train`'s 'training on silver' line.")
 
 
 @app.function(volumes={VOL_ROOT: ner_volume}, timeout=600)
@@ -155,6 +179,17 @@ def train(
         raise SystemExit(f"{backbone} not found — let the DAPT run save full/final first.")
     if loss not in {"ce", "gce"}:
         raise ValueError(f"loss must be 'ce' or 'gce', got {loss!r}")
+
+    # Fetch the latest committed push. Without this a warm/reused container keeps
+    # its start-of-life Volume mount and silently trains on the *previous*
+    # silver — the Silver-v2 push looked applied but the run used stale data.
+    # The fingerprint below must match the `[push] volume silver.jsonl` line.
+    ner_volume.reload()
+    print(
+        f"[{run_name}] training on silver  "
+        f"{_fingerprint(Path(f'{DATA_DIR}/silver.jsonl').read_bytes())}",
+        flush=True,
+    )
 
     schema = json.loads(Path(f"{DATA_DIR}/labels.json").read_text(encoding="utf-8"))
     label_list: list[str] = schema["labels"]
