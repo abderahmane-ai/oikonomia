@@ -1308,6 +1308,79 @@ container imports `oikonomia`): `push` uploads `relation_labels.json` only
 are present + prints the silver fingerprint), then `xval --backbone b1 --loss ce`
 gives the numbers above. Re-run with the levers in "Next levers" to push past 0.713.
 
+### 🔶 Phase 8 → OIKONOMIA-RE — maximal RE program for "a DB for the ages"
+
+**Owner reframed Phase 8 (this session) from "improve the 9-type model" to a full
+program.** The plan is committed at
+[`/Users/abdoumagico/.claude/plans/fizzy-wondering-eich.md`](file:///Users/abdoumagico/.claude/plans/fizzy-wondering-eich.md)
+(approved). Two owner decisions: **(1) build the FULL prosopographical DB** (link
+who/what/where/when/role/kin), **(2) MAX architecture** (typed markers +
+neuro-symbolic direction head + schema-constrained decoding + real end-to-end
+pipeline). The 0.713 model is now the **8a baseline to beat**.
+
+#### The data audit that drives it (measured on the 115-doc gold — do not re-derive)
+- **Coverage is schema-bound, not model-bound.** In *no relation at all*: **PLACE
+  100%, AGE 100%, OCCUPATION 98%, PERSON_ROLE 77%, and 79% of every PERSON.** The
+  economic core (money/currency/unit/quantity) is well-linked; the social /
+  geographic / temporal structure is not. The DB can't answer "which women, of
+  which trade, in which town, paid which tax" because those links aren't in the
+  schema.
+- **The event anchor is missing in half the corpus:** 55/115 docs have persons but
+  **no TRANSACTION span**, yet PARTY_OF/DATED_TO depend on it → a document-level
+  virtual EVENT node is needed.
+- **The strong relations are the trivial ones** (HAS_CURRENCY/HAS_UNIT ≈ 0.88 ≈
+  nearest-pair); the deliverable-critical ones are weak + gold-starved: HAS_PRICE
+  0.44 (16 gold), PAID_BY 0.15 / PAID_TO 0.30 (87 gold), and **silver is useless
+  for them** (measured `oik silver score`: HAS_PRICE silver P=0.00, direction
+  P≈0.2/R≈0.07 — so they are gold-only, silver is noise).
+- **Direction is verb-class × payer-marking, not verb alone:** the governing verb
+  sits *between* payer and amount 75%, *before* the payer 25%, absent near 39%;
+  PAID_BY/PAID_TO both draw on receiver *and* giver verbs.
+- **Kinship needs no schema reversal:** filiation is a regular genitive chain
+  *inside* the PERSON span (`Name-nom Name-gen τοῦ Name-gen`), so CHILD_OF/gender
+  are a deterministic parse in the DB layer (8d), not a learned relation — the
+  locked one-PERSON-span rule stands.
+
+#### 8a — accuracy on the current 9 types (BUILT this session; GPU run PENDING)
+Pure, tested, committed (`ae07578`, `efd89c3`, `75e2590`):
+- **`relations/features.py`** — neuro-symbolic direction features: 3 categorical
+  ids (verb-class / verb-position / payer-marking = παρά·dative·article-παρά)
+  distilled from the mined lexicon + case morphology; offset-stable `fold`;
+  `context_window` reaching before the payer. **Validated on gold: fires on 76% of
+  the 87 direction edges and discriminates** (παρά→PAID_BY 8:0, giver+dative→
+  PAID_TO 6:1, receiver+subject→PAID_TO 7:18). 6 tests.
+- **`relations/decode.py`** — `constrain`: functional-in-head schema constraints
+  (each MONEY→1 CURRENCY, QUANTITY→1 UNIT, payment→1 tax), set
+  {HAS_CURRENCY,HAS_UNIT,CHARGED_UNDER} verified **recall-safe on gold** (0
+  violations; HAS_PRICE excluded — a good priced in two denominations exists). 5
+  tests.
+- **`modal_app/relations.py`** — `RelationHead` now adds a wide-context vector +
+  3 direction-feature embeddings; `predict` applies `constrain`; `xval` ships the
+  payment lexicon as features and adds `--constrain-decode`. **encode_doc pure
+  path simulated over all 9,468 gold candidates: 0 errors** (torch itself untested
+  locally — the `xval` run is its first execution).
+- **NOT yet done in 8a:** the **GPU measurement run** (the number), the
+  **end-to-end pipeline eval** (predicted entities → RE — the real deliverable vs
+  the 0.713 oracle ceiling; task exists), and **PL-Marker typed markers** (an
+  ablation, only if direction+constraints plateaus).
+
+#### 8b/8c/8d — NOT STARTED (the bulk of the program; see the plan file)
+- **8b (the big coverage win):** extend `RELATION_SIGNATURES` — HAS_OCCUPATION /
+  HAS_AGE / HAS_STATUS, ORIGIN_OF / LOCATED_IN, a virtual EVENT node, party-role
+  typing (seller/buyer/lessor/lessee/lender/borrower/witness/…), transaction-type
+  (SALE/LOAN/LEASE/WAGE/TAX_PAYMENT/…). Apposition silver rules + seed gold (these
+  links are local/regular, so rules work — unlike direction). *Target: linked
+  coverage ~25%→~70%.* This is the single largest lever in the plan.
+- **8c:** regenerate silver per-type from predicted entities (silver-reliable
+  types silver+gold; direction/price gold-only) + BOND self-training over 68k.
+- **8d:** deterministic kinship/gender parse + DB frame assembly (numeral→value,
+  PLACE→Pleiades via HGV, date→HGV interval), feeding Phase 9.
+
+**Immediate next action (new session):** `modal run modal_app/relations.py::xval
+--backbone b1 --loss ce` to measure the 8a direction+constraints lift vs 0.713
+(watch PAID_BY/PAID_TO per-type + precision). Then 8a e2e pipeline, then **8b —
+the coverage program**. Full detail + file map: the plan file above.
+
 ---
 
 ## 7. Verified fact ledger
@@ -1585,10 +1658,23 @@ architecture claim on our own data rather than on the literature's.
 
 ## 8. Progress
 
-**~68% of the full project. Phases 0–8 done. Phase 8 relation model MEASURED:
-span-pair (SpERT) silver→gold rel micro F1 0.713 (P 0.757 R 0.673) on oracle
-entities, 5-fold CV — beats the nearest-pair baseline 0.443 by +0.27; direction
-learned (PAID_TO 0.000→0.300) but the remaining bottleneck. See §6 Phase 8.**
+**~68% of the full project. Phases 0–7b + 5c done; Phase 8 (relations) is now the
+OIKONOMIA-RE program (§6), in progress.** First RE model MEASURED: span-pair
+(SpERT) silver→gold rel micro F1 **0.713** (P 0.757 R 0.673, oracle entities,
+5-fold CV) — beats the nearest-pair baseline 0.443 by +0.27; direction learned
+(PAID_TO 0.000→0.300) but the bottleneck. **Then the owner reframed Phase 8 into a
+maximal program** (full prosopographical DB + max architecture; plan approved):
+- **8a (accuracy on current 9) — pure pieces BUILT + committed this session**
+  (direction features, constrained decoding, harness wiring); **GPU run pending**
+  (the number). e2e pipeline + PL-Marker markers not yet done.
+- **8b/8c/8d — NOT STARTED:** schema extension (the coverage win, ~25%→~70% linked
+  entities), per-type silver + self-training, kinship parse + DB assembly.
+
+The data audit that reframed it (measured, §6): coverage is **schema-bound**
+(PLACE/AGE/OCCUPATION and 79% of PERSON unlinked), the TRANSACTION anchor is
+missing in 53% of docs, and silver is useless for the deliverable-critical
+relations (HAS_PRICE, direction). Micro-F1 0.713 is strong on the economic core
+but hollow where the historical findings live.
 **Phase 4 DAPT — full FT wins, `full/final` (B1) saved**; **Phase 5 — 115 gold
 docs, ALL human_validated, 2,995 entities + 710 relations (incl. 87 PAID_BY/
 PAID_TO direction), 0 errors**; **Phase 5c — payment direction merged**; **Phase
@@ -1634,7 +1720,27 @@ did nothing); they need cleaner/more-consistent labels or a different lever.
 
 ## 9. Current machine state (read this first in a new session)
 
-_Last updated: 2026-07-23 (**Phase 8 relation model BUILT + MEASURED**). New this
+_Last updated: 2026-07-23 (**Phase 8a accuracy pieces BUILT; OIKONOMIA-RE program
+approved**). Working tree **clean, `main` @ `75e2590`**. This session added, on top
+of the 0.713 model: the approved maximal plan
+(`~/.claude/plans/fizzy-wondering-eich.md`), the data audit (§6), and 8a's pure
+accuracy pieces + harness wiring — 3 commits (`ae07578` direction features,
+`efd89c3` constrained decoding, `75e2590` harness wiring). New files:
+`src/oikonomia/relations/features.py` (+ `tests/test_relation_features.py`, 6
+tests), `src/oikonomia/relations/decode.py` (+ `tests/test_relation_decode.py`, 5
+tests); `modal_app/relations.py` extended (wide context + direction-feature
+embeddings + constrained decoding, `--constrain-decode`, ships the payment
+lexicon as features). **Gate green: ruff (src tests modal_app) · mypy (67 files) ·
+tests · caches cleared.** **The 8a `xval` GPU run is PENDING** — torch is untested
+locally (venv has no torch); the encode_doc pure path was simulated over all 9,468
+gold candidates (0 errors) to de-risk it. Immediate next action: `.venv/bin/modal
+run --detach modal_app/relations.py::xval --backbone b1 --loss ce` and read the
+per-type PAID_BY/PAID_TO lift vs the committed 0.713 baseline. `relation_labels.json`
++ silver/gold are already on the `oikonomia-ner` Volume — no re-`push` needed
+(only if those files change). Then: 8a e2e pipeline eval, then **8b schema
+extension (the coverage program)** — the plan file is the map._
+
+_Earlier this session (**Phase 8 relation model BUILT + MEASURED**). New this
 session (Phase 8, §6): `src/oikonomia/relations/{__init__,encode,data}.py`,
 `src/oikonomia/cli/relation_cmd.py` (+ registered in `cli/main.py`),
 `modal_app/relations.py`, `tests/test_relation_encode.py` (12 tests), and
@@ -1923,13 +2029,22 @@ cd /Users/abdoumagico/Development/ACHATES
 #   "volume silver.jsonl …" line — else it ran on stale data. Current silver:
 #   sha=96428892f944 docs=48891 age=4888. Expect silver→gold strict ~0.737.
 
-# 4. PHASE 8 — relation model: DONE (silver→gold F1 0.713). Re-run to push levers:
+# 4. OIKONOMIA-RE (Phase 8 program) — plan: ~/.claude/plans/fizzy-wondering-eich.md
+#    First model measured: rel micro F1 0.713 (oracle). 8a accuracy pieces BUILT
+#    this session (features.py, decode.py, harness wiring). THE IMMEDIATE MOVE —
+#    measure the 8a direction+constraints lift vs 0.713:
 .venv/bin/oik relation prepare   # recall guard MUST be 0 uncovered; writes relation_labels.json
-.venv/bin/oik relation score     # nearest-pair baseline (the bar): micro F1 ~0.443
-#   b1 ce ALREADY run → F1 0.713. Next experiments (one lever at a time):
-.venv/bin/modal run --detach modal_app/relations.py::xval --backbone b1 --loss ce --no-relation-weight 0.3
-#   (recall lever for the 24:1 imbalance) — and see §6 Phase 8 "Next levers".
-#   push (adds relation_labels.json) is already done; re-push only if it changes.
+.venv/bin/oik relation score     # nearest-pair baseline (the bar): micro F1 0.443
+.venv/bin/modal run --detach modal_app/relations.py::xval --backbone b1 --loss ce
+#   Watch per-type PAID_BY/PAID_TO (target PAID_TO 0.30→0.50+) + precision (the
+#   constraints should lift it). Fallback recall lever: --no-relation-weight 0.3.
+#   No re-push needed (relation_labels.json + silver/gold already on the Volume).
+#   THEN, in leverage order: 8a e2e pipeline eval (predicted entities→RE, the real
+#   deliverable vs 0.713 oracle) -> 8b SCHEMA EXTENSION (the coverage win:
+#   HAS_OCCUPATION/AGE/STATUS, ORIGIN_OF/LOCATED_IN, virtual EVENT node,
+#   party-role + transaction-type; ~25%→~70% linked) -> 8c silver+self-training ->
+#   8d kinship parse + DB assembly. Build 8b pure pieces on the laptop; GPU runs
+#   are owner-triggered (owner controls Modal spend).
 
 # 5. (Optional) more gold candidates: AGE-dense train docs, or undone to_annotate
 .venv/bin/python /path/to/scratchpad/find_age_docs2.py   # ranked AGE candidates (regen if lost)
@@ -1942,30 +2057,37 @@ silver-only ceiling 0.573→0.654). AGE solved (0.974). Gold is 115 docs, all
 `human_validated`, 0 errors. **Nothing here is blocked on more gold volume** —
 the next entity lever is TAX_TERM/PERSON_ROLE label *consistency*, not data.
 
-**Where Phase 8 landed.** The relation model is **built and measured**: span-pair
-(SpERT single-encode) + DAPT B1 + silver-pretrain + gold-FT → **rel micro F1
-0.713** (P 0.757 R 0.673, 5-fold CV, oracle entities), beating the nearest-pair
-baseline 0.443 by +0.27 (§6 Phase 8). The recipe transferred from entities intact.
+**Where Phase 8 is → the OIKONOMIA-RE program.** The first relation model is
+**measured** (span-pair SpERT + DAPT B1 + silver→gold → rel micro F1 **0.713**
+oracle, +0.27 over the 0.443 nearest-pair baseline). The owner then **reframed
+Phase 8 into a maximal program** — full prosopographical DB + max architecture —
+because the data audit (§6) showed 0.713 is strong on the economic core but
+**coverage is schema-bound** (PLACE/AGE/OCCUPATION and 79% of PERSON unlinked) and
+the deliverable-critical relations (direction, price) are gold-starved with useless
+silver. **Plan (approved): `~/.claude/plans/fizzy-wondering-eich.md`.**
 
-**Immediate next moves (pick one; all measured one lever at a time):**
-1. **Push direction past 0.30 — the bottleneck.** PAID_TO is 0.300, PAID_BY 0.145.
-   Cheap first try: `xval --backbone b1 --loss ce --no-relation-weight 0.3`
-   (recall, for the 24:1 imbalance). Then a labeler-side idea: widen the
-   between-span context in `RelationHead.score_pairs` to include a few tokens
-   *before* the head (a giver-verb often precedes the payer). Then typed markers
-   (PURE) if the single-encode head caps out.
-2. **End-to-end pipeline eval** (B1 predicted entities → RE) for the *deliverable*
-   number — 0.713 is the oracle (given-gold-entities) ceiling; the shippable
-   pipeline compounds NER error. `score_relations` already maps predicted→gold
-   spans by overlap, so this is mostly harness plumbing.
-3. **Move on to Phase 9** (corpus inference → DB) — the entity+relation models are
-   both validated; the DB is the next deliverable.
+**Execution order (do these in sequence; the plan file has the full file map):**
+1. **8a MEASUREMENT (do first).** Run `xval --backbone b1 --loss ce` — the direction
+   features + wide context + constrained decoding are already wired in (built this
+   session). Read the per-type PAID_BY/PAID_TO lift + precision vs 0.713. Fallback
+   `--no-relation-weight 0.3`.
+2. **8a e2e pipeline** (predicted entities → RE) — the *deliverable* number vs the
+   0.713 oracle ceiling; `score_relations` already maps predicted→gold spans.
+   (PL-Marker typed markers only if 8a plateaus.)
+3. **8b — SCHEMA EXTENSION, the biggest lever.** Extend `RELATION_SIGNATURES`:
+   HAS_OCCUPATION/AGE/STATUS, ORIGIN_OF/LOCATED_IN, a virtual EVENT node,
+   party-role typing, transaction-type. Apposition silver rules + seed gold
+   (these links are local/regular → rules work). Target linked coverage ~25%→~70%.
+4. **8c** per-type silver from predicted entities + BOND self-training; **8d**
+   deterministic kinship/gender parse + DB frame assembly (numeral→value,
+   PLACE→Pleiades via `ingest/hgv_places.py`, date→HGV via `hgv_dates.py`).
 
 Working material: **gold 115 docs / 710 relations** (`validate.RELATION_SIGNATURES`
-is the contract; 98 docs carry candidate pairs, the rest have no admissible pair
-hence no relations); **silver 349k relations** (`silver.jsonl`, per-edge
-confidence); **backbone B1** (`checkpoints/full/final`). Known small-N fragility:
-`CHARGED_UNDER` regressed under gold-FT (13 ex), like Phase-7b's rare classes.
+is the contract; 98 docs carry candidate pairs); **silver 349k relations**
+(`silver.jsonl`, but useless for direction/price — gold-only there); **backbone
+B1** (`checkpoints/full/final`). Known small-N fragility: `CHARGED_UNDER` regressed
+under gold-FT (13 ex), like Phase-7b's rare classes. The 8a pure pieces
+(`relations/features.py`, `relations/decode.py`) are built, tested, committed.
 
 **Parallel/optional — entity polish (not blocking Phase 8): the stubborn classes.**
 TAX_TERM (0.39) and PERSON_ROLE (0.36) are the entity ceiling and are now proven
