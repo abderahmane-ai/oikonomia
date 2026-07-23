@@ -64,12 +64,28 @@ not deliver the payer/payee win they were built for (PAID_TO/PAID_BY nominally
 *down*); with ~17 direction edges per held-out fold every move is noise. 87 gold
 direction edges is too thin regardless of features.
 
-**Verdict on 8a:**
-- Direction features + wide context — **DROPPED** (measured null).
-- Schema constraints (`--constrain-decode`) — the one keep-worthy piece
-  (deterministic, recall-safe, auditable). Freeze on/off by its measured number
-  (run pending/optional). This is the last model-side accuracy knob; no more.
-- `--no-relation-weight 0.3` — optional recall lever for the 24:1 imbalance.
+**Verdict on 8a — CLOSED, every model-side knob measured neutral.** The three runs
+are one number under different seeds (silver-only F1 wobbles 0.643→0.655 run-to-run
+from init alone — that is the noise floor):
+
+| Run | silver→gold F1 | P | R |
+|---|---|---|---|
+| Baseline (committed) | 0.713 | 0.757 | 0.673 |
+| + direction features + wide ctx | 0.710 | 0.761 | 0.665 |
+| + `--constrain-decode` | **0.7145** | 0.752 | 0.680 |
+
+- Direction features + wide context — **DROPPED** (measured null, 0.710).
+- Schema constraints (`--constrain-decode`) — **MEASURED neutral**: F1 0.7145, and
+  the tell is that **precision did not rise** (0.757 → 0.752). Constraints prune
+  conflicting duplicates; a flat precision means the model rarely emits them, so
+  there is little to fix. (The run header doesn't echo the flag, so "fired but
+  no-op" vs "flag inert" is indistinguishable — but precision didn't move either
+  way, so it's not a lever. Cheap future fix: echo `constrain=` in the header.)
+  **Kept ON as a DB well-formedness invariant** — one currency per amount, one tax
+  per payment — for the database's integrity (deliverable #2), *not* for F1.
+- `--no-relation-weight 0.3` — optional recall lever, untested, low priority.
+- **Bottom line:** no model-side lever remains; the economic core is ~0.71 and the
+  next gains are data + coverage (8b/8c), exactly as the descope predicted.
 
 #### 8b — coverage (the real prize) — RULES-FIRST, laptop, no GPU
 - Deterministic **apposition rules** for `HAS_OCCUPATION` / `HAS_AGE` /

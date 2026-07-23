@@ -210,24 +210,19 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 
 _Last updated: 2026-07-23. Branch **`main`**; working tree clean._
 
-**Phase 8a — direction features + wide context: MEASURED, came back FLAT.**
-`xval --backbone b1 --loss ce` ran clean (fingerprint matched
-`sha=96428892f944 docs=48891`, gold_docs=98): silver→gold **rel micro F1 0.710**
-(P 0.761 R 0.665) vs the committed **0.713** baseline — a wash (−0.003, within CV
-noise). The always-on direction-feature embeddings + wide context did **not**
-deliver the direction win they were built for: **PAID_TO 0.300→0.253, PAID_BY
-0.145→0.136** (both nominally down; ~17 direction edges per held-out fold, so
-noise). Mixed elsewhere: HAS_UNIT 0.87→0.92 and CHARGED_UNDER 0.375→0.471 up;
-HAS_PRICE 0.44→0.385 and DATED_TO down. **Finding: direction is data-bound, not
-feature-bound** — 87 gold direction edges is too thin for the head to learn a
-robust payer/payee signal regardless of features. This matches the plan's audit
-(direction/price are gold-only and gold-starved) → reach 8b + more direction gold
-sooner rather than tuning the head.
-
-**Two 8a levers still untested (cheap, owner-triggered):** `--constrain-decode`
-(the schema-constraint half of 8a — verified recall-safe on gold; should lift
-precision on the functional relations without costing recall — **run this next**)
-and `--no-relation-weight 0.3` (recall for the 24:1 imbalance).
+**Phase 8a — CLOSED; every model-side accuracy knob measured neutral.** Three clean
+`xval` runs (fingerprint `sha=96428892f944 docs=48891`, gold_docs=98) land in one
+noise band: baseline **0.713**, + direction-features/wide-context **0.710**, +
+`--constrain-decode` **0.7145** — the silver-only F1 alone wobbles 0.643→0.655
+run-to-run, so this spread is pure seed noise. Direction features did **not**
+deliver the payer/payee win they were built for (PAID_TO/PAID_BY nominally down;
+~17 direction edges/fold = noise), and constraints did **not** raise precision
+(0.757→0.752). **Finding: direction is data-bound, not feature-bound** (87 gold
+direction edges is too thin regardless of features); no head/decode tweak moves the
+~0.71 core. Direction features **dropped**; constraints **kept ON as a DB
+well-formedness invariant** (one currency per amount, one tax per payment — not for
+F1); `--no-relation-weight 0.3` left untested, low priority. **The lever is data +
+coverage → pivot to 8b now.** Full detail: the phase-8 doc.
 
 ### Resume checklist (in order)
 
@@ -246,11 +241,11 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/oik silver score          # entity micro F1 ~0.667 exact / ~0.752 relaxed
 #    After ANY labeler/lexicon/patterns edit: oik silver distmap → oik silver label (~5 min; sha changes)
 
-# 4. PHASE 8a — direction features MEASURED (flat: 0.710 vs 0.713 baseline; see above).
-#    Still untested — the constraint-decode arm (should lift precision, recall-safe):
-.venv/bin/modal run --detach modal_app/relations.py::xval --backbone b1 --loss ce --constrain-decode
-#    Optional recall lever for the 24:1 imbalance: --no-relation-weight 0.3
-#    No re-push needed (relation_labels.json + silver/gold already on the oikonomia-ner Volume).
+# 4. PHASE 8a — CLOSED. All model-side knobs neutral: baseline 0.713 / dir-features
+#    0.710 / constrain-decode 0.7145 — one number under different seeds. Constraints
+#    kept ON as a DB well-formedness invariant (not for F1). No more head/decode runs.
+#    NEXT is laptop work, no GPU → 8b rules-first coverage.
+#    Plan of record: docs/phases/phase_8_relation_model.md
 ```
 
 **Then, in leverage order (LEAN plan — full detail in the phase-8 doc):**
