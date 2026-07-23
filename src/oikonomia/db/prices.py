@@ -27,11 +27,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-# Silver-standard denominations (drachma system). The bronze chalkous is excluded
-# on purpose — see the module docstring.
-SILVER_DENOMS: frozenset[str] = frozenset(
-    {"drachma", "obol", "diobol", "triobol", "tetrobol", "pentobol", "hemiobelion"}
-)
+from oikonomia.db.money import COMPARABLE_SILVER_DENOMS as SILVER_DENOMS
 
 
 @dataclass(frozen=True)

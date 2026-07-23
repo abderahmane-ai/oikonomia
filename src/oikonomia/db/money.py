@@ -51,6 +51,16 @@ _DENOMINATIONS: dict[str, tuple[str, float | None]] = {
 }
 
 
+# The silver denominations comparable across the drachma standard: the drachma and
+# the obol fractions. The bronze ``chalkous`` is excluded (it tracks the Ptolemaic
+# bronze inflation, not a stable value), and the ``talent`` (6000 dr) is a bulk unit
+# appearing only in aggregate totals, not individual prices/payments. The price and
+# tax analyses filter on this set to keep amounts comparable.
+COMPARABLE_SILVER_DENOMS: frozenset[str] = frozenset(
+    {"drachma", "obol", "diobol", "triobol", "tetrobol", "pentobol", "hemiobelion"}
+)
+
+
 @dataclass(frozen=True)
 class Money:
     """A normalized amount. ``value_base`` is in drachmas (silver) or nomismata

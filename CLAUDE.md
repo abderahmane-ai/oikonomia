@@ -139,6 +139,7 @@ uv run oik silver label                       # emit silver over train (~5 min);
 # --- Database (Phase 9) — the ACTIVE deliverable; deterministic, laptop, no GPU ---
 .venv/bin/oik db build --sample 0             # whole corpus (~minutes) → data/processed/db/monetary.parquet
 .venv/bin/oik db prices                       # clean price series (median [IQR] n) → db/prices.parquet
+.venv/bin/oik db taxes                        # fiscal-regime map + poll tax by century/region → db/taxes.parquet
 ```
 
 Explicit cache-clear (if `make clean` is unavailable). **Never use `find -delete`
@@ -220,7 +221,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 7 Entity NER | ✅ | **DAPT beats no-DAPT control +9.5 strict F1** (PERSON +19, PLACE +11) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 7b Two-stage silver→gold | ✅ | gold-FT recipe → **strict 0.737 / relaxed 0.837**; GCE rejected (−5.7) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); 8a closed (data-bound); 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
-| 9 Corpus→DB | 🔶 ACTIVE | **195,906 facts** (99% norm, 100% prov); **wheat price series validated** (2c AD 13.3 dr/artaba vs lit ~7–12); tax finding next | [phase_9](docs/phases/phase_9_database.md) |
+| 9 Corpus→DB | 🔶 ACTIVE | **195,906 facts**; **wheat prices** (2c AD 13.3 vs lit ~7–12) + **tax finding** (fiscal-regime map, poll tax by nome) validated; women next | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis · 11 Release | ⬜ | findings (price series, women-as-principals) + HF model release | — |
 
 ---
@@ -263,10 +264,20 @@ principals, kinship) where PERSON/PLACE are open-class and rules fail (model bea
 rules +19 PERSON / +11 PLACE). The entity model is saved on Modal but not yet wired
 into the DB; the relation model was only xval-measured, never saved.
 
-**NEXT decision (owner leaning taxes):** the **tax finding** (laographia + demosia
-by century/region — cleanest signal, no per-unit math, 6,623 tax-linked amounts,
-all from the same fact table). Then **women-as-principals** — the first finding that
-actually *needs* the trained entity model (a Modal inference run over the corpus).
+**Tax finding — DONE + validated (`oik db taxes`).** `src/oikonomia/db/taxes.py`
++ `places.py`. (1) **Fiscal-regime map** (tax × era) reproduces textbook history:
+laographia (poll tax) Roman-only, prosdiagraphomena Roman surcharge, demosia the
+Byzantine land tax, phylakitikon Ptolemaic-fading. (2) **Poll-tax payments** by
+century (installments: median ~4 dr, p90 20 dr → the known annual ~16–40 dr tail)
+and **by region** (place names resolved from HGV: Arsinoites 25 dr vs
+Herakleopolites 2 dr — real nome variation). Writes `db/taxes.parquet` (592 obs).
+
+**NEXT: women-as-principals** — the first finding that *needs* the trained entity
+model (people/places are open-class; rules can't). This is where we **wire the
+saved entity model into the DB** (a Modal inference run over the corpus) instead of
+the lexicon labeler. Needs: gender (deterministic from names/morphology) + PARTY_OF
+(0.65) + guardian-κύριος + splitting the PERSON blob for CHILD_OF kinship (43% of
+gold PERSON spans are name+patronymic collapsed). Owner decides when to spend Modal.
 
 **Triage (what is shelved/frozen — do not reopen without a finding that demands it):**
 
@@ -353,6 +364,8 @@ the binding constraint — the audits say it is not.
   table). Regen: `oik db build --sample 0` (~minutes). Gitignored, re-derivable.
 - `data/processed/db/prices.parquet` — **98 clean price obs** (wheat/barley/wine,
   with provenance). Regen: `oik db prices`. Gitignored, re-derivable.
+- `data/processed/db/taxes.parquet` — **592 clean tax payments** (poll + land tax,
+  with provenance). Regen: `oik db taxes`. Gitignored, re-derivable.
 - **Modal Volume `oikonomia-dapt`:** `shards/{train,dev}.bin`,
   `checkpoints/full/final` (**B1** — load this for b1). Stale `checkpoints/b1-*`
   from the first sweep are safe to `modal volume rm -r`.

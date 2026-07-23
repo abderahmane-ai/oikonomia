@@ -25,7 +25,9 @@ import typer
 from oikonomia.config import load_settings
 from oikonomia.corpus.io import corpus_path, iter_batches
 from oikonomia.db.facts import DocMeta, Ent, Rel, assemble_monetary
+from oikonomia.db.places import load_place_names
 from oikonomia.db.prices import SPECS, clean_prices, price_series
+from oikonomia.db.taxes import clean_tax_payments, fiscal_regime, payments_by_century
 from oikonomia.labeling.lexicon import load_lexicon
 from oikonomia.labeling.matcher import Matcher
 from oikonomia.labeling.silver import SilverLabeler, load_patterns
@@ -39,6 +41,7 @@ SetOpt = Annotated[list[str] | None, typer.Option("--set", help="Dotted config o
 _COLUMNS = ["tm_id", "date_lo", "date_hi", "place_pleiades", "canonical_genres", "document_json"]
 FACTS_NAME = "db/monetary.parquet"
 PRICES_NAME = "db/prices.parquet"
+TAXES_NAME = "db/taxes.parquet"
 
 # Published anchors for the validation view (dr/artaba), so the series is judged
 # against scholarship, not eyeballed. Rough consensus ranges, not point claims.
@@ -214,3 +217,64 @@ def prices(
     all_clean = pd.concat(kept, ignore_index=True) if kept else pd.DataFrame()
     all_clean.to_parquet(out_path, index=False)
     typer.echo(f"\nWrote {out_path}: {len(all_clean)} clean price observations (with provenance)")
+
+
+# Taxes worth a regional cut (the poll tax varied by nome) or just a temporal one.
+_POLL_TAX = "laographia"
+_LAND_TAX = "demosia"
+
+
+@db_app.command("taxes")
+def taxes(
+    env: EnvOpt = "local",
+    set_: SetOpt = None,
+    facts: Annotated[Path | None, typer.Option("--facts", help="Fact table (default: processed/db/monetary.parquet).")] = None,
+    out: Annotated[Path | None, typer.Option("--out", help="Clean tax payments (default: processed/db/taxes.parquet).")] = None,
+) -> None:
+    """The fiscal-regime map + poll-tax payments by century and region.
+
+    Prints (1) which named tax is attested in which era — the fiscal-regime shift,
+    validated against the fiscal history — and (2) poll-tax (laographia) payment
+    amounts by century and by place (payments, not rates: the poll tax was paid in
+    installments). Writes the cleaned poll- and land-tax payments with provenance.
+    """
+    s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    facts_path = facts or (Path(s.paths.processed) / FACTS_NAME)
+    if not facts_path.is_file():
+        typer.secho(f"{facts_path} missing — run `oik db build` first.", fg="red")
+        raise typer.Exit(1)
+    df = pd.read_parquet(facts_path)
+
+    typer.echo("=== FISCAL-REGIME MAP — tax attestations by era (validate vs fiscal history) ===")
+    regime = fiscal_regime(df)
+    cols = [c for c in ("Ptolemaic", "Roman", "Byzantine+") if c in regime.columns]
+    typer.echo(f"  {'tax':20s} " + "".join(f"{c:>13s}" for c in cols) + f"{'total':>8s}")
+    for tax, r in regime.iterrows():
+        typer.echo(f"  {tax!s:20s} " + "".join(f"{int(r[c]):>13d}" for c in cols) + f"{int(r['total']):>8d}")
+    typer.echo("  → laographia (poll tax) is Roman-only; demosia (land tax) dominates Byzantine — as known.")
+
+    typer.echo(f"\n=== POLL TAX ({_POLL_TAX}) — silver payments, median [IQR] by century ===")
+    typer.echo("    (payments, NOT the rate: the poll tax was paid in installments)")
+    for _, r in payments_by_century(df, _POLL_TAX, min_n=5).iterrows():
+        typer.echo(f"  {_cen(r['century']):>7}: {r['median']:6.1f} [{r['p25']:.1f}-{r['p75']:.1f}] dr  (n={int(r['n'])})")
+    lao = clean_tax_payments(df, _POLL_TAX)
+    typer.echo(f"    full-payment tail (p90) = {lao['payment'].quantile(0.9):.0f} dr — cf. the known annual capitation ~16-40 dr/nome")
+
+    # Regional cut: poll-tax payments by place name (top places by attestation).
+    names = load_place_names(s.paths.processed)
+    lp = lao[lao["place_pleiades"].notna()].copy()
+    lp["place"] = lp["place_pleiades"].map(lambda p: names.get(int(p), f"Pleiades:{int(p)}"))
+    typer.echo("\n=== POLL TAX by place (top by n) — regional variation ===")
+    g = lp.groupby("place")["payment"].agg(["median", "count"]).sort_values("count", ascending=False)
+    for place, r in g.head(8).iterrows():
+        typer.echo(f"  {place!s:22s} median {r['median']:6.1f} dr  (n={int(r['count'])})")
+
+    kept = pd.concat(
+        [clean_tax_payments(df, _POLL_TAX).assign(tax=_POLL_TAX),
+         clean_tax_payments(df, _LAND_TAX).assign(tax=_LAND_TAX)],
+        ignore_index=True,
+    )
+    out_path = out or (Path(s.paths.processed) / TAXES_NAME)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    kept.to_parquet(out_path, index=False)
+    typer.echo(f"\nWrote {out_path}: {len(kept)} clean tax payments (poll + land tax, with provenance)")

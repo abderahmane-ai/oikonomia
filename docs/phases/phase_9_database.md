@@ -117,6 +117,35 @@ below).
 - **3c AD (3.76) reads low** for the inflation onset — n=9, volatile; the great
   inflation is 4c AD+, thin here.
 
+### The tax finding — fiscal history of Egypt (`oik db taxes`)
+
+Taxes are the *cleanest* thing in the fact table: a tax fact is `amount +
+CHARGED_UNDER→tax + date`, no per-unit division. `src/oikonomia/db/taxes.py` gives
+two validated results.
+
+**1. The fiscal-regime map** (attestation by era — robust to amount noise). It
+reproduces the textbook fiscal history of Egypt:
+
+| tax | Ptolemaic | Roman | Byzantine+ | reads as |
+|---|---|---|---|---|
+| `laographia` (poll tax) | 9 | **560** | **0** | Roman institution (~24 AD, gone in late antiquity) ✓ |
+| `prosdiagraphomena` (surcharge) | 3 | **2707** | 0 | Roman surcharge ✓ |
+| `demosia` (land tax) | 3 | 59 | **1612** | dominant Byzantine term ✓ |
+| `phylakitikon` (guard tax) | **186** | 66 | 0 | Ptolemaic, fading ✓ |
+
+**2. Poll-tax (laographia) payments** — silver, cleaned (comparable denomination,
+individual-payment cap). These are *payments, not the rate*: the poll tax was paid
+in installments, so a receipt is a partial sum (median ~4 dr) and the full annual
+capitation (~16–40 dr/nome) shows in the tail (p90 = 20 dr). By century: 1c AD
+4.0 [0.7–10] (n=217), 2c AD 4.2 [2–8] (n=262), 3c AD 8.0 (n=48).
+
+**By region** (place names resolved from HGV via `db/places.py`): the variation is
+real — **Arsinoites 25 dr** (n=25) vs **Herakleopolites 2 dr** (n=66), Theben 4,
+Elephantine 8 — the nome-level differences the literature records.
+
+`oik db taxes` writes `db/taxes.parquet` (592 clean poll+land-tax payments, with
+provenance). Again **no model** — tax terms are closed-class lexicon hits.
+
 ### Where the trained models fit (they are NOT used above — by design)
 
 The economic findings run on the lexicon + rules because prices/taxes are
@@ -129,10 +158,11 @@ nothing there. The models earn their keep on:
 
 ### Next
 
-1. **Tax finding** (cleanest signal — no per-unit math): *laographia* + *demosia* by
-   century/region, straight from the fact table (6,623 tax-linked amounts).
-2. **Women as economic principals** — the first finding that *needs* the trained
+1. ✅ **Price finding** (wheat series) — done, validated.
+2. ✅ **Tax finding** (fiscal-regime map + poll tax by century/region) — done, validated.
+3. **Women as economic principals** — the first finding that *needs* the trained
    model: gender (deterministic) + `PARTY_OF` + guardian-`κύριος`, plus splitting the
-   PERSON blob for `CHILD_OF` kinship (43% of gold PERSON spans are collapsed).
-3. Entity identity/coreference for cross-document prosopography.
-4. Release the frozen entity+relation models (deliverable #1).
+   PERSON blob for `CHILD_OF` kinship (43% of gold PERSON spans are collapsed). This
+   is where the trained entity model gets wired into the DB (a Modal inference run).
+4. Entity identity/coreference for cross-document prosopography.
+5. Release the frozen entity+relation models (deliverable #1).
