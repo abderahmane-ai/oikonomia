@@ -57,6 +57,8 @@ VOL_ROOT = "/vol"
 DAPT_ROOT = "/dapt"
 DATA_DIR = f"{VOL_ROOT}/data"
 MODEL_ROOT = f"{VOL_ROOT}/models"
+PRED_DIR = f"{VOL_ROOT}/predictions"
+CORPUS_TEXT = f"{DATA_DIR}/corpus_text.jsonl"
 
 REPO = Path(__file__).resolve().parents[1]
 LOCAL = {
@@ -68,6 +70,28 @@ LOCAL = {
 DAPT_CKPT = f"{DAPT_ROOT}/checkpoints/full/final"
 BACKBONES = {"b0": "bowphs/GreBerta", "b1": DAPT_CKPT}
 WATCH = ("PERSON", "PLACE", "MONEY_AMOUNT", "OCCUPATION")
+
+
+def _resolve_ckpt(backbone: str) -> str:
+    """The saved token-classification checkpoint for ``backbone``, on the Volume.
+
+    ``BACKBONES[backbone]`` is only the *pretraining* backbone (a raw encoder with
+    no NER head); the trained model is what ``launch``/``train(save_final=True)``
+    wrote under ``{MODEL_ROOT}/...``. Prefer those, newest-recipe first, and fall
+    back to the raw backbone so a missing model fails loudly rather than silently
+    scoring an untrained head.
+    """
+    model_path = BACKBONES.get(backbone, backbone)
+    for p in (
+        f"{MODEL_ROOT}/{backbone}/final",
+        f"{MODEL_ROOT}/{backbone}-ce/final",
+        f"{MODEL_ROOT}/b1-ce/final",
+        f"{MODEL_ROOT}/release/final",
+        model_path,
+    ):
+        if Path(p).exists() and (Path(p) / "config.json").exists():
+            return p
+    return model_path
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -416,17 +440,7 @@ def predict_remote(text: str, labels_json: str, backbone: str = "b1") -> list[di
     label2id = labels_data["label2id"]
 
     model_path = BACKBONES.get(backbone, backbone)
-    possible_ckpts = [
-        f"{MODEL_ROOT}/{backbone}/final",
-        f"{MODEL_ROOT}/{backbone}-ce/final",
-        f"{MODEL_ROOT}/b1-ce/final",
-        model_path,
-    ]
-    ckpt_used = model_path
-    for p in possible_ckpts:
-        if Path(p).exists() and (Path(p) / "config.json").exists():
-            ckpt_used = p
-            break
+    ckpt_used = _resolve_ckpt(backbone)
 
     print(f"[{APP_NAME}] Loading TokenClassification checkpoint: {ckpt_used}", flush=True)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
@@ -460,6 +474,202 @@ def predict(text: str = "Παχὼν κα τέτακται ἐπὶ τὴν ἐ�
         print("  (No entities found)")
     for s in spans:
         print(f"  [{s['type']:<14}] \"{s['text']}\" (char {s['start']}:{s['end']})")
+
+
+# --- Corpus-scale inference (women analysis): long-doc-safe NER over ALL docs -
+#
+# The extraction engine for the women findings. Reads the pushed corpus text off
+# the Volume, runs the trained NER model on an A10, and writes one span record
+# per document back to the Volume. Long documents are windowed (no 512-token
+# truncation loss), which the pure `oikonomia.ner.inference` owns; this function
+# is the thin GPU half: tokenize → batched forward → decode → merge.
+#
+#   .venv/bin/oik ner corpus-text                                        # local: build the payload
+#   modal volume put oikonomia-ner data/processed/ner/corpus_text.jsonl /data/corpus_text.jsonl --force
+#   .venv/bin/modal run --detach modal_app/ner.py::infer                 # GPU: run it
+#   modal volume get oikonomia-ner /predictions/ner_corpus.jsonl data/processed/ner/   # pull results
+
+
+@app.function(
+    gpu=GPU,
+    volumes={VOL_ROOT: ner_volume, DAPT_ROOT: dapt_volume},
+    timeout=24 * 3600,
+    retries=modal.Retries(max_retries=2, initial_delay=10.0),
+)
+def infer_corpus(
+    backbone: str = "b1",
+    seq_len: int = 512,
+    stride: int = 64,
+    batch: int = 64,
+    limit: int = 0,
+    log_every: int = 2000,
+) -> dict[str, object]:
+    """Run windowed NER over every pushed document; write spans to the Volume.
+
+    ``seq_len`` is the model context; each window holds ``seq_len - 2`` content
+    tokens wrapped in the tokenizer's special tokens, with ``stride`` tokens of
+    overlap between windows so no entity is lost at a seam. Windows are batched
+    across documents (most docs are one window), so short docs do not each pay a
+    single-item forward pass. ``limit`` caps the doc count for a smoke test.
+    """
+    import os
+
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+
+    import torch
+    from transformers import AutoModelForTokenClassification, AutoTokenizer
+
+    from oikonomia.ner.encode import decode_spans
+    from oikonomia.ner.inference import merge_window_spans, plan_windows
+
+    ner_volume.reload()
+    src = Path(CORPUS_TEXT)
+    if not src.is_file():
+        raise SystemExit(
+            f"{CORPUS_TEXT} not on the volume — run `oik ner corpus-text` locally then "
+            "`modal volume put oikonomia-ner data/processed/ner/corpus_text.jsonl /data/corpus_text.jsonl`."
+        )
+
+    ckpt = _resolve_ckpt(backbone)
+    device = "cuda"
+    print(f"[infer] backbone={backbone} ckpt={ckpt} seq_len={seq_len} stride={stride} batch={batch}",
+          flush=True)
+    tokenizer = AutoTokenizer.from_pretrained(ckpt, use_fast=True)
+    model = AutoModelForTokenClassification.from_pretrained(ckpt, torch_dtype=torch.bfloat16).to(device)
+    model.eval()
+
+    id2label = {int(k): v for k, v in model.config.id2label.items()}
+    if all(str(v).startswith("LABEL_") for v in id2label.values()):  # untrained head → use frozen schema
+        schema = json.loads(Path(f"{DATA_DIR}/labels.json").read_text(encoding="utf-8"))
+        id2label = dict(enumerate(schema["labels"]))
+    bos = tokenizer.cls_token_id if tokenizer.cls_token_id is not None else tokenizer.bos_token_id
+    eos = tokenizer.sep_token_id if tokenizer.sep_token_id is not None else tokenizer.eos_token_id
+    pad = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else 0
+    max_content = seq_len - 2
+
+    docs: list[tuple[str, str, str]] = []
+    with src.open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            d = json.loads(line)
+            # stem is the unique per-row key; tm_id is not (it repeats across rows).
+            docs.append((str(d["stem"]), str(d["tm_id"]), str(d["text"])))
+            if limit and len(docs) >= limit:
+                break
+    print(f"[infer] {len(docs)} documents to read", flush=True)
+
+    def run_batch(chunk: list[tuple[int, list[int], list[tuple[int, int]]]]):
+        """Forward one padded batch of windows → list of (doc_index, decoded spans)."""
+        if not chunk:
+            return []
+        width = max(len(ids) for _, ids, _ in chunk) + 2
+        input_ids = torch.full((len(chunk), width), pad, dtype=torch.long)
+        attn = torch.zeros((len(chunk), width), dtype=torch.long)
+        for r, (_, ids, _) in enumerate(chunk):
+            seq = [bos, *ids, eos]
+            input_ids[r, : len(seq)] = torch.tensor(seq, dtype=torch.long)
+            attn[r, : len(seq)] = 1
+        with torch.no_grad():
+            preds = model(input_ids=input_ids.to(device), attention_mask=attn.to(device))
+            preds = preds.logits.argmax(-1).cpu().tolist()
+        out = []
+        for r, (di, ids, offs) in enumerate(chunk):
+            inner = preds[r][1 : 1 + len(ids)]  # drop the bos/eos rows
+            out.append((di, decode_spans(inner, offs, id2label)))
+        return out
+
+    out_dir = Path(PRED_DIR)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / "ner_corpus.jsonl"
+
+    pending: dict[int, dict[str, object]] = {}  # doc_index -> {tm_id, text, spans, remaining}
+    buf: list[tuple[int, list[int], list[tuple[int, int]]]] = []
+    n_done = n_ent = n_windows = n_long = 0
+
+    with out_path.open("w", encoding="utf-8") as out_fh:
+
+        def finalize(di: int) -> None:
+            """Write a doc's merged spans once all its windows have been decoded."""
+            nonlocal n_done, n_ent
+            rec = pending.pop(di)
+            merged = merge_window_spans(rec["spans"])  # type: ignore[arg-type]
+            text = rec["text"]
+            out_fh.write(json.dumps({
+                "stem": rec["stem"],  # unique join key back to corpus.parquet
+                "tm_id": rec["tm_id"],
+                "entities": [
+                    {"start": s, "end": e, "label": lab, "text": text[s:e]}  # type: ignore[index]
+                    for (s, e, lab) in merged
+                ],
+            }, ensure_ascii=False))
+            out_fh.write("\n")
+            n_done += 1
+            n_ent += len(merged)
+            if n_done % log_every == 0:
+                print(f"[infer] {n_done}/{len(docs)} docs  {n_ent} entities", flush=True)
+
+        def drain(chunk) -> None:
+            for di, spans in run_batch(chunk):
+                rec = pending[di]
+                rec["spans"].extend(spans)  # type: ignore[attr-defined]
+                rec["remaining"] = int(rec["remaining"]) - 1  # type: ignore[arg-type]
+                if rec["remaining"] == 0:
+                    finalize(di)
+
+        for di, (stem, tm_id, text) in enumerate(docs):
+            enc = tokenizer(text, add_special_tokens=False, return_offsets_mapping=True)
+            ids = enc["input_ids"]
+            offs = [tuple(o) for o in enc["offset_mapping"]]
+            windows = plan_windows(len(ids), max_content, stride)
+            n_windows += len(windows)
+            n_long += 1 if len(windows) > 1 else 0
+            pending[di] = {
+                "stem": stem, "tm_id": tm_id, "text": text, "spans": [], "remaining": len(windows),
+            }
+            if not windows:  # a doc that tokenizes to nothing → emit an empty span list
+                finalize(di)
+                continue
+            for a, b in windows:
+                buf.append((di, ids[a:b], offs[a:b]))
+                if len(buf) >= batch:
+                    drain(buf)
+                    buf = []
+        if buf:
+            drain(buf)
+
+    ner_volume.commit()
+    summary = {
+        "checkpoint": ckpt,
+        "docs": n_done,
+        "entities": n_ent,
+        "windows": n_windows,
+        "long_docs_windowed": n_long,
+        "output": str(out_path),
+        "seq_len": seq_len,
+        "stride": stride,
+    }
+    print(f"[infer] DONE {json.dumps(summary, ensure_ascii=False)}", flush=True)
+    return summary
+
+
+@app.local_entrypoint()
+def infer(backbone: str = "b1", seq_len: int = 512, stride: int = 64, batch: int = 64, limit: int = 0) -> None:
+    """Trigger corpus-scale NER on the A10; results land at ``/predictions/ner_corpus.jsonl``.
+
+    Requires the corpus text on the volume first::
+
+        .venv/bin/oik ner corpus-text
+        modal volume put oikonomia-ner data/processed/ner/corpus_text.jsonl /data/corpus_text.jsonl --force
+
+    Then pull the spans down::
+
+        modal volume get oikonomia-ner /predictions/ner_corpus.jsonl data/processed/ner/
+    """
+    result = infer_corpus.remote(
+        backbone=backbone, seq_len=seq_len, stride=stride, batch=batch, limit=limit
+    )
+    print(json.dumps(result, indent=2, ensure_ascii=False))
 
 
 # --- Hub release (deliverable #1): owner-run, needs auth ----------------------

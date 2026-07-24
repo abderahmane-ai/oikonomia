@@ -120,6 +120,15 @@
   `edited[e0:e1] == diplomatic[d0:d1]` — 0 mismatches over 1,500 documents.
 - **1,706 documents share a TM id with another** — the same papyrus edited or
   republished separately. A real leakage group, and cheap to detect.
+- **`stem` is the unique per-row key; `tm_id` is NOT** (verified 2026-07-24 on
+  `corpus.parquet`: 67,980 distinct stems for 67,980 rows, zero collisions; but
+  **607 tm_ids span >1 row and 231 span >1 *non-empty* row**). Letter-suffixed
+  stems (`13`, `13a`, `13b`) share one tm_id, and the suffix rows are often empty.
+  So **any join that slices a document's text back from a span must key on `stem`,
+  not `tm_id`** — keying on tm_id silently matches the wrong (often empty) row for
+  those 231 docs. The corpus-NER predictions (`ner_corpus.jsonl`) carry `stem`
+  for exactly this reason; the Phase-9 DB is unaffected because it assembles each
+  fact inline and never re-joins text by tm_id.
 - Publication volume is far too coarse to group on: 1,025 volumes, largest
   holding 2,023 documents.
 - Lexicon false friends share stems across categories: `χαλκεύς` (coppersmith)

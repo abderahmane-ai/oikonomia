@@ -254,7 +254,13 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 >   over time and region. Then the fuller "women as principals across deal types."
 > - **USE THE TRAINED MODELS, not rules.** **Download the model(s) from the Modal
 >   volumes at run time — do NOT rely on any locally-saved copy.**
-> - **CORPUS-SCALE INFERENCE** — run the NER model over ALL 61,249 text docs.
+> - **CORPUS-SCALE INFERENCE, ON MODAL GPU** — run the NER model over ALL 61,249
+>   text docs on an **A10** (`modal_app/ner.py`, `gpu="A10"`). The model already
+>   lives on the volume; batched encoder forward passes = **minutes on GPU vs an
+>   hour+ on laptop CPU**. Push corpus text (`tm_id`+`edited_text`) to the
+>   `oikonomia-ner` volume first, write spans back to the volume, then pull down for
+>   the deterministic laptop steps. Keep chunk/stride + assembly in the pure library
+>   (laptop-testable); the Modal function is a thin GPU entrypoint.
 > - **LONG DOCUMENTS MUST BE HANDLED** — no 512-token truncation loss; chunk/stride
 >   so NO people are dropped. We need the long docs.
 > - **FIX EVERY RELATION-MODEL ISSUE, all of them:** (a) extract `RelationHead` out
@@ -272,9 +278,25 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 > - **AIM FOR THE BEST, NEVER FOR GREEN (§2).** Validate with rough versions;
 >   deliver only the best. No synthetic slop.
 >
-> **Order:** NER corpus inference (long-doc-safe) → autonomy finding (gender +
-> guardian scan; no RE needed) → validate vs gold → then RE-model revival +
-> person-splitting for the fuller finding.
+> **Order (chronological; steps 1–2 on Modal GPU, 3–8 deterministic on laptop):**
+> 1. ✅ **DONE** — `oik ner corpus-text` emits `{stem, tm_id, text}` for the 61,249
+>    non-empty docs; batched **Modal A10** entrypoint `modal_app/ner.py::infer_corpus`
+>    (chunk/stride in the pure `oikonomia.ner.inference`; loads the model from the
+>    volume at run time via `_resolve_ckpt`).
+> 2. ✅ **DONE** — ran NER over all 61,249 docs on the A10 → **1,368,079 entities**
+>    (PERSON 350k, PLACE 48k, …), 3,304 long docs windowed, **provenance validated
+>    0/1.37M mismatch** against `corpus.parquet.edited_text`. Output
+>    `data/processed/ner/ner_corpus.jsonl`, keyed by **`stem`** (NOT tm_id — see §8).
+> 3. **← NEXT.** Person-blob split (name+patronymic) for gender + kinship.
+> 4. Feed model spans into the gender rules (guardian formula + nomen + kin).
+> 5. Assemble the **autonomy finding** — with- vs without-guardian, joined to
+>    date/region → the curve. (No RE model needed.)
+> 6. Validate the women pipeline vs the 115-doc gold.
+> 7. Revive the RE model — (a) `RelationHead` into a module; (b) all-gold train +
+>    save; (c) standalone RE inference on NER-predicted entities; (d) measure the
+>    end-to-end drop vs the 0.65 oracle PARTY_OF.
+> 8. Fuller finding — women as principals across deal types (PARTY_OF + split-person
+>    kinship).
 >
 > **What is on Modal (checked 2026-07-24, do not re-guess):** NER model SAVED at
 > `oikonomia-ner:/models/b1/final` (`RobertaForTokenClassification`, 15 labels / 31
@@ -282,8 +304,10 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 > `oikonomia-dapt:/checkpoints/full/final`. Volume data: `silver/gold/labels/
 > relation_labels`. **RE MODEL: NOTHING SAVED** — `relations.py` only measured it.
 >
-> **⛔ DO NOT START BUILDING until the owner says "start".** When told, begin at
-> step 1 (NER corpus inference).
+> **Progress:** owner authorized steps 1–2 ("cook these", 2026-07-24) — both DONE
+> and validated (see above). **Steps 3–8 await the owner's go-ahead**; next is
+> step 3 (person-blob split), then the autonomy scan (gender + guardian) over
+> `ner_corpus.jsonl`, then gold validation.
 
 **PARKED — model release (deliverable #1).** Superseded by the directive above.
 NER release is PACKAGED (licence firewall `oikonomia.models.licensing`; model card
@@ -433,6 +457,15 @@ the binding constraint — the audits say it is not.
   2,995 entities / 710 relations (incl. 87 PAID_*), 0 errors. `direction_draft.jsonl`
   is the auditable record of the merged direction edges.
 - `data/processed/relations/relation_labels.json` — gitignored; `oik relation prepare`.
+- `data/processed/ner/corpus_text.jsonl` — `{stem, tm_id, text}` for the 61,249
+  non-empty docs (the GPU-inference payload, ~upload with `modal volume put`).
+  Regen: `oik ner corpus-text`. Gitignored, re-derivable.
+- `data/processed/ner/ner_corpus.jsonl` — **corpus-scale NER: 61,249 docs /
+  1,368,079 entities**, one record per doc `{stem, tm_id, entities[{start,end,label,text}]}`,
+  offsets into `corpus.parquet.edited_text` (validated 0/1.37M mismatch). Keyed by
+  **`stem`** (unique) — the women pipeline's extraction input. Regen: `oik ner
+  corpus-text` → `modal volume put` → `modal run modal_app/ner.py::infer` → `modal
+  volume get`. Gitignored, re-derivable.
 - `data/processed/db/monetary.parquet` — **2.6 MB, 195,906 rows** (Phase 9 fact
   table). Regen: `oik db build --sample 0` (~minutes). Gitignored, re-derivable.
 - `data/processed/db/prices.parquet` — **98 clean price obs** (wheat/barley/wine,
@@ -446,13 +479,16 @@ the binding constraint — the audits say it is not.
   `checkpoints/full/final` (**B1** — load this for b1). Stale `checkpoints/b1-*`
   from the first sweep are safe to `modal volume rm -r`.
 - **Modal Volume `oikonomia-ner`:** `data/{silver,gold,labels}.json*` +
-  `relation_labels.json` (all current). `models/{b0,b1}/final` from Phase 7.
-  `xval` measures and saves no persistent model — the shippable NER model is
-  produced by **`launch`** (`train(save_final=True)` → `models/release/final`,
-  trained on ALL gold), then published by **`push_to_hub`** (Phase 11).
+  `relation_labels.json` (all current) + `data/corpus_text.jsonl` (the inference
+  payload). `models/{b0,b1}/final` from Phase 7 — **`models/b1/final` is what the
+  corpus NER run loaded** (`_resolve_ckpt`). `predictions/ner_corpus.jsonl` = the
+  61,249-doc / 1.37M-entity run output. `xval` measures and saves no persistent
+  model — the shippable NER model is produced by **`launch`**
+  (`train(save_final=True)` → `models/release/final`, all gold), then **`push_to_hub`**.
 
-**Quality gate at last save:** ruff (src tests modal_app) · mypy (80 files) ·
-542 tests · caches cleared — all green. `oik gold check` 0 errors.
+**Quality gate at last save:** ruff (src tests modal_app) · mypy (81 files) ·
+554 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
+provenance-validated 0/1.37M mismatch.
 
 ---
 
