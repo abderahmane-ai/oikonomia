@@ -123,3 +123,28 @@ def test_dataset_missing_an_export_table_blocks_the_push(tmp_path: Path) -> None
     _make_release(tmp_path, spec, files=tuple(f for f in spec.required if "persons_distinct" not in f))
     with pytest.raises(NotReadyError, match=re.escape("export/persons_distinct.parquet")):
         check_ready(tmp_path, spec)
+
+
+def test_interpreter_and_editor_junk_never_reaches_the_hub(tmp_path: Path) -> None:
+    """`upload_folder` has no default ignores, so anything sitting in a checkpoint
+    directory becomes a file in a public repo. The pre-flight listing and the
+    upload must exclude the same set, or the listing lies about what ships."""
+    spec = HOMOLOGIA
+    _make_release(tmp_path, spec, files=spec.required)
+    ckpt = tmp_path / spec.local_dir
+    for junk in ("__pycache__/modeling.cpython-312.pyc", ".DS_Store", "stray.pyc"):
+        dest = ckpt / junk
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text("junk", encoding="utf-8")
+
+    listed = {str(f.relative_to(ckpt)) for f in check_ready(tmp_path, spec)}
+    assert listed == set(spec.required), f"junk leaked into the upload listing: {listed - set(spec.required)}"
+
+
+def test_ignore_patterns_are_shared_by_listing_and_upload() -> None:
+    # The CLI passes these straight to `upload_folder`; if the two drifted, the
+    # pre-flight would report one thing and the push would do another.
+    from oikonomia.cli import release_cmd
+    from oikonomia.models import release
+
+    assert release_cmd.IGNORE_PATTERNS is release.IGNORE_PATTERNS

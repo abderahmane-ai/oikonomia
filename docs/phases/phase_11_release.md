@@ -167,6 +167,30 @@ Verified end to end, not assumed:
   clean venv without torch (644 + 2 skipped) — after adding mypy overrides so the
   answer no longer depends on whether torch happens to be installed.
 
+### Decided against: `trust_remote_code` standalone loading (2026-07-24)
+
+Homologia does not load with a bare `AutoModel.from_pretrained` the way Grammateus
+does, because its span-pair head is not a registered `transformers` architecture.
+The fix would be to ship a generated `modeling_homologia.py` inside the Hub repo
+with an `auto_map`. **It was built far enough to prove it works, then reverted.**
+The reasoning, so this is not rediscovered:
+
+- The win is one `pip install` traded for one `trust_remote_code=True` flag. Both
+  paths are two lines for the user.
+- The cost is ~800 lines of library logic duplicated into a public artifact, two
+  build tools whose textual assumptions break on any refactor, and a **third**
+  loading path beside `load_homologia()` and the Modal training code.
+- Decisive: `trust_remote_code` couples the published model to `transformers`
+  *internals* (the prototype hit `all_tied_weights_keys`, a 5.x private
+  attribute). When those shift, the model breaks on users' machines and nothing
+  of ours runs there to catch it.
+- It does not remove the real barrier anyway. Homologia only does anything useful
+  on Grammateus's spans in our 11-relation schema; anyone getting that far wants
+  the pipeline and is installing the package regardless.
+
+The supported path is `oikonomia.relations.model.load_homologia()`, and the card
+says so plainly. Revisit only if a concrete user is blocked by the install.
+
 ### Remaining / next
 
 - **Owner-run, and required for any of the above to reach users:**

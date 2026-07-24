@@ -450,6 +450,7 @@ preserved in the phase-9 doc and is not re-runnable at HEAD.
 | **FROZEN (publishable, deliverable #1)** | entity NER 0.737, relation RE 0.713. A `launch`-style full train happens only when the DB needs the shippable model. |
 | **SHELVED (revisit only if a finding needs it)** | relation-model tuning, silver re-emission cycles, splits, ORIGIN_OF/LOCATED_IN/HAS_STATUS as model targets, more direction gold (→ only for a credit-flow finding). |
 | **PARKED review artifact** | `data/gold/attribute_draft.jsonl` (8b HAS_OCCUPATION/HAS_AGE, 242 edges) — owner reviews when convenient; merging is opportunistic, not critical path. |
+| **DECIDED AGAINST (built, then reverted)** | `trust_remote_code` standalone loading for Homologia. Buys one flag over one `pip install`; costs ~800 duplicated lines in a public artifact and couples the release to `transformers` internals (the prototype hit the private `all_tied_weights_keys`). Supported path stays `load_homologia()`. Reasoning in the phase-11 doc — do not rebuild without a blocked user. |
 
 ### Resume checklist (in order)
 

@@ -18,6 +18,7 @@ from typing import Annotated
 import typer
 
 from oikonomia.models.release import (
+    IGNORE_PATTERNS,
     MODELS,
     NotReadyError,
     ReleaseSpec,
@@ -97,7 +98,12 @@ def push(
 
     api = HfApi()  # token from the stored login / HF_TOKEN — never from argv
     api.create_repo(repo_id=target, repo_type=spec.repo_type, private=private, exist_ok=True)
-    api.upload_folder(repo_id=target, folder_path=str(REPO / spec.local_dir), repo_type=spec.repo_type)
+    api.upload_folder(
+        repo_id=target,
+        folder_path=str(REPO / spec.local_dir),
+        repo_type=spec.repo_type,
+        ignore_patterns=list(IGNORE_PATTERNS),  # the same exclusions the pre-flight listed
+    )
     typer.secho(f"✓ pushed → https://huggingface.co/{'datasets/' if spec.repo_type == 'dataset' else ''}{target}", fg="green")
     if private:
         typer.echo("  (private — flip it public in the HF repo settings when you are ready)")

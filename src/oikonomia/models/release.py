@@ -14,6 +14,7 @@ container to upload files that are already on this disk.
 
 from __future__ import annotations
 
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import NamedTuple
 
@@ -22,6 +23,24 @@ from oikonomia.models.licensing import assert_releasable
 # Every OIKONOMIA artifact descends from this chain — the encoder plus our own
 # corpus and gold. The firewall re-verifies it before any upload.
 LINEAGE: tuple[str, ...] = ("bowphs/GreBerta", "DDbDP", "oikonomia-gold")
+
+# `upload_folder` ships a directory wholesale and has NO default ignores, so a
+# stray editor or interpreter artifact in a checkpoint directory becomes a file
+# in a public repo. Matched against the path relative to the release directory,
+# and applied to both the pre-flight listing and the upload so the two agree.
+IGNORE_PATTERNS: tuple[str, ...] = (
+    "__pycache__/*",
+    "*/__pycache__/*",
+    "*.pyc",
+    ".DS_Store",
+    "*/.DS_Store",
+    ".ipynb_checkpoints/*",
+)
+
+
+def is_ignored(relative: str) -> bool:
+    """Whether a release-relative path is excluded from the upload."""
+    return any(fnmatch(relative, pattern) for pattern in IGNORE_PATTERNS)
 
 
 class ReleaseSpec(NamedTuple):
@@ -108,7 +127,10 @@ def check_ready(root: Path, spec: ReleaseSpec) -> list[Path]:
 
     # Recursive, because the upload is: the dataset keeps two tables under
     # export/, and a listing that hid them would under-report what goes public.
-    return sorted(p for p in ckpt.rglob("*") if p.is_file())
+    return sorted(
+        p for p in ckpt.rglob("*")
+        if p.is_file() and not is_ignored(str(p.relative_to(ckpt)))
+    )
 
 
 def stage_card(root: Path, spec: ReleaseSpec) -> Path:
