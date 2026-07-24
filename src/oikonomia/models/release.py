@@ -25,14 +25,15 @@ LINEAGE: tuple[str, ...] = ("bowphs/GreBerta", "DDbDP", "oikonomia-gold")
 
 
 class ReleaseSpec(NamedTuple):
-    """One shippable model: where its weights and card live, and what it needs."""
+    """One shippable artifact (model or dataset): where its files and card live."""
 
-    name: str  # the public model name
-    local_dir: str  # weights, relative to the repo root
-    card: str  # the model card, relative to the repo root
+    name: str  # the public artifact name
+    local_dir: str  # files, relative to the repo root
+    card: str  # the card, relative to the repo root
     repo_id: str  # default Hub repo id
     required: tuple[str, ...]  # files without which the upload is broken
-    extras: tuple[str, ...] = ()  # optional files copied in alongside the weights
+    extras: tuple[str, ...] = ()  # optional files copied in alongside
+    repo_type: str = "model"  # "model" | "dataset"
 
 
 GRAMMATEUS = ReleaseSpec(
@@ -43,6 +44,7 @@ GRAMMATEUS = ReleaseSpec(
     # A standard HF token-classification model: weights + config + tokenizer.
     required=("config.json", "model.safetensors", "tokenizer.json", "tokenizer_config.json"),
     extras=("data/processed/ner/labels.json",),
+    repo_type="model",
 )
 
 HOMOLOGIA = ReleaseSpec(
@@ -53,9 +55,19 @@ HOMOLOGIA = ReleaseSpec(
     # NOT a standard HF model: a custom span-pair head, so the state_dict plus the
     # config that `build_relation_head` reads back to rebuild the architecture.
     required=("config.json", "relation_head.pt"),
+    repo_type="model",
 )
 
-MODELS: dict[str, ReleaseSpec] = {"grammateus": GRAMMATEUS, "homologia": HOMOLOGIA}
+OIKONOMIA_DB = ReleaseSpec(
+    name="OIKONOMIA-DB",
+    local_dir="data/processed/db",
+    card="resources/release/OIKONOMIA_DB_CARD.md",
+    repo_id="oikonomia/oikonomia-db",
+    required=("monetary.parquet", "prices.parquet", "taxes.parquet", "persons.parquet", "principals.parquet", "autonomy.parquet"),
+    repo_type="dataset",
+)
+
+MODELS: dict[str, ReleaseSpec] = {"grammateus": GRAMMATEUS, "homologia": HOMOLOGIA, "db": OIKONOMIA_DB}
 
 
 class NotReadyError(RuntimeError):
