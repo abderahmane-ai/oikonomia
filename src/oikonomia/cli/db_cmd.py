@@ -32,6 +32,11 @@ from oikonomia.db.parties import PartyMeta, PartyObservation, assemble_parties
 from oikonomia.db.personscan import PersonMeta, PersonObservation, assemble_persons
 from oikonomia.db.places import load_place_names
 from oikonomia.db.prices import SPECS, clean_prices, price_series
+from oikonomia.db.principals import (
+    PersonGender,
+    PrincipalMeta,
+    assemble_principals,
+)
 from oikonomia.db.taxes import clean_tax_payments, fiscal_regime, payments_by_century
 from oikonomia.labeling.lexicon import load_lexicon
 from oikonomia.labeling.matcher import Matcher
@@ -50,8 +55,10 @@ PRICES_NAME = "db/prices.parquet"
 TAXES_NAME = "db/taxes.parquet"
 PARTIES_NAME = "db/parties.parquet"
 PERSONS_NAME = "db/persons.parquet"
+PRINCIPALS_NAME = "db/principals.parquet"
 AUTONOMY_NAME = "db/autonomy.parquet"
 NER_CORPUS_NAME = "ner/ner_corpus.jsonl"
+RE_CORPUS_NAME = "re/re_corpus.jsonl"
 
 # Published anchors for the validation view (dr/artaba), so the series is judged
 # against scholarship, not eyeballed. Rough consensus ranges, not point claims.
@@ -746,3 +753,159 @@ def validate_women(env: EnvOpt = "local", set_: SetOpt = None) -> None:
                    "(same text+rules; disagreement = span-boundary effects)")
     typer.echo("\n  (model checkpoint provenance silver-vs-gold-FT unverified — if gold-FT, "
                "PERSON F1 here is optimistic; the B/C comparison is the load-bearing check.)")
+
+
+# --- principals: women as principals across deal types (step 8, RE-driven) -----
+
+
+def _int(x: object) -> int | None:
+    f = _clean(x)
+    return int(f) if f is not None else None
+
+
+def _person_gender_index(
+    persons_df: pd.DataFrame,
+) -> tuple[dict[str, dict[tuple[int, int], PersonGender]], dict[str, PrincipalMeta]]:
+    """Index the person table by ``stem`` → span → gender, plus per-doc metadata.
+
+    The person table (``oik db persons``) is the authority for gender/guardian/
+    father *and* the document's date/place/genre (doc-level fields, identical
+    across a stem's rows). Both are joined onto the RE principals by the PERSON's
+    exact ``(start, end)`` span — the same NER span both tables were built from.
+    """
+    gender: dict[str, dict[tuple[int, int], PersonGender]] = {}
+    meta: dict[str, PrincipalMeta] = {}
+    for row in persons_df.itertuples(index=False):
+        stem = str(row.stem)
+        gender.setdefault(stem, {})[(int(row.person_start), int(row.person_end))] = PersonGender(
+            gender=str(row.gender),
+            gender_basis=str(row.gender_basis),
+            gender_confidence=float(row.gender_confidence),
+            guardian=str(row.guardian),
+            head_text=_txt(row.head_text, "") or None,
+            father_text=_txt(row.father_text, "") or None,
+        )
+        if stem not in meta:
+            meta[stem] = PrincipalMeta(
+                stem=stem,
+                tm_id=str(row.tm_id),
+                date_mid=_clean(row.date_mid),
+                century=_int(row.century),
+                bin50=_int(row.bin50),
+                place_pleiades=_int(row.place_pleiades),
+                genres=str(row.genres or ""),
+            )
+    return gender, meta
+
+
+@db_app.command("principals")
+def principals(
+    env: EnvOpt = "local",
+    set_: SetOpt = None,
+    re_corpus: Annotated[Path | None, typer.Option("--re-corpus", help="RE edges (default: processed/re/re_corpus.jsonl).")] = None,
+    persons: Annotated[Path | None, typer.Option("--persons", help="Person table (default: processed/db/persons.parquet).")] = None,
+    out: Annotated[Path | None, typer.Option("--out", help="Principal table (default: processed/db/principals.parquet).")] = None,
+) -> None:
+    """Women as principals across deal types — the RE-driven women finding (step 8).
+
+    Reads the saved RE model's corpus edges (``re_corpus.jsonl``), keeps the
+    people the deal turns on (``PARTY_OF`` / ``PAID_*`` heads), and joins each to
+    the validated gender + guardian + patronymic from the person table (steps
+    3-4). Reports the women's share among named principals overall, **by deal type
+    (genre)** and by century, plus the guardian split and the CHILD_OF kinship
+    coverage. Every row keeps its span and rule-of-record, so the share is
+    auditable. The extraction engine is the trained NER+RE pair (end-to-end
+    PARTY_OF ≈ 0.62), not rules.
+    """
+    s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    re_path = re_corpus or (Path(s.paths.processed) / RE_CORPUS_NAME)
+    persons_path = persons or (Path(s.paths.processed) / PERSONS_NAME)
+    if not re_path.is_file():
+        typer.secho(
+            f"{re_path} missing — run the corpus RE inference first "
+            "(modal_app/relations.py::infer → modal volume get /predictions/re_corpus.jsonl).",
+            fg="red",
+        )
+        raise typer.Exit(1)
+    if not persons_path.is_file():
+        typer.secho(f"{persons_path} missing — run `oik db persons` first.", fg="red")
+        raise typer.Exit(1)
+
+    gender_by_stem, meta_by_stem = _person_gender_index(pd.read_parquet(persons_path))
+    rows: list[dict[str, object]] = []
+    with re_path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            doc = json.loads(line)
+            stem = str(doc["stem"])
+            ents = [
+                Ent(int(e["start"]), int(e["end"]), str(e["label"]), str(e.get("text", "")), None, 1.0)
+                for e in doc.get("entities", [])
+            ]
+            rels = [
+                Rel(int(r["head"]), int(r["tail"]), str(r["type"]), float(r.get("confidence", 1.0)))
+                for r in doc.get("relations", [])
+            ]
+            meta = meta_by_stem.get(stem) or PrincipalMeta(
+                stem=stem, tm_id=str(doc.get("tm_id")), date_mid=None,
+                century=None, bin50=None, place_pleiades=None, genres="",
+            )
+            for p in assemble_principals(ents, rels, gender_by_stem.get(stem, {}), meta):
+                rows.append(p.model_dump())
+
+    df = pd.DataFrame(rows)
+    out_path = out or (Path(s.paths.processed) / PRINCIPALS_NAME)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(out_path, index=False)
+    _summarize_principals(df, out_path)
+
+
+def _summarize_principals(df: pd.DataFrame, out_path: Path) -> None:
+    typer.echo(f"\nWrote {out_path}: {len(df)} principals (RE PARTY_OF/PAID_* heads, gendered)")
+    if df.empty:
+        typer.echo("  (no principals found — is re_corpus.jsonl populated?)")
+        return
+    nf, ng, share = _share(df)
+    cov = ng / len(df) if len(df) else 0.0
+    typer.echo(f"  gender-attributable: {ng:,}/{len(df):,} ({cov:.0%})   [unknown: {len(df) - ng:,}]")
+    if share is not None:
+        typer.echo(f"  WOMEN'S SHARE among named principals: {nf:,}/{ng:,} = {share:.1%}")
+
+    typer.echo("\n  WOMEN AS PRINCIPALS BY DEAL TYPE (genre, min n=15 attributable):")
+    for g, sub in sorted(df.groupby("deal_type"), key=lambda kv: -len(kv[1])):
+        nf, ng, sh = _share(sub)
+        if ng >= 15 and g:
+            typer.echo(f"    {g!s:18}: women {nf:4,}/{ng:5,} = {sh:.0%}")
+
+    typer.echo("\n  by century (min n=15 attributable):")
+    for cen, sub in sorted(df.groupby("century"), key=lambda kv: (kv[0] is None, kv[0])):
+        nf, ng, sh = _share(sub)
+        if ng >= 15 and cen is not None:
+            typer.echo(f"    {_cen(cen):>7}: women {nf:4,}/{ng:5,} = {sh:.0%}")
+
+    # Guardian split among women principals — the autonomy axis, now on principals.
+    fem = df[df["gender"] == "female"]
+    gv = fem["guardian"].value_counts().to_dict()
+    n_with, n_without = int(gv.get("with", 0)), int(gv.get("without", 0))
+    formulaic = n_with + n_without
+    typer.echo(f"\n  women principals with a guardian FORMULA: {formulaic:,} of {len(fem):,}")
+    if formulaic:
+        typer.echo(f"    μετὰ κυρίου  (with):    {n_with:>6,} ({n_with / formulaic:.0%})")
+        typer.echo(f"    χωρὶς κυρίου (without): {n_without:>6,} ({n_without / formulaic:.0%})")
+
+    # Kinship coverage — the split-person CHILD_OF (patronymic) the finding can join.
+    kin = int(fem["father_text"].map(lambda v: isinstance(v, str) and bool(v)).sum())
+    typer.echo(f"  women principals with a recovered patronymic (CHILD_OF): {kin:,}/{len(fem):,}")
+
+    typer.echo("\n  gender basis breakdown (which rule fired):")
+    for (gen, basis), n in df.groupby(["gender", "gender_basis"]).size().sort_values(ascending=False).items():
+        if gen != "unknown":
+            typer.echo(f"    {gen:7} via {basis:12} {n:>8,}")
+
+    typer.echo("\n  female-principal sample (person | father | guardian | roles | deal):")
+    for _, r in fem[fem["guardian"] != "none"].head(12).iterrows():
+        typer.echo(
+            f"    {_txt(r['person_text'])[:24]:26} {_txt(r['father_text'])[:12]:13} "
+            f"{r['guardian']:8} {r['roles']:12} {_txt(r['deal_type'], '')}"
+        )

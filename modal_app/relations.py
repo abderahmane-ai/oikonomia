@@ -568,6 +568,10 @@ def xval(
 
 # The corpus-scale NER run's output on the shared Volume (keyed by stem == gold doc_id).
 PRED_CORPUS_VOL = f"{VOL_ROOT}/predictions/ner_corpus.jsonl"
+# The corpus text (stem, tm_id, text) the RE inference tokenizes + folds; and the
+# corpus-scale RE output (one record per doc: entities + predicted relations).
+CORPUS_TEXT_VOL = f"{DATA_DIR}/corpus_text.jsonl"
+RE_CORPUS_OUT = f"{VOL_ROOT}/predictions/re_corpus.jsonl"
 
 
 @app.function(gpu=GPU, volumes={VOL_ROOT: ner_volume}, timeout=3600)
@@ -726,6 +730,248 @@ def evaluate_e2e_remote(
         print(f"[eval_e2e]   {ty:14} {o_by.get(ty, 0.0):.3f} → {e_by.get(ty, 0.0):.3f}")
     print(f"[eval_e2e] RESULT {json.dumps(result, ensure_ascii=False)}", flush=True)
     return result
+
+
+# --- step 8: corpus-scale RE — the saved model over ALL the NER-predicted spans ---
+
+
+@app.function(
+    gpu=GPU,
+    volumes={VOL_ROOT: ner_volume},
+    timeout=24 * 3600,
+    retries=modal.Retries(max_retries=2, initial_delay=10.0),
+)
+def infer_corpus(
+    seq_len: int = 512,
+    stride: int = 128,
+    batch: int = 32,
+    limit: int = 0,
+    log_every: int = 2000,
+    constrain_decode: bool = True,
+    payment_lex: dict[str, list[str]] | None = None,
+) -> dict[str, object]:
+    """Run the saved RE model over every document's NER-predicted entities.
+
+    Reads the corpus text (``corpus_text.jsonl``) and the corpus-scale NER
+    entities (``ner_corpus.jsonl``), joined by ``stem``, and for each document
+    windows the text (``seq_len`` context, ``stride`` overlap) so no party or
+    payment past 512 tokens is dropped — 5.4% of docs are longer. Per window it
+    builds the type-admissible candidate pairs (the pure
+    :mod:`oikonomia.relations.infer`), scores them with the saved head, keeps the
+    highest-probability reading of each entity pair across windows, applies the
+    schema constraint, and writes one record per doc (entities + predicted
+    relations) to ``re_corpus.jsonl`` — the input to ``oik db principals``.
+
+    The model-load block mirrors :func:`evaluate_e2e_remote` (kept separate so
+    that verified end-to-end path is untouched); the substantive windowing and
+    candidate logic is the shared, laptop-tested library.
+    """
+    import os
+
+    os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+
+    import torch
+    from transformers import AutoTokenizer
+
+    from oikonomia.ner.inference import plan_windows
+    from oikonomia.relations.decode import constrain
+    from oikonomia.relations.encode import NO_RELATION, admissible_mask
+    from oikonomia.relations.features import PaymentLexicon, fold
+    from oikonomia.relations.infer import build_window_candidates, merge_scored
+
+    ner_volume.reload()
+    device = "cuda"
+    if not Path(f"{RELATION_MODEL_DIR}/config.json").is_file():
+        raise SystemExit(f"no saved RE model at {RELATION_MODEL_DIR} — run `launch` first.")
+    if not Path(PRED_CORPUS_VOL).is_file():
+        raise SystemExit(f"{PRED_CORPUS_VOL} absent — run modal_app/ner.py::infer first.")
+    if not Path(CORPUS_TEXT_VOL).is_file():
+        raise SystemExit(f"{CORPUS_TEXT_VOL} absent — run `oik ner corpus-text` + push first.")
+
+    cfg = json.loads(Path(f"{RELATION_MODEL_DIR}/config.json").read_text(encoding="utf-8"))
+    model = build_relation_head(
+        backbone=cfg["reconstruct_backbone"],
+        n_entity_labels=len(cfg["entity_labels"]),
+        n_rel_labels=len(cfg["relation_labels"]),
+        type_dim=cfg["type_dim"],
+        feat_dim=cfg["feat_dim"],
+        dropout=cfg["dropout"],
+    ).to(device)
+    model.load_state_dict(torch.load(f"{RELATION_MODEL_DIR}/relation_head.pt", map_location=device))
+    model.eval()
+    rel_labels: list[str] = cfg["relation_labels"]
+    ent2id = {lab: i for i, lab in enumerate(cfg["entity_labels"])}
+    no_rel_id = cfg["relation_label2id"][NO_RELATION]
+    tokenizer = AutoTokenizer.from_pretrained(cfg["reconstruct_backbone"], use_fast=True)
+    lex = PaymentLexicon(**payment_lex) if payment_lex else PaymentLexicon()
+    bos = tokenizer.cls_token_id if tokenizer.cls_token_id is not None else tokenizer.bos_token_id
+    eos = tokenizer.sep_token_id if tokenizer.sep_token_id is not None else tokenizer.eos_token_id
+    pad = tokenizer.pad_token_id if tokenizer.pad_token_id is not None else 0
+    max_content = seq_len - 2
+
+    mask_cache: dict[tuple[str, str], object] = {}
+
+    def mask_for(hlab: str, tlab: str):
+        key = (hlab, tlab)
+        if key not in mask_cache:
+            mask_cache[key] = torch.tensor(admissible_mask(hlab, tlab), device=device)
+        return mask_cache[key]
+
+    # NER entities (with text) by stem, then stream the text as the driver.
+    ents_by_stem: dict[str, list[dict]] = {}
+    with Path(PRED_CORPUS_VOL).open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            ents_by_stem[str(r["stem"])] = r.get("entities", [])
+    docs: list[tuple[str, str, str]] = []
+    with Path(CORPUS_TEXT_VOL).open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            d = json.loads(line)
+            docs.append((str(d["stem"]), str(d["tm_id"]), str(d["text"])))
+            if limit and len(docs) >= limit:
+                break
+    print(f"[re-infer] {len(docs)} docs, {len(ents_by_stem)} with NER entities "
+          f"seq_len={seq_len} stride={stride} batch={batch}", flush=True)
+
+    out_dir = Path(RE_CORPUS_OUT).parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    pending: dict[int, dict[str, object]] = {}
+    buf: list[tuple[int, list[int], list]] = []
+    n_done = n_rel = n_party = n_windows = n_long = 0
+
+    with Path(RE_CORPUS_OUT).open("w", encoding="utf-8") as out_fh:
+
+        def finalize(di: int) -> None:
+            nonlocal n_done, n_rel, n_party
+            rec = pending.pop(di)
+            merged = merge_scored(rec["scored"])  # type: ignore[arg-type]
+            conf = {(h, t): s for (h, t, _ty, s) in merged}
+            kept = constrain(merged) if constrain_decode else [(h, t, ty) for (h, t, ty, _s) in merged]
+            out_fh.write(json.dumps({
+                "stem": rec["stem"],
+                "tm_id": rec["tm_id"],
+                "entities": rec["entities"],
+                "relations": [
+                    {"head": h, "tail": t, "type": ty, "confidence": round(conf.get((h, t), 1.0), 4)}
+                    for (h, t, ty) in kept
+                ],
+            }, ensure_ascii=False))
+            out_fh.write("\n")
+            n_done += 1
+            n_rel += len(kept)
+            n_party += sum(1 for (_h, _t, ty) in kept if ty == "PARTY_OF")
+            if n_done % log_every == 0:
+                print(f"[re-infer] {n_done}/{len(docs)} docs  {n_rel} rels ({n_party} PARTY_OF)", flush=True)
+
+        @torch.no_grad()
+        def drain(chunk: list[tuple[int, list[int], list]]) -> None:
+            if chunk:
+                width = max(len(ids) for _, ids, _ in chunk) + 2
+                input_ids = torch.full((len(chunk), width), pad, dtype=torch.long)
+                attn = torch.zeros((len(chunk), width), dtype=torch.long)
+                for r, (_, ids, _) in enumerate(chunk):
+                    seq = [bos, *ids, eos]
+                    input_ids[r, : len(seq)] = torch.tensor(seq, dtype=torch.long)
+                    attn[r, : len(seq)] = 1
+                hb, clsb = model.encode(input_ids.to(device), attn.to(device))
+                for r, (di, _ids, cands) in enumerate(chunk):
+                    logits = model.score_pairs(hb[r], clsb[r], cands)
+                    for k, c in enumerate(cands):
+                        masked = logits[k].masked_fill(~mask_for(c.hlab, c.tlab), float("-inf"))
+                        prob = torch.softmax(masked, dim=-1)
+                        lid = int(prob.argmax().item())
+                        if lid != no_rel_id:
+                            pending[di]["scored"].append(  # type: ignore[attr-defined]
+                                (c.h, c.t, rel_labels[lid], float(prob[lid].item()))
+                            )
+                    rec = pending[di]
+                    rec["remaining"] = int(rec["remaining"]) - 1  # type: ignore[arg-type]
+                    if rec["remaining"] == 0:
+                        finalize(di)
+
+        for di, (stem, tm_id, text) in enumerate(docs):
+            ents = ents_by_stem.get(stem, [])
+            ent_tuples = [(int(e["start"]), int(e["end"]), str(e["label"])) for e in ents]
+            pending[di] = {"stem": stem, "tm_id": tm_id, "entities": ents, "scored": [], "remaining": 0}
+            if len(ent_tuples) < 2:
+                finalize(di)
+                continue
+            folded = fold(text)
+            enc = tokenizer(text, add_special_tokens=False, return_offsets_mapping=True, truncation=False)
+            ids = enc["input_ids"]
+            offs = [tuple(o) for o in enc["offset_mapping"]]
+            windows = plan_windows(len(ids), max_content, stride)
+            n_windows += len(windows)
+            n_long += 1 if len(windows) > 1 else 0
+            built: list[tuple[list[int], list]] = []
+            for a, b in windows:
+                win_offs = [(0, 0), *offs[a:b], (0, 0)]
+                cands = build_window_candidates(ent_tuples, win_offs, folded, ent2id, lex)
+                if cands:  # a window with no admissible pair contributes nothing
+                    built.append((ids[a:b], cands))
+            pending[di]["remaining"] = len(built)
+            if not built:
+                finalize(di)
+                continue
+            for win_ids, cands in built:
+                buf.append((di, win_ids, cands))
+                if len(buf) >= batch:
+                    drain(buf)
+                    buf = []
+        if buf:
+            drain(buf)
+
+    ner_volume.commit()
+    summary = {
+        "model": RELATION_MODEL_DIR,
+        "docs": n_done,
+        "relations": n_rel,
+        "party_of": n_party,
+        "windows": n_windows,
+        "long_docs_windowed": n_long,
+        "output": RE_CORPUS_OUT,
+        "seq_len": seq_len,
+        "stride": stride,
+        "constrain_decode": constrain_decode,
+    }
+    print(f"[re-infer] DONE {json.dumps(summary, ensure_ascii=False)}", flush=True)
+    return summary
+
+
+@app.local_entrypoint()
+def infer(
+    seq_len: int = 512,
+    stride: int = 128,
+    batch: int = 32,
+    limit: int = 0,
+    constrain_decode: bool = True,
+) -> None:
+    """Trigger corpus-scale RE on the A10; results land at ``/predictions/re_corpus.jsonl``.
+
+    Prereqs on the ``oikonomia-ner`` Volume: the saved model (``launch``), the NER
+    entities (``ner_corpus.jsonl``) and the corpus text (``corpus_text.jsonl``).
+    Then pull the edges down::
+
+        modal volume get oikonomia-ner /predictions/re_corpus.jsonl data/processed/re/
+
+    and assemble the finding with ``oik db principals``. ``limit`` caps docs for a
+    smoke test.
+    """
+    from oikonomia.relations.features import load_payment_lexicon
+
+    payment_lex = load_payment_lexicon(REPO / "resources").model_dump()
+    print(json.dumps(
+        infer_corpus.remote(
+            seq_len=seq_len, stride=stride, batch=batch, limit=limit,
+            constrain_decode=constrain_decode, payment_lex=payment_lex,
+        ),
+        indent=2, ensure_ascii=False,
+    ))
 
 
 @app.local_entrypoint()
