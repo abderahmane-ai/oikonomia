@@ -251,6 +251,22 @@ is quadratic in density but they hold no party structure (removing them dropped
 (assembler), `modal_app/relations.py::infer_corpus` (A10 entrypoint). Detail on
 the RE model + end-to-end number: [`phase_8_relation_model.md`](phase_8_relation_model.md).
 
+### The database, packaged — DONE (2026-07-24, `oik db export`)
+
+The loose per-finding parquets are now a **documented, queryable database**
+(deliverable #2), schema in [`../database.md`](../database.md). `oik db export`
+writes: a **61,249-doc spine** (`documents.parquet` — metadata + per-doc person/
+principal/money counts + price/tax flags, the queryable entry point), a
+**coreference-lite distinct-person table** (`persons_distinct.parquet`,
+`oikonomia.db.identity`: NFC+casefold surface key on name+father+place, folds Greek
+final sigma / Unicode form; under-merges so it's an upper bound on the headcount),
+and a `manifest.json` (inventory + pinned `corpus_rev` + CC BY 3.0).
+
+The distinct-person view answers the reviewer's real question: **1,414 distinct
+women principals of 7,022 gendered = 20.1%** — *higher* than the 18.0% mention
+share, because men repeat more within a document, so folding mentions to people
+lifts the women's share. The honest headcount strengthens the finding.
+
 ### Next
 
 1. ✅ **Price finding** (wheat series) — done, validated.

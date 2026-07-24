@@ -7,6 +7,7 @@ not needed to continue work lives elsewhere:
 - **Phase history** → [`docs/phases/*.md`](docs/phases) (one file per phase).
 - **Load-bearing facts** ("never re-derive") → [`docs/fact-ledger.md`](docs/fact-ledger.md).
 - **Architecture detail** → [`docs/architecture.md`](docs/architecture.md).
+- **Database schema / data dictionary** (deliverable #2) → [`docs/database.md`](docs/database.md).
 - **Phase-8 plan of record (lean/descoped)** →
   [`docs/phases/phase_8_relation_model.md`](docs/phases/phase_8_relation_model.md).
   The original maximal OIKONOMIA-RE plan (now descoped) is archived at
@@ -153,9 +154,13 @@ modal secret create huggingface HF_TOKEN=hf_xxx                # once
 .venv/bin/oik db taxes                        # fiscal-regime map + poll tax by century/region → db/taxes.parquet
 .venv/bin/oik db persons                      # gender+guardian over the MODEL's 350k PERSON spans → db/persons.parquet
 .venv/bin/oik db autonomy                     # χωρὶς-vs-μετὰ-κύριου curve by century/region → db/autonomy.parquet
+.venv/bin/oik db principals                   # women as principals by DEAL TYPE (reads re_corpus.jsonl + persons.parquet) → db/principals.parquet
+.venv/bin/oik db export                        # package the queryable DB: documents spine + distinct persons + manifest → db/export/
 .venv/bin/oik db validate-women               # validate the women pipeline (steps 3-5) vs the 115-doc gold
-.venv/bin/oik db women --source gold          # step-8 relation-based principals (PARTY_OF); gold-validated
+.venv/bin/oik db women --source gold          # OLD rule-based principals (superseded by `oik db principals`)
 ```
+
+Database schema + data dictionary: [`docs/database.md`](docs/database.md).
 
 Explicit cache-clear (if `make clean` is unavailable). **Never use `find -delete`
 here** — it implies `-depth`, which disables `-prune` and walks into `.venv`:
@@ -555,6 +560,12 @@ audits say it is not.
   PAID_* heads with gender+guardian+father+deal_type+span. Women 18.0%; deal-type
   gradient sale 30%/loan 28% vs receipt 10%. Regen: `oik db principals` (reads
   `re_corpus.jsonl` + `persons.parquet`). Gitignored, re-derivable.
+- `data/processed/db/export/` — **the packaged database** (deliverable #2):
+  `documents.parquet` (61,249-doc spine w/ per-doc counts + price/tax flags),
+  `persons_distinct.parquet` (**17,362 distinct people**, coref-lite — **1,414
+  distinct women principals / 7,022 = 20.1%**, the honest headcount vs the 18%
+  mention share), `manifest.json` (inventory + `corpus_rev` + CC BY 3.0). Regen:
+  `oik db export`. Schema doc: [`docs/database.md`](docs/database.md). Gitignored.
 - **Modal Volume `oikonomia-dapt`:** `shards/{train,dev}.bin`,
   `checkpoints/full/final` (**B1** — load this for b1). Stale `checkpoints/b1-*`
   from the first sweep are safe to `modal volume rm -r`.
@@ -569,11 +580,12 @@ audits say it is not.
   model — the shippable NER model is produced by **`launch`**
   (`train(save_final=True)` → `models/release/final`, all gold), then **`push_to_hub`**.
 
-**Quality gate at last save:** ruff (src tests modal_app) · mypy (86 files) ·
-604 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
+**Quality gate at last save:** ruff (src tests modal_app) · mypy (88 files) ·
+619 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
 provenance-validated 0/1.37M mismatch. Women pipeline gold-validated (gender rules
 100% deterministic, autonomy trend robust). Step 8: corpus RE 61,249 docs /
-16,315 PARTY_OF; principals finding deal-type ordering stable at n≥40.
+16,315 PARTY_OF; principals finding deal-type ordering stable at n≥40. DB packaged
+(`oik db export`): 61,249-doc spine + 17,362 distinct people; schema `docs/database.md`.
 
 ---
 
