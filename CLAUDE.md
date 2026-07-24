@@ -151,8 +151,10 @@ modal secret create huggingface HF_TOKEN=hf_xxx                # once
 .venv/bin/oik db build --sample 0             # whole corpus (~minutes) → data/processed/db/monetary.parquet
 .venv/bin/oik db prices                       # clean price series (median [IQR] n) → db/prices.parquet
 .venv/bin/oik db taxes                        # fiscal-regime map + poll tax by century/region → db/taxes.parquet
-.venv/bin/oik db women --source gold          # women-as-principals: gender+party logic, VALIDATED on gold
-.venv/bin/oik db women --source corpus --sample 0   # noisy rule-labeler lower bound ONLY (deliverable runs the model)
+.venv/bin/oik db persons                      # gender+guardian over the MODEL's 350k PERSON spans → db/persons.parquet
+.venv/bin/oik db autonomy                     # χωρὶς-vs-μετὰ-κύριου curve by century/region → db/autonomy.parquet
+.venv/bin/oik db validate-women               # validate the women pipeline (steps 3-5) vs the 115-doc gold
+.venv/bin/oik db women --source gold          # step-8 relation-based principals (PARTY_OF); gold-validated
 ```
 
 Explicit cache-clear (if `make clean` is unavailable). **Never use `find -delete`
@@ -176,6 +178,15 @@ findings it enables. After 8 phases the *reading* was solid but **zero database
 rows existed and zero historical questions were answered**; the relation-F1 grind
 (esp. 8a direction) was polishing scaffolding. So: freeze the models, build the DB.
 Full rationale + first result: [`docs/phases/phase_9_database.md`](docs/phases/phase_9_database.md).
+
+**LATEST (2026-07-24) — the AUTONOMY finding is complete and gold-validated.** The
+women front (§7 steps 1–6) ran the **trained model's** NER over all 61,249 docs
+(1.37M entities), split person blobs (129k father links), attributed gender +
+typed the guardian formula, and drew the curve: **women's χωρὶς-κυρίου (autonomous)
+share rises 0% (≤1c AD) → 39% (3c) → 80% (4c AD)** — the *ius liberorum* spread /
+decline of tutela mulierum, recovered unsupervised. Three findings now exist
+(prices, taxes, autonomy). **Next: step 7** (revive+save the RE model) → step 8
+(women as principals across deal types). This is the live work; details in §7.
 
 **The models are DONE, not abandoned (deliverable #1, publishable):**
 - Entity NER: DAPT **B1** (GreBerta full-FT) → silver-pretrain → gold-FT →
@@ -234,7 +245,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 7 Entity NER | ✅ | **DAPT beats no-DAPT control +9.5 strict F1** (PERSON +19, PLACE +11) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 7b Two-stage silver→gold | ✅ | gold-FT recipe → **strict 0.737 / relaxed 0.837**; GCE rejected (−5.7) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); 8a closed (data-bound); 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
-| 9 Corpus→DB | 🔶 ACTIVE | **195,906 facts**; **prices** (2c AD 13.3 vs lit ~7–12) + **taxes** (fiscal-regime map, poll tax by nome) validated; **women** logic validated on gold (sale 44% vs lease 0%) — deliverable runs the trained model next | [phase_9](docs/phases/phase_9_database.md) |
+| 9 Corpus→DB | 🔶 ACTIVE | **195,906 facts**; **prices** (2c AD 13.3 vs lit ~7–12) + **taxes** validated; **AUTONOMY finding DONE** on the trained model — model NER over all 61,249 docs (1.37M entities) → gender+guardian → χωρὶς-κυρίου curve **0%→39%→80% (3c→4c AD)**, gold-validated | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ⬜ | findings write-up (price series, women-as-principals) | — |
 | 11 Release | 🔶 PACKAGED | NER model **packaged for HF** (licence firewall + model card + `launch`/`push_to_hub`); 2 owner-run commands from live | [phase_11](docs/phases/phase_11_release.md) |
 
@@ -297,12 +308,18 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 >    gender-attributable, women's share 21.7%; **autonomy signal — 1,770 women
 >    with a guardian formula: 92% μετὰ / 8% χωρὶς** (94% clean of competing male
 >    signal; the 6% mis-scoped window is what step 6 measures).
-> 5. **← NEXT.** The autonomy **curve** — break the 92/8 by century and region
->    (reads `persons.parquet`). No RE model needed.
-> 6. Validate the women pipeline vs the 115-doc gold (guardian precision + window tune).
-> 7. Revive the RE model — (a) `RelationHead` into a module; (b) all-gold train +
->    save; (c) standalone RE inference on NER-predicted entities; (d) measure the
->    end-to-end drop vs the 0.65 oracle PARTY_OF.
+> 5. ✅ **DONE** — the autonomy **curve** (`oikonomia.db.autonomy`, `oik db
+>    autonomy` → `db/autonomy.parquet`). **χωρὶς-κυρίου (autonomous) share by
+>    century: 0% (≤1c AD) → 1% (2c) → 39% (3c) → 80% (4c) → 77% (6c)** — reproduces
+>    the *ius liberorum* spread / decline of tutela mulierum, unsupervised. Region
+>    cut is confounded by each nome's era-composition (secondary).
+> 6. ✅ **DONE** — gold validation (`oik db validate-women`): gender rules **100%
+>    deterministic** (613/613 matched spans agree); PERSON relaxed recall 0.91;
+>    guardian-women over-counted on the μετὰ (with) side, but **χωρὶς matches gold
+>    exactly** — so the autonomy rise is **conservative**, not inflated. Trend robust.
+> 7. **← NEXT.** Revive the RE model — (a) `RelationHead` into a module; (b)
+>    all-gold train + save; (c) standalone RE inference on NER-predicted entities;
+>    (d) measure the end-to-end drop vs the 0.65 oracle PARTY_OF.
 > 8. Fuller finding — women as principals across deal types (PARTY_OF + split-person
 >    kinship).
 >
@@ -312,10 +329,11 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 > `oikonomia-dapt:/checkpoints/full/final`. Volume data: `silver/gold/labels/
 > relation_labels`. **RE MODEL: NOTHING SAVED** — `relations.py` only measured it.
 >
-> **Progress:** steps **1–4 DONE and validated** (owner-authorized incrementally,
-> 2026-07-24). Next is **step 5** (the autonomy curve by century/region over
-> `db/persons.parquet`), then **step 6** (gold validation). Steps 7–8 (RE model)
-> after.
+> **Progress:** steps **1–6 DONE and validated** (owner-authorized incrementally,
+> 2026-07-24) — **the autonomy finding is complete**: model NER over the whole
+> corpus → gender+guardian → the χωρὶς-κυρίου curve (0%→39%→80% over 3c→4c AD),
+> gold-validated. **Next is step 7** (revive the RE model), then **step 8** (women
+> as principals across deal types). Steps 1–6 are the autonomy front; 7–8 the fuller finding.
 
 **PARKED — model release (deliverable #1).** Superseded by the directive above.
 NER release is PACKAGED (licence firewall `oikonomia.models.licensing`; model card
@@ -355,8 +373,9 @@ matches at ceiling, so the model adds nothing. The trained models earn their kee
 elsewhere: (1) as **deliverable #1** (a released papyri Greek NER+RE model — a
 contribution in itself), and (2) for the **person/place-heavy findings** (women-as-
 principals, kinship) where PERSON/PLACE are open-class and rules fail (model beats
-rules +19 PERSON / +11 PLACE). The entity model is saved on Modal but not yet wired
-into the DB; the relation model was only xval-measured, never saved.
+rules +19 PERSON / +11 PLACE). The entity model is now **wired into the DB** — its
+corpus-scale run (`ner_corpus.jsonl`) drives the autonomy finding (steps 1–6). The
+relation model was only xval-measured, never saved — that is **step 7**, next.
 
 **Tax finding — DONE + validated (`oik db taxes`).** `src/oikonomia/db/taxes.py`
 + `places.py`. (1) **Fiscal-regime map** (tax × era) reproduces textbook history:
@@ -366,23 +385,22 @@ century (installments: median ~4 dr, p90 20 dr → the known annual ~16–40 dr 
 and **by region** (place names resolved from HGV: Arsinoites 25 dr vs
 Herakleopolites 2 dr — real nome variation). Writes `db/taxes.parquet` (592 obs).
 
-**Women-as-principals — logic built + VALIDATED ON GOLD (`oik db women`).**
-`src/oikonomia/db/persons.py` (deterministic, precision-ordered gender: guardian
-`μετὰ/χωρὶς κυρίου`→female, Roman nomen `Αὐρήλιος`m/`Αὐρηλία`f, θυγάτηρ/υἱός,
-Egyptian article prefix `Τα-`f/`Πα-`m, small gazetteer — each call returns the
-*rule that fired*) + `parties.py` (`assemble_parties`: one row per named principal
-with gender/guardian/role/tx/date/span). Guards for the metronymic (`μητρὸς X` =
-mother, not head), the `καὶ ὁ υἱὸς` handoff, and a masc-inflection veto
-(`Δίδυμον`↛female). Gold validation: **sale 44% vs lease 0% vs loan 6%** (textbook).
-**A bootstrapped name gazetteer was built then REMOVED as slop (2026-07-24)** — it
-pumped gold coverage 42%→54% but was a synthetic shortcut (§2). Gender keeps only
-the principled high-precision signals (guardian/nomen/kin), each labeled by `basis`.
-**THE DELIVERABLE RUNS THE TRAINED MODEL**, not rules: people/parties are
-open-class (PERSON +19, PARTY_OF 0.28→0.65). Next = a **Modal NER-inference run over
-the corpus** as the extraction engine + the legal formulae (μετὰ/χωρὶς κυρίου →
-near-certain female; χρηματίζουσα; γράμματα μὴ εἰδυίης = literacy) as first-class
-features; target the **guardianship-autonomy curve** first. `--source corpus` (rule
-labeler) is a lower-bound sanity check only. PERSON-blob split for kinship still open.
+**AUTONOMY FINDING — DONE end-to-end on the trained model (steps 1–6, 2026-07-24).**
+The full pipeline runs the **model's** corpus-scale NER (not rules), as directed:
+`db/names.py` (`parse_person_name`: head/patronymic split — 129k father links) →
+`db/personscan.py` (`oik db persons`: gender + typed guardian over the 350k model
+PERSON spans) → `db/autonomy.py` (`oik db autonomy`: the curve). **Result — the
+χωρὶς-κυρίου (autonomous) share by century: 0% (≤1c AD) → 39% (3c) → 80% (4c)**,
+reproducing the *ius liberorum* spread / decline of tutela mulierum unsupervised.
+Gold-validated (`oik db validate-women`): gender rules **100% deterministic**;
+over-count is on the μετὰ side so the rise is **conservative**. Gender logic
+(`db/persons.py`, precision-ordered: guardian→female, nomen `Αὐρήλιος`m/`Αὐρηλία`f,
+θυγάτηρ/υἱός, Egyptian `Τα-`f/`Πα-`m, gazetteer; guards for metronymic `μητρὸς X`,
+the `καὶ ὁ υἱὸς` handoff, masc-inflection veto) is unchanged and each attribution
+labels its `basis`. **A bootstrapped name gazetteer was built then REMOVED as slop
+(2026-07-24)** (synthetic shortcut, §2). The relation-based `oik db women`/`parties.py`
+path (needs PARTY_OF) is the **step-8** fuller finding, still to come; `--source
+corpus` there is a rule-labeler lower bound only.
 
 **Triage (what is shelved/frozen — do not reopen without a finding that demands it):**
 
@@ -418,14 +436,14 @@ cd /Users/abdoumagico/Development/ACHATES
 **(1) harden the wheat price slice** — outlier filter, fix per-unit semantics
 (`unit_price = value/quantity` over-divides when the amount is already per-unit),
 full-corpus run → a defensible series with error bars vs Rathbone/Bagnall. **(2)
-second finding — "women as economic principals"**: gender (deterministic from
-names/morphology) + PARTY_OF (0.65) + guardian-`κύριος`; and **split the PERSON
-blob** to recover `CHILD_OF` kinship (43% of gold PERSON spans are name+patronymic
-collapsed into one node — the biggest prosopography gap). **(3) entity identity /
-coreference** for cross-document prosopography. **(4) release the frozen models**
-(deliverable #1, already at bar). **Do NOT** reopen relation-F1 work, silver
-re-emission, or Modal xval unless a *specific finding* proves the frozen model is
-the binding constraint — the audits say it is not.
+women finding — the autonomy curve is DONE** (steps 1–6: model NER → gender+guardian
+→ χωρὶς-κυρίου curve, gold-validated; PERSON-blob split recovered 129k father links).
+What remains: **step 7** (revive/save the RE model) → **step 8** the fuller "women
+as principals across deal types" (PARTY_OF 0.65 + split-person `CHILD_OF` kinship).
+**(3) entity identity / coreference** for cross-document prosopography. **(4) release
+the frozen models** (deliverable #1, already at bar). **Do NOT** reopen relation-F1
+work, silver re-emission, or Modal xval unless a *specific finding* proves the frozen
+model is the binding constraint — the audits say it is not.
 
 ### Operational gotchas (do not relearn these the hard way)
 
@@ -486,6 +504,9 @@ the binding constraint — the audits say it is not.
 - `data/processed/db/persons.parquet` — **350,206 rows**, gender+guardian for every
   model PERSON span (step 4): head/father split, gender_basis, guardian with/without
   /none, provenance. Regen: `oik db persons` (reads `ner_corpus.jsonl`). Gitignored.
+- `data/processed/db/autonomy.parquet` — the **autonomy curve** (step 5): 32 buckets
+  (century + region), n_with/n_without/autonomous_share. Regen: `oik db autonomy`
+  (reads `persons.parquet`). Gitignored, re-derivable.
 - **Modal Volume `oikonomia-dapt`:** `shards/{train,dev}.bin`,
   `checkpoints/full/final` (**B1** — load this for b1). Stale `checkpoints/b1-*`
   from the first sweep are safe to `modal volume rm -r`.
@@ -497,9 +518,10 @@ the binding constraint — the audits say it is not.
   model — the shippable NER model is produced by **`launch`**
   (`train(save_final=True)` → `models/release/final`, all gold), then **`push_to_hub`**.
 
-**Quality gate at last save:** ruff (src tests modal_app) · mypy (81 files) ·
-554 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
-provenance-validated 0/1.37M mismatch.
+**Quality gate at last save:** ruff (src tests modal_app) · mypy (84 files) ·
+587 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
+provenance-validated 0/1.37M mismatch. Women pipeline gold-validated (gender rules
+100% deterministic, autonomy trend robust).
 
 ---
 

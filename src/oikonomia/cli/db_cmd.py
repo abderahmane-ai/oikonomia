@@ -26,6 +26,7 @@ from oikonomia.config import load_settings
 from oikonomia.corpus.io import corpus_path, iter_batches
 from oikonomia.db.dates import century as signed_century
 from oikonomia.db.dates import date_mid, half_century_start
+from oikonomia.db.autonomy import guardian_curve
 from oikonomia.db.facts import DocMeta, Ent, Rel, assemble_monetary
 from oikonomia.db.parties import PartyMeta, PartyObservation, assemble_parties
 from oikonomia.db.personscan import PersonMeta, PersonObservation, assemble_persons
@@ -33,6 +34,7 @@ from oikonomia.db.places import load_place_names
 from oikonomia.db.prices import SPECS, clean_prices, price_series
 from oikonomia.db.taxes import clean_tax_payments, fiscal_regime, payments_by_century
 from oikonomia.labeling.lexicon import load_lexicon
+from oikonomia.labeling.score import build_report
 from oikonomia.labeling.matcher import Matcher
 from oikonomia.labeling.silver import SilverLabeler, load_patterns
 from oikonomia.schemas.spans import CharSpan
@@ -48,6 +50,7 @@ PRICES_NAME = "db/prices.parquet"
 TAXES_NAME = "db/taxes.parquet"
 PARTIES_NAME = "db/parties.parquet"
 PERSONS_NAME = "db/persons.parquet"
+AUTONOMY_NAME = "db/autonomy.parquet"
 NER_CORPUS_NAME = "ner/ner_corpus.jsonl"
 
 # Published anchors for the validation view (dr/artaba), so the series is judged
@@ -572,3 +575,174 @@ def _summarize_persons(df: pd.DataFrame, out_path: Path) -> None:
 def _txt(v: object, default: str = "-") -> str:
     """A parquet cell to a clean one-line string (NaN/None → default; no newlines)."""
     return v.replace("\n", " ") if isinstance(v, str) else default
+
+
+# --- autonomy: the with- vs without-guardian curve over time and region -------
+
+
+@db_app.command("autonomy")
+def autonomy(
+    env: EnvOpt = "local",
+    set_: SetOpt = None,
+    min_n: Annotated[int, typer.Option("--min-n", help="Min guardian-formula women per bucket.")] = 8,
+    out: Annotated[Path | None, typer.Option("--out", help="Curve table (default: processed/db/autonomy.parquet).")] = None,
+) -> None:
+    """The autonomy curve — women transacting WITH vs WITHOUT a guardian, by era + region.
+
+    Reads the person table (``oik db persons``) and, among the women who carry a
+    guardian formula, reports the share acting *without* a guardian (χωρὶς κυρίου —
+    legal autonomy) by century and by region. The headline of the women finding;
+    every bucket traces back to gendered, guardian-typed spans with provenance.
+    """
+    s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    persons_path = Path(s.paths.processed) / PERSONS_NAME
+    if not persons_path.is_file():
+        typer.secho(f"{PERSONS_NAME} missing — run `oik db persons` first.", fg="red")
+        raise typer.Exit(1)
+    df = pd.read_parquet(persons_path)
+
+    fem = df[(df["gender"] == "female") & (df["guardian"].isin(["with", "without"]))]
+    n_with = int((fem["guardian"] == "with").sum())
+    n_without = int((fem["guardian"] == "without").sum())
+    total = n_with + n_without
+    typer.echo("=== AUTONOMY — women transacting with (μετὰ) vs without (χωρὶς) a guardian ===")
+    if not total:
+        typer.secho("  no guardian-formula women found — is db/persons.parquet populated?", fg="red")
+        raise typer.Exit(1)
+    typer.echo(f"  overall: {total} women with a guardian formula — "
+               f"{n_without} without ({n_without / total:.0%} autonomous) / {n_with} with")
+
+    cen = guardian_curve(df, "century", min_n=min_n)
+    typer.echo(f"\n  BY CENTURY (min n={min_n}) — autonomous share = χωρὶς / (μετὰ+χωρὶς):")
+    for _, r in cen.iterrows():
+        typer.echo(f"    {_cen(r['bucket']):>7}: {r['autonomous_share']:5.0%} autonomous "
+                   f"({int(r['n_without'])} χωρὶς / {int(r['n'])} total)")
+
+    # Region cut: resolve Pleiades ids to nome/place names, then the same curve.
+    names = load_place_names(s.paths.processed)
+    reg_df = df.copy()
+    reg_df["region"] = reg_df["place_pleiades"].map(
+        lambda p: names.get(int(p)) if pd.notna(p) else None
+    )
+    reg = guardian_curve(reg_df, "region", min_n=min_n)
+    typer.echo(f"\n  BY REGION (min n={min_n}):")
+    for _, r in reg.sort_values("n", ascending=False).iterrows():
+        typer.echo(f"    {_txt(r['bucket'])[:22]:24}: {r['autonomous_share']:5.0%} autonomous "
+                   f"({int(r['n_without'])} χωρὶς / {int(r['n'])} total)")
+
+    all_curves = pd.concat(
+        [cen.assign(dimension="century"), reg.assign(dimension="region")],
+        ignore_index=True,
+    )
+    # century buckets are ints, region buckets strings — store one uniform string
+    # column so the frame is parquet-typeable; `dimension` says how to read it.
+    all_curves["bucket"] = all_curves["bucket"].astype(str)
+    out_path = out or (Path(s.paths.processed) / AUTONOMY_NAME)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    all_curves.to_parquet(out_path, index=False)
+    typer.echo(f"\nWrote {out_path}: {len(all_curves)} curve buckets (century + region)")
+
+
+# --- validate the women pipeline (steps 3-5) against the 115-doc human gold ----
+
+
+def _guardian_women(rows: list[PersonObservation]) -> tuple[int, int]:
+    """(n_with, n_without) female principals carrying a guardian formula."""
+    fem = [r for r in rows if r.gender == "female" and r.guardian in ("with", "without")]
+    return (
+        sum(1 for r in fem if r.guardian == "with"),
+        sum(1 for r in fem if r.guardian == "without"),
+    )
+
+
+@db_app.command("validate-women")
+def validate_women(env: EnvOpt = "local", set_: SetOpt = None) -> None:
+    """Validate the women pipeline (steps 3-5) against the 115-doc human gold.
+
+    Gold has human PERSON spans but no gender (sex is not annotated — the rules
+    supply it), so this runs the *same* pipeline on gold spans and on the model's
+    spans over the same 115 docs and compares: (A) PERSON extraction quality
+    (model vs gold), (B) whether the model recovers the same guardian-bearing
+    women, (C) gender agreement on exactly-matched spans. It isolates extraction
+    error from rule error — the honest test of whether the corpus autonomy numbers
+    are trustworthy.
+    """
+    s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    gold_path = Path(s.paths.gold) / "annotated.jsonl"
+    ner_path = Path(s.paths.processed) / NER_CORPUS_NAME
+    if not gold_path.is_file() or not ner_path.is_file():
+        typer.secho("need data/gold/annotated.jsonl and ner_corpus.jsonl (run steps 1-2).", fg="red")
+        raise typer.Exit(1)
+
+    gold_docs = [json.loads(x) for x in gold_path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    gold_ids = {str(d["doc_id"]) for d in gold_docs}
+    model_by_id: dict[str, list[Ent]] = {}
+    with ner_path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            if r["stem"] in gold_ids:
+                model_by_id[r["stem"]] = [
+                    Ent(e["start"], e["end"], "PERSON", e["text"], None, 1.0)
+                    for e in r.get("entities", []) if e["label"] == "PERSON"
+                ]
+
+    per_doc: list[Any] = []
+    gold_rows: list[PersonObservation] = []
+    model_rows: list[PersonObservation] = []
+    gender_by_span: dict[tuple[str, int, int], tuple[str, str]] = {}  # (doc,s,e)->(gold_g, model_g)
+    for d in gold_docs:
+        did, text = str(d["doc_id"]), d.get("text", "")
+        gold_p = [Ent(e["start"], e["end"], "PERSON", e["text"], None, 1.0)
+                  for e in d.get("entities", []) if e["label"] == "PERSON"]
+        model_p = model_by_id.get(did, [])
+        per_doc.append((
+            [(e.start, e.end, e.label) for e in gold_p], [],
+            [(e.start, e.end, e.label) for e in model_p], [],
+        ))
+        mid = _clean((d.get("meta") or {}).get("date_mid"))
+        meta = PersonMeta(
+            stem=did, tm_id=did, date_mid=mid, century=signed_century(mid),
+            bin50=half_century_start(mid), place_pleiades=None,
+            genres=str((d.get("meta") or {}).get("genre") or ""),
+        )
+        g_rows = assemble_persons(gold_p, text, meta)
+        m_rows = assemble_persons(model_p, text, meta)
+        gold_rows += g_rows
+        model_rows += m_rows
+        gm = {(r.person_start, r.person_end): r.gender for r in m_rows}
+        for r in g_rows:  # gender agreement on exactly-matched spans
+            key = (r.person_start, r.person_end)
+            if key in gm:
+                gender_by_span[(did, *key)] = (r.gender, gm[key])
+
+    # A. PERSON extraction quality (model vs gold) on the checkable docs
+    rep = build_report(n_docs=len(gold_docs), n_docs_scored=len(gold_docs), per_doc=per_doc)
+    ps = next((r for r in rep.strict.by_label if r.label == "PERSON"), None)
+    pr = next((r for r in rep.relaxed.by_label if r.label == "PERSON"), None)
+    typer.echo("=== VALIDATE WOMEN PIPELINE vs 115-doc gold ===")
+    typer.echo(f"\n  A. PERSON extraction (model vs gold, {len(gold_docs)} docs):")
+    if ps and pr:
+        typer.echo(f"     strict : P {ps.precision:.2f}  R {ps.recall:.2f}  F1 {ps.f1:.2f}")
+        typer.echo(f"     relaxed: P {pr.precision:.2f}  R {pr.recall:.2f}  F1 {pr.f1:.2f}"
+                   f"   (gold {ps.n_gold} PERSON, model {ps.n_pred})")
+
+    # B. Guardian-women recovery: gold-fed vs model-fed pipeline
+    gw, gwo = _guardian_women(gold_rows)
+    mw, mwo = _guardian_women(model_rows)
+    typer.echo("\n  B. Guardian-bearing women (same rules, gold spans vs model spans):")
+    typer.echo(f"     gold spans : {gw + gwo:3} women  ({gw} μετὰ / {gwo} χωρὶς)")
+    typer.echo(f"     model spans: {mw + mwo:3} women  ({mw} μετὰ / {mwo} χωρὶς)")
+    if gw + gwo:
+        typer.echo(f"     → model recovers {(mw + mwo) / (gw + gwo):.0%} of the gold guardian-women count")
+
+    # C. Gender agreement where a model span exactly matches a gold span
+    matched = list(gender_by_span.values())
+    agree = sum(1 for g, m in matched if g == m)
+    typer.echo(f"\n  C. Gender agreement on {len(matched)} exactly-matched PERSON spans:")
+    if matched:
+        typer.echo(f"     agree {agree}/{len(matched)} = {agree / len(matched):.0%} "
+                   "(same text+rules; disagreement = span-boundary effects)")
+    typer.echo("\n  (model checkpoint provenance silver-vs-gold-FT unverified — if gold-FT, "
+               "PERSON F1 here is optimistic; the B/C comparison is the load-bearing check.)")
