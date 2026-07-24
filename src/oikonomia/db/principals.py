@@ -87,7 +87,7 @@ class Principal(BaseModel):
     confidence: float  # strongest principal-relation confidence for this person
 
 
-def _primary_genre(genres: str) -> str:
+def primary_genre(genres: str) -> str:
     """The document's primary genre — the "deal type" axis.
 
     Genres arrive as the canonical JSON-array string (``'["contract", "loan"]'``)
@@ -139,7 +139,7 @@ def assemble_principals(
             if tail.label == TRANSACTION and pi not in tx_term:
                 tx_term[pi] = tail.text
 
-    deal_type = _primary_genre(meta.genres)
+    deal_type = primary_genre(meta.genres)
     obs: list[Principal] = []
     for pi in sorted(roles):
         p = entities[pi]

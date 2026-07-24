@@ -27,7 +27,9 @@ from oikonomia.corpus.io import corpus_path, iter_batches
 from oikonomia.db.autonomy import guardian_curve
 from oikonomia.db.dates import century as signed_century
 from oikonomia.db.dates import date_mid, half_century_start
+from oikonomia.db.export import TableSpec, build_manifest, document_index
 from oikonomia.db.facts import DocMeta, Ent, Rel, assemble_monetary
+from oikonomia.db.identity import collapse_to_persons
 from oikonomia.db.parties import PartyMeta, PartyObservation, assemble_parties
 from oikonomia.db.personscan import PersonMeta, PersonObservation, assemble_persons
 from oikonomia.db.places import load_place_names
@@ -36,6 +38,7 @@ from oikonomia.db.principals import (
     PersonGender,
     PrincipalMeta,
     assemble_principals,
+    primary_genre,
 )
 from oikonomia.db.taxes import clean_tax_payments, fiscal_regime, payments_by_century
 from oikonomia.labeling.lexicon import load_lexicon
@@ -909,3 +912,127 @@ def _summarize_principals(df: pd.DataFrame, out_path: Path) -> None:
             f"    {_txt(r['person_text'])[:24]:26} {_txt(r['father_text'])[:12]:13} "
             f"{r['guardian']:8} {r['roles']:12} {_txt(r['deal_type'], '')}"
         )
+
+
+# --- export: package the derived tables into a queryable database (deliverable #2) -
+
+
+EXPORT_DIRNAME = "db/export"
+
+
+def _read_or_empty(path: Path) -> pd.DataFrame:
+    return pd.read_parquet(path) if path.is_file() else pd.DataFrame()
+
+
+def _document_universe(settings: Any) -> pd.DataFrame:
+    """One row per real text document (stem, tm_id, century, place, deal_type).
+
+    The spine of the exported database: the 61,249 non-empty documents, with the
+    corpus's own HGV date (→ century) and genre (→ deal type). Empty documents are
+    filtered on the text (never on a char count — whitespace lies).
+    """
+    cols = ["stem", "tm_id", "edited_text", "date_lo", "date_hi", "place_pleiades", "canonical_genres"]
+    rows: list[dict[str, object]] = []
+    for frame in iter_batches(corpus_path(settings.paths.processed), cols):
+        for stem, tm_id, text, dlo, dhi, place, genres in zip(
+            frame["stem"], frame["tm_id"], frame["edited_text"],
+            frame["date_lo"], frame["date_hi"], frame["place_pleiades"], frame["canonical_genres"],
+            strict=True,
+        ):
+            if not (text or "").strip():
+                continue
+            mid = date_mid(_clean(dlo), _clean(dhi))
+            place_i = _clean(place)
+            rows.append({
+                "stem": str(stem),
+                "tm_id": str(tm_id),
+                "century": signed_century(mid),
+                "place_pleiades": int(place_i) if place_i is not None else None,
+                "deal_type": primary_genre(_genres_str(genres)),
+            })
+    return pd.DataFrame(rows)
+
+
+@db_app.command("export")
+def export(
+    env: EnvOpt = "local",
+    set_: SetOpt = None,
+    out_dir: Annotated[Path | None, typer.Option("--out-dir", help="Export directory (default: processed/db/export).")] = None,
+) -> None:
+    """Package the derived tables into a documented, queryable database (deliverable #2).
+
+    Writes a per-document index (``documents.parquet`` — the spine everything hangs
+    off, keyed on ``stem`` with per-doc person/principal/money counts + price/tax
+    flags), a coreference-lite distinct-person table (``persons_distinct.parquet``
+    — folds principal *mentions* into people so "N distinct women", not mentions,
+    is answerable), and a machine-readable ``manifest.json`` (table inventory +
+    the pinned corpus revision every span traces to). The schema is documented in
+    ``docs/database.md``.
+    """
+    s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    if not corpus_path(s.paths.processed).is_file():
+        typer.secho("corpus.parquet missing — run `oik ingest build` first.", fg="red")
+        raise typer.Exit(1)
+    proc = Path(s.paths.processed)
+
+    docs = _document_universe(s)
+    persons_df = _read_or_empty(proc / PERSONS_NAME)
+    principals_df = _read_or_empty(proc / PRINCIPALS_NAME)
+    monetary_df = _read_or_empty(proc / FACTS_NAME)
+    prices_df = _read_or_empty(proc / PRICES_NAME)
+    taxes_df = _read_or_empty(proc / TAXES_NAME)
+
+    idx = document_index(docs, persons_df, principals_df, monetary_df, prices_df, taxes_df)
+    distinct = collapse_to_persons(principals_df) if not principals_df.empty else pd.DataFrame()
+
+    export_dir = out_dir or (proc / EXPORT_DIRNAME)
+    export_dir.mkdir(parents=True, exist_ok=True)
+    idx.to_parquet(export_dir / "documents.parquet", index=False)
+    distinct.to_parquet(export_dir / "persons_distinct.parquet", index=False)
+
+    specs: list[tuple[TableSpec, pd.DataFrame]] = [
+        (TableSpec("documents", "one text document", "stem", "the spine: metadata + per-doc counts + price/tax flags"), idx),
+        (TableSpec("persons_distinct", "one distinct person (coref-lite)", "name+father+place", "principal mentions folded into people"), distinct),
+        (TableSpec("monetary", "one monetary fact", "tm_id + char-span", "money amount + its commodity/quantity/tax links, normalized"), monetary_df),
+        (TableSpec("prices", "one clean price observation", "tm_id + char-span", "commodity unit-price (dr/unit), high-precision subset"), prices_df),
+        (TableSpec("taxes", "one clean tax payment", "tm_id + char-span", "poll- and land-tax payments"), taxes_df),
+        (TableSpec("persons", "one PERSON mention", "stem + char-span", "gender + guardian for every model PERSON span"), persons_df),
+        (TableSpec("principals", "one principal mention", "stem + char-span", "PARTY_OF/PAID_* heads, gendered, deal-typed"), principals_df),
+    ]
+    specs = [(spec, df) for spec, df in specs if not df.empty]
+    manifest = build_manifest(specs, corpus_rev=str(s.ingest.idp_git_rev))
+    (export_dir / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    _summarize_export(idx, distinct, specs, export_dir)
+
+
+def _summarize_export(
+    idx: pd.DataFrame, distinct: pd.DataFrame,
+    specs: list[tuple[TableSpec, pd.DataFrame]], export_dir: Path,
+) -> None:
+    typer.echo(f"\nExported database → {export_dir}  ({len(specs)} tables, see manifest.json)")
+    typer.echo(f"  documents.parquet: {len(idx):,} documents (the spine)")
+    if not idx.empty:
+        with_prin = int((idx["n_principals"] > 0).sum())
+        with_price = int(idx["has_price"].sum())
+        with_tax = int(idx["has_tax"].sum())
+        typer.echo(f"    with a principal: {with_prin:,}   with a price: {with_price:,}   with a tax: {with_tax:,}")
+
+    if not distinct.empty:
+        typer.echo(f"  persons_distinct.parquet: {len(distinct):,} distinct people (coref-lite)")
+        g = distinct[distinct["gender"].isin(["male", "female"])]
+        nf = int((g["gender"] == "female").sum())
+        ng = len(g)
+        if ng:
+            typer.echo(f"    DISTINCT women principals: {nf:,} of {ng:,} gendered = {nf / ng:.1%} "
+                       "(vs the mention-level share — the honest headcount)")
+        auto = distinct[(distinct["gender"] == "female") & (distinct["guardian"].isin(["with", "without"]))]
+        if len(auto):
+            nwo = int((auto["guardian"] == "without").sum())
+            typer.echo(f"    distinct women with a guardian formula: {len(auto):,}  "
+                       f"({nwo} χωρὶς / autonomous)")
+
+    typer.echo("\n  tables in the manifest:")
+    for spec, df in specs:
+        typer.echo(f"    {spec.name:18} {len(df):>8,} rows  ({spec.grain})")
