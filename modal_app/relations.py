@@ -564,6 +564,183 @@ def xval(
     ))
 
 
+# --- (c) standalone RE inference on NER-predicted entities + (d) end-to-end eval
+
+# The corpus-scale NER run's output on the shared Volume (keyed by stem == gold doc_id).
+PRED_CORPUS_VOL = f"{VOL_ROOT}/predictions/ner_corpus.jsonl"
+
+
+@app.function(gpu=GPU, volumes={VOL_ROOT: ner_volume}, timeout=3600)
+def evaluate_e2e_remote(
+    payment_lex: dict[str, list[str]] | None = None,
+    constrain_decode: bool = True,
+    seq_len: int = 512,
+) -> dict[str, object]:
+    """Run the saved RE model on the gold docs twice and score both vs gold.
+
+    **oracle** = RE given the *gold* entity spans (comparable to ``xval``);
+    **end-to-end** = RE given the *NER-predicted* entities (from the corpus run,
+    joined by stem). Scoring maps predicted→gold entities by span overlap
+    (:func:`score_relations`), so the gap between the two is exactly the
+    entity-cascade cost. PARTY_OF is the headline the women step-8 finding rides on.
+    """
+    from collections import namedtuple
+
+    import torch
+    from transformers import AutoTokenizer
+
+    from oikonomia.labeling.score import build_report
+    from oikonomia.relations.data import entities_of, read_ner_jsonl, relations_of
+    from oikonomia.relations.decode import constrain
+    from oikonomia.relations.encode import (
+        NO_RELATION,
+        admissible_mask,
+        char_span_to_token_range,
+        label_candidates,
+        window_entities,
+    )
+    from oikonomia.relations.features import (
+        PaymentLexicon,
+        context_window,
+        direction_features_from_folded,
+        fold,
+    )
+
+    ner_volume.reload()
+    device = "cuda"
+    if not Path(f"{RELATION_MODEL_DIR}/config.json").is_file():
+        raise SystemExit(f"no saved RE model at {RELATION_MODEL_DIR} — run `launch` first.")
+    cfg = json.loads(Path(f"{RELATION_MODEL_DIR}/config.json").read_text(encoding="utf-8"))
+    model = build_relation_head(
+        backbone=cfg["reconstruct_backbone"],
+        n_entity_labels=len(cfg["entity_labels"]),
+        n_rel_labels=len(cfg["relation_labels"]),
+        type_dim=cfg["type_dim"],
+        feat_dim=cfg["feat_dim"],
+        dropout=cfg["dropout"],
+    ).to(device)
+    model.load_state_dict(torch.load(f"{RELATION_MODEL_DIR}/relation_head.pt", map_location=device))
+    model.eval()
+
+    rel_labels: list[str] = cfg["relation_labels"]
+    rel_label2id: dict[str, int] = cfg["relation_label2id"]
+    ent2id = {lab: i for i, lab in enumerate(cfg["entity_labels"])}
+    no_rel_id = rel_label2id[NO_RELATION]
+    tokenizer = AutoTokenizer.from_pretrained(cfg["reconstruct_backbone"], use_fast=True)
+    lex = PaymentLexicon(**payment_lex) if payment_lex else PaymentLexicon()
+
+    Cand = namedtuple("Cand", "h t h0 h1 t0 t1 w0 w1 htid ttid vc vp pm hlab tlab")
+
+    def encode(text: str, entities: list):
+        """(input_ids, attention_mask, kept_entities, cands) given a doc's entities."""
+        enc = tokenizer(text, truncation=True, max_length=seq_len, return_offsets_mapping=True)
+        offsets = [tuple(o) for o in enc["offset_mapping"]]
+        ranges_all = [char_span_to_token_range(offsets, s, e) for s, e, _ in entities]
+        ents, ranges, _, _ = window_entities(entities, [], ranges_all)
+        if not ents:
+            return None
+        folded = fold(text)
+        cands: list = []
+        for h, t, _ in label_candidates(ents, []):  # no gold rels at inference
+            rh, rt = ranges[h], ranges[t]
+            hc, tc = (ents[h][0], ents[h][1]), (ents[t][0], ents[t][1])
+            wlo, whi = context_window(hc, tc)
+            wr = char_span_to_token_range(offsets, wlo, whi) or (min(rh[0], rt[0]), max(rh[1], rt[1]))
+            f = direction_features_from_folded(folded, hc, tc, lex)
+            hlab, tlab = ents[h][2], ents[t][2]
+            cands.append(Cand(h, t, rh[0], rh[1], rt[0], rt[1], wr[0], wr[1],
+                              ent2id[hlab], ent2id[tlab], f.verb_class, f.verb_pos, f.payer_mark,
+                              hlab, tlab))
+        if not cands:
+            return None
+        return enc["input_ids"], enc["attention_mask"], ents, cands
+
+    mask_cache: dict[tuple[str, str], object] = {}
+
+    def mask_for(hlab: str, tlab: str):
+        key = (hlab, tlab)
+        if key not in mask_cache:
+            mask_cache[key] = torch.tensor(admissible_mask(hlab, tlab), device=device)
+        return mask_cache[key]
+
+    @torch.no_grad()
+    def predict(text: str, entities: list):
+        """(kept_entities, predicted_relations) for a doc given ITS entity spans."""
+        enc = encode(text, entities)
+        if enc is None:
+            return [], []
+        ids, am, ents, cands = enc
+        h, cls = model.encode(torch.tensor([ids], device=device), torch.tensor([am], device=device))
+        logits = model.score_pairs(h[0], cls[0], cands)
+        scored = []
+        for k, c in enumerate(cands):
+            masked = logits[k].masked_fill(~mask_for(c.hlab, c.tlab), float("-inf"))
+            prob = torch.softmax(masked, dim=-1)
+            lid = int(prob.argmax().item())
+            if lid != no_rel_id:
+                scored.append((c.h, c.t, rel_labels[lid], float(prob[lid].item())))
+        pred = constrain(scored) if constrain_decode else [(a, b, ty) for a, b, ty, _ in scored]
+        return ents, pred
+
+    gold_docs = read_ner_jsonl(Path(GOLD_VOL))
+    if not Path(PRED_CORPUS_VOL).is_file():
+        raise SystemExit(f"{PRED_CORPUS_VOL} absent — run modal_app/ner.py::infer first.")
+    pred_by_id: dict[str, list] = {}
+    for r in read_ner_jsonl(Path(PRED_CORPUS_VOL)):
+        pred_by_id[str(r["stem"])] = [(e["start"], e["end"], e["label"]) for e in r.get("entities", [])]
+
+    oracle_pd, e2e_pd = [], []
+    n_missing = 0
+    for d in gold_docs:
+        text = str(d.get("text", ""))
+        gold_ents, gold_rels = entities_of(d), relations_of(d)
+        o_ents, o_rels = predict(text, gold_ents)  # oracle: RE on gold entities
+        oracle_pd.append((gold_ents, gold_rels, o_ents, o_rels))
+        pents = pred_by_id.get(str(d.get("doc_id")))
+        if pents is None:
+            n_missing += 1
+            e2e_pd.append((gold_ents, gold_rels, [], []))
+            continue
+        p_ents, p_rels = predict(text, pents)  # end-to-end: RE on predicted entities
+        e2e_pd.append((gold_ents, gold_rels, p_ents, p_rels))
+
+    o_rep = build_report(n_docs=len(oracle_pd), n_docs_scored=len(oracle_pd), per_doc=oracle_pd)
+    e_rep = build_report(n_docs=len(e2e_pd), n_docs_scored=len(e2e_pd), per_doc=e2e_pd)
+    o_by = {r.label: r.f1 for r in o_rep.relations.by_type}
+    e_by = {r.label: r.f1 for r in e_rep.relations.by_type}
+    result: dict[str, object] = {
+        "oracle": {"f1": o_rep.relations.f1, "precision": o_rep.relations.precision,
+                   "recall": o_rep.relations.recall, "by_type": o_by},
+        "end_to_end": {"f1": e_rep.relations.f1, "precision": e_rep.relations.precision,
+                       "recall": e_rep.relations.recall, "by_type": e_by},
+        "party_of_oracle": o_by.get("PARTY_OF", 0.0),
+        "party_of_e2e": e_by.get("PARTY_OF", 0.0),
+        "docs": len(gold_docs),
+        "docs_missing_pred": n_missing,
+    }
+    print("\n[eval_e2e] === END-TO-END vs ORACLE (gold docs, saved RE model) ===", flush=True)
+    print(f"[eval_e2e] relation F1  oracle {o_rep.relations.f1:.3f} → end-to-end {e_rep.relations.f1:.3f}")
+    print(f"[eval_e2e] PARTY_OF F1   oracle {result['party_of_oracle']:.3f} → "
+          f"end-to-end {result['party_of_e2e']:.3f}   ({n_missing} docs missing predictions)")
+    for ty in sorted(set(o_by) | set(e_by)):
+        print(f"[eval_e2e]   {ty:14} {o_by.get(ty, 0.0):.3f} → {e_by.get(ty, 0.0):.3f}")
+    print(f"[eval_e2e] RESULT {json.dumps(result, ensure_ascii=False)}", flush=True)
+    return result
+
+
+@app.local_entrypoint()
+def eval_e2e(constrain_decode: bool = True) -> None:
+    """(c)+(d): run the saved RE model on the gold docs — oracle (gold entities) vs
+    end-to-end (NER-predicted entities) — and report the drop, esp. PARTY_OF."""
+    from oikonomia.relations.features import load_payment_lexicon
+
+    payment_lex = load_payment_lexicon(REPO / "resources").model_dump()
+    print(json.dumps(
+        evaluate_e2e_remote.remote(payment_lex=payment_lex, constrain_decode=constrain_decode),
+        indent=2, ensure_ascii=False,
+    ))
+
+
 @app.local_entrypoint()
 def launch(backbone: str = "b1", loss: str = "ce") -> None:
     """Train the single shippable RE model on all gold and save it to the volume.

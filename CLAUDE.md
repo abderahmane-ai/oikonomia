@@ -317,27 +317,43 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 >    deterministic** (613/613 matched spans agree); PERSON relaxed recall 0.91;
 >    guardian-women over-counted on the μετὰ (with) side, but **χωρὶς matches gold
 >    exactly** — so the autonomy rise is **conservative**, not inflated. Trend robust.
-> 7. **IN PROGRESS.** Revive the RE model — **(a) DONE**: `RelationHead` extracted
->    to a module-level `build_relation_head` factory in `modal_app/relations.py`
->    (lazy torch); re-verified via `xval` → **F1 0.729, PARTY_OF 0.678** (matches
->    the frozen profile). **(b) DONE (code)**: `save_final` + `launch` save a custom
->    `state_dict`+`config.json` to `/vol/models/relation/final` — run `launch` to
->    produce it. **(c) NEXT**: standalone RE inference on NER-predicted entities;
->    **(d)** measure the end-to-end drop vs the 0.678 oracle PARTY_OF.
-> 8. Fuller finding — women as principals across deal types (PARTY_OF + split-person
->    kinship).
+> 7. **IN PROGRESS — code all landed, GPU-verification pending (see below).**
+>    Revive the RE model. **(a) DONE + verified**: `RelationHead` extracted to a
+>    module-level `build_relation_head` factory in `modal_app/relations.py` (lazy
+>    torch); re-verified via `xval` → **F1 0.729, PARTY_OF 0.678** (matches the
+>    frozen profile). **(b) DONE (code, committed)**: `save_final` + `launch`
+>    entrypoint save a custom `state_dict`+`config.json` to
+>    `/vol/models/relation/final`. **(c)+(d) DONE (code, committed, UNVERIFIED)**:
+>    `eval_e2e` entrypoint + `evaluate_e2e_remote` run the saved model on the gold
+>    docs twice — oracle (gold entities) vs end-to-end (NER-predicted entities,
+>    joined by stem) — and print the PARTY_OF drop.
+>    **⇒ FIRST JOB OF THE NEW SESSION (two GPU runs, then commit the result):**
+>    ```
+>    .venv/bin/modal run --detach modal_app/relations.py::launch   # produce /vol/models/relation/final (verifies b's save)
+>    .venv/bin/modal run modal_app/relations.py::eval_e2e          # verifies c+d; expect oracle PARTY_OF ≈0.678, e2e lower
+>    ```
+>    If both run clean, record the end-to-end PARTY_OF number here + in the
+>    phase-8 doc; that CLOSES step 7. If `eval_e2e` errors, the save/load or
+>    inference-encode path has a bug to fix (it is untested torch — like the NER
+>    stem bug, expect a possible first-run fix).
+> 8. Fuller finding — women as principals across deal types: run the RE model over
+>    the corpus PERSON/MONEY entities (reuse `evaluate_e2e_remote`'s inference
+>    machinery), join PARTY_OF to the gendered persons (`db/persons.parquet`) +
+>    split-person `CHILD_OF` kinship.
 >
 > **What is on Modal (checked 2026-07-24, do not re-guess):** NER model SAVED at
 > `oikonomia-ner:/models/b1/final` (`RobertaForTokenClassification`, 15 labels / 31
-> BIO — download it; provenance silver-only vs gold-FT unverified). DAPT backbone
-> `oikonomia-dapt:/checkpoints/full/final`. Volume data: `silver/gold/labels/
-> relation_labels`. **RE MODEL: NOTHING SAVED** — `relations.py` only measured it.
+> BIO). DAPT backbone `oikonomia-dapt:/checkpoints/full/final`. Volume data:
+> `silver/gold/labels/relation_labels` (relation_labels **re-pushed 2026-07-24**,
+> now 8b-current with AGE/OCCUPATION). `predictions/ner_corpus.jsonl` (1.37M ents).
+> **RE MODEL: probably NOT saved yet** — `launch` writes `/vol/models/relation/final`;
+> check `modal volume ls oikonomia-ner /models/relation` before assuming it exists.
 >
-> **Progress:** steps **1–6 DONE and validated** (owner-authorized incrementally,
-> 2026-07-24) — **the autonomy finding is complete**: model NER over the whole
-> corpus → gender+guardian → the χωρὶς-κυρίου curve (0%→39%→80% over 3c→4c AD),
-> gold-validated. **Next is step 7** (revive the RE model), then **step 8** (women
-> as principals across deal types). Steps 1–6 are the autonomy front; 7–8 the fuller finding.
+> **Progress:** steps **1–6 DONE + validated** (autonomy finding complete: χωρὶς-
+> κυρίου curve 0%→39%→80% over 3c→4c AD, gold-validated). **Step 7 code all landed
+> and committed; (a) verified via xval (0.729 F1 / PARTY_OF 0.678); (b)(c)(d)
+> committed but NOT yet GPU-run.** ⇒ **the new session's first job is the two GPU
+> runs above (`launch` then `eval_e2e`)**, record the end-to-end PARTY_OF, then step 8.
 
 **PARKED — model release (deliverable #1).** Superseded by the directive above.
 NER release is PACKAGED (licence firewall `oikonomia.models.licensing`; model card
@@ -420,20 +436,22 @@ corpus` there is a rule-labeler lower bound only.
 ```bash
 cd /Users/abdoumagico/Development/ACHATES
 
-# 1. Green before changing anything
+# 1. Green before changing anything (587 tests, mypy 84 files, ruff clean at last save)
 .venv/bin/ruff check src tests modal_app && .venv/bin/python -m mypy src && .venv/bin/python -m pytest
 
-# 2. Artifacts intact? Rebuild if missing (all gitignored, re-derivable):
-#    oik ingest build (~85s) → oik splits build (~25s) → oik dapt prepare (~20s)
-.venv/bin/oik splits check
-.venv/bin/oik gold check            # 115 docs, all human_validated, 0 errors + numerals_checked
+# 2. ⇒ STEP 7 (c)+(d) — the FIRST thing to do this session: two GPU runs (Modal).
+#    Code is committed but UNVERIFIED on GPU. If launch already produced the model,
+#    skip straight to eval_e2e. (Run with the VENV's modal — container imports oikonomia.)
+.venv/bin/modal run --detach modal_app/relations.py::launch   # → /vol/models/relation/final (verifies save)
+.venv/bin/modal run modal_app/relations.py::eval_e2e          # oracle PARTY_OF ≈0.678, e2e lower = the (d) number
+#    Then record the end-to-end PARTY_OF here + phase-8 doc, and COMMIT the run result.
+#    Prereq (already true): relation_labels re-pushed (8b-current); predictions/ner_corpus.jsonl on volume.
+#    If eval_e2e errors → untested torch; fix the save/load or inference-encode path (expect a first-run fix).
 
-# 3. PHASE 9 (ACTIVE) — rebuild the full-corpus fact table (~minutes) + validation:
-.venv/bin/oik db build --sample 0
-#    Expect ~195,906 facts, 99% normalized, 100% provenance; wheat 2c AD ~12 dr/artaba,
-#    silver→gold monetization transition. Use --sample 20000 for a fast check.
-#    (Silver labeler doubles as the DB extraction engine; silver.jsonl is NOT needed
-#     for `oik db build`, which relabels on the fly.)
+# 3. Laptop artifacts intact? (only if the women/db work needs rebuilding; all gitignored)
+.venv/bin/oik gold check            # 115 docs, all human_validated, 0 errors
+#    Women pipeline (steps 1-6, DONE): oik db persons → oik db autonomy → oik db validate-women
+#    (needs data/processed/ner/ner_corpus.jsonl — pull from volume if missing, see §7 artifacts)
 ```
 
 **Then, in priority order (Phase 9 → findings; full detail in the phase-9 doc):**
