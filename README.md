@@ -7,7 +7,8 @@
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
 [![Code License: MIT](https://img.shields.io/badge/code-MIT-green.svg)](#data-models--licensing)
 [![Corpus: CC BY 3.0](https://img.shields.io/badge/corpus-CC%20BY%203.0-lightgrey.svg)](DATA_ATTRIBUTION.md)
-[![Status: Phase 10 · findings](https://img.shields.io/badge/status-Phase%2010%20·%20findings-orange.svg)](CLAUDE.md)
+[![Hugging Face Grammateus](https://img.shields.io/badge/%F0%9F%A4%97%20Grammateus-NER-blue)](https://huggingface.co/ainouche-abderahmane/grammateus)
+[![Hugging Face Homologia](https://img.shields.io/badge/%F0%9F%A4%97%20Homologia-RE-purple)](https://huggingface.co/ainouche-abderahmane/homologia)
 
 </div>
 
@@ -158,7 +159,7 @@ load-bearing facts never to re-derive.
 | 7–8 | Entity NER (0.737) · Relation extraction (0.713) | ✅ frozen |
 | 9 | Corpus → queryable database ([schema](docs/database.md)) | ✅ shipped |
 | **10** | **Historical findings — the write-up** | 🔶 active |
-| 11 | Model release — **Grammateus** + **Homologia** (carded; owner-run push) | 🔶 ready |
+| 11 | Model release — [Grammateus](https://huggingface.co/ainouche-abderahmane/grammateus) + [Homologia](https://huggingface.co/ainouche-abderahmane/homologia) | ✅ published |
 
 ## Data, models & licensing
 
