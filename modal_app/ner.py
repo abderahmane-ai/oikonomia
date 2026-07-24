@@ -369,3 +369,64 @@ def xval(backbone: str = "b1", loss: str = "ce") -> None:
     run = f"{backbone}-{loss}"
     reset_models.remote([run])
     print(json.dumps(train.remote(run_name=run, backbone=BACKBONES[backbone], loss=loss), indent=2, ensure_ascii=False))
+
+
+@app.function(gpu=GPU, volumes={VOL_ROOT: ner_volume, DAPT_ROOT: dapt_volume})
+def predict_remote(text: str, labels_json: str, backbone: str = "b1") -> list[dict[str, object]]:
+    import torch
+    from transformers import AutoModelForTokenClassification, AutoTokenizer
+
+    from oikonomia.ner.encode import decode_spans
+
+    labels_data = json.loads(labels_json)
+    labels = labels_data["labels"]
+    id2label = dict(enumerate(labels))
+    label2id = labels_data["label2id"]
+
+    model_path = BACKBONES.get(backbone, backbone)
+    possible_ckpts = [
+        f"{MODEL_ROOT}/{backbone}/final",
+        f"{MODEL_ROOT}/{backbone}-ce/final",
+        f"{MODEL_ROOT}/b1-ce/final",
+        model_path,
+    ]
+    ckpt_used = model_path
+    for p in possible_ckpts:
+        if Path(p).exists() and (Path(p) / "config.json").exists():
+            ckpt_used = p
+            break
+
+    print(f"[{APP_NAME}] Loading TokenClassification checkpoint: {ckpt_used}", flush=True)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model = AutoModelForTokenClassification.from_pretrained(
+        ckpt_used, num_labels=len(labels), id2label=id2label, label2id=label2id
+    ).to("cuda")
+
+    model.eval()
+
+    inputs = tokenizer(text, return_tensors="pt", return_offsets_mapping=True, truncation=True)
+    offsets = inputs.pop("offset_mapping")[0].tolist()
+    inputs = {k: v.to("cuda") for k, v in inputs.items()}
+
+    with torch.no_grad():
+        logits = model(**inputs).logits[0]
+        preds = logits.argmax(dim=-1).cpu().tolist()
+
+    spans = decode_spans(preds, offsets, id2label)
+    return [{"type": label, "text": text[s:e], "start": s, "end": e} for (s, e, label) in spans]
+
+
+@app.local_entrypoint()
+def predict(text: str = "Παχὼν κα τέτακται ἐπὶ τὴν ἐν Κροκοδίλων πόλει τράπεζαν χαλκοῦ δραχμῶν Β", backbone: str = "b1") -> None:
+    """Run direct GPU inference on Modal for any ancient Greek text string."""
+    print(f"\n[Modal GPU Inference] backbone={backbone}")
+    print(f"Input text: \"{text}\"")
+    labels_json = LOCAL["labels.json"].read_text(encoding="utf-8")
+    spans = predict_remote.remote(text, labels_json=labels_json, backbone=backbone)
+    print("\n=== EXTRACTED NAMED ENTITIES ===")
+    if not spans:
+        print("  (No entities found)")
+    for s in spans:
+        print(f"  [{s['type']:<14}] \"{s['text']}\" (char {s['start']}:{s['end']})")
+
+
