@@ -244,18 +244,53 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 
 _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 
-**CURRENT FRONT — SHIP, don't build (2026-07-24).** An honest audit put the project
-at **0/3 shipped deliverables** despite heavy validated substance (models at bar,
-196k-row fact table, 3 findings). Decision: stop accumulating substance, take one
-deliverable out. **Deliverable #1 (NER on HF) is now PACKAGED** — licence firewall
-(`oikonomia.models.licensing`, fail-closed, tested), model card
-(`resources/release/MODEL_CARD.md`), and owner-run `launch`+`push_to_hub` in
-`modal_app/ner.py`. GreBerta apache-2.0 verified against the live HF page;
-`MODEL_LICENSES.md` corrected (it described a stale GreTa plan). **It ships with 2
-owner-run commands** (`launch` → `push_to_hub`, needs an HF write token + a Modal
-secret `huggingface`) — Claude cannot authenticate/publish. Detail:
-[`docs/phases/phase_11_release.md`](docs/phases/phase_11_release.md). The RE model is
-NOT yet shippable (only xval'd, never saved — needs a `launch`-style save first).
+> ## ⚑⚑ ACTIVE DIRECTIVE — WOMEN ANALYSIS, done PROPERLY with the models (owner, 2026-07-24)
+>
+> **This is THE front. It supersedes the model-release work (now parked).** Owner
+> stated the following ONCE and will not repeat it — treat every point as binding:
+>
+> - **FOCUS: the "autonomy" finding FIRST** — of women who transact, how many act
+>   **with** a guardian (`μετὰ κυρίου`) vs **without** (`χωρὶς κυρίου`) — the curve
+>   over time and region. Then the fuller "women as principals across deal types."
+> - **USE THE TRAINED MODELS, not rules.** **Download the model(s) from the Modal
+>   volumes at run time — do NOT rely on any locally-saved copy.**
+> - **CORPUS-SCALE INFERENCE** — run the NER model over ALL 61,249 text docs.
+> - **LONG DOCUMENTS MUST BE HANDLED** — no 512-token truncation loss; chunk/stride
+>   so NO people are dropped. We need the long docs.
+> - **FIX EVERY RELATION-MODEL ISSUE, all of them:** (a) extract `RelationHead` out
+>   of the `train()` closure into a reusable module; (b) add all-gold train + save
+>   (custom `state_dict` + config — it is not a standard HF model); (c) add
+>   standalone RE inference that runs on the **NER-predicted** entities (reuse
+>   `label_candidates` / `admissible_mask` / `constrain` / direction features);
+>   (d) measure the end-to-end drop vs the 0.65 oracle PARTY_OF.
+> - **FIX ALL MISSING STUFF, ALL OF IT:** batched corpus NER inference; read the
+>   exact `corpus.parquet edited_text` and carry `tm_id`; **person-blob splitting**
+>   (43% of PERSON spans are name+patronymic collapsed) for gender + kinship; feed
+>   model spans into the gender rules (guardian formula + nomen + kin); a model-fed
+>   assembler + metadata join (date/place/genre); **end-to-end validation of the
+>   women pipeline vs the 115-doc gold.**
+> - **AIM FOR THE BEST, NEVER FOR GREEN (§2).** Validate with rough versions;
+>   deliver only the best. No synthetic slop.
+>
+> **Order:** NER corpus inference (long-doc-safe) → autonomy finding (gender +
+> guardian scan; no RE needed) → validate vs gold → then RE-model revival +
+> person-splitting for the fuller finding.
+>
+> **What is on Modal (checked 2026-07-24, do not re-guess):** NER model SAVED at
+> `oikonomia-ner:/models/b1/final` (`RobertaForTokenClassification`, 15 labels / 31
+> BIO — download it; provenance silver-only vs gold-FT unverified). DAPT backbone
+> `oikonomia-dapt:/checkpoints/full/final`. Volume data: `silver/gold/labels/
+> relation_labels`. **RE MODEL: NOTHING SAVED** — `relations.py` only measured it.
+>
+> **⛔ DO NOT START BUILDING until the owner says "start".** When told, begin at
+> step 1 (NER corpus inference).
+
+**PARKED — model release (deliverable #1).** Superseded by the directive above.
+NER release is PACKAGED (licence firewall `oikonomia.models.licensing`; model card
+`resources/release/MODEL_CARD.md`; owner-run `launch`+`push_to_hub` in
+`modal_app/ner.py`; GreBerta apache-2.0 verified; `MODEL_LICENSES.md` corrected).
+Resume only after the women work. Detail:
+[`docs/phases/phase_11_release.md`](docs/phases/phase_11_release.md).
 
 **THE PIVOT — read before doing anything.** The deliverable is a **queryable,
 auditable economic database + findings** (§1). The models are frozen at a
