@@ -185,8 +185,10 @@ women front (§7 steps 1–6) ran the **trained model's** NER over all 61,249 do
 typed the guardian formula, and drew the curve: **women's χωρὶς-κυρίου (autonomous)
 share rises 0% (≤1c AD) → 39% (3c) → 80% (4c AD)** — the *ius liberorum* spread /
 decline of tutela mulierum, recovered unsupervised. Three findings now exist
-(prices, taxes, autonomy). **Next: step 7** (revive+save the RE model) → step 8
-(women as principals across deal types). This is the live work; details in §7.
+(prices, taxes, autonomy). **Step 7 DONE (2026-07-24):** the RE model is revived,
+saved to `/vol/models/relation/final`, and end-to-end measured (PARTY_OF 0.623 on
+NER-predicted entities; held-out oracle 0.705). **Next: step 8** (women as
+principals across deal types). This is the live work; details in §7.
 
 **The models are DONE, not abandoned (deliverable #1, publishable):**
 - Entity NER: DAPT **B1** (GreBerta full-FT) → silver-pretrain → gold-FT →
@@ -244,7 +246,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 6 Silver labeling | ✅ | Silver-v2 labeler micro F1 0.585→**0.667**; emitted over 48.9k train docs | [phase_6](docs/phases/phase_6_silver_labeling.md) |
 | 7 Entity NER | ✅ | **DAPT beats no-DAPT control +9.5 strict F1** (PERSON +19, PLACE +11) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 7b Two-stage silver→gold | ✅ | gold-FT recipe → **strict 0.737 / relaxed 0.837**; GCE rejected (−5.7) | [phase_7](docs/phases/phase_7_entity_ner.md) |
-| 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); 8a closed (data-bound); 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
+| 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); saved + **end-to-end measured** (PARTY_OF oracle 0.705 → e2e 0.623); 8a data-bound; 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
 | 9 Corpus→DB | 🔶 ACTIVE | **195,906 facts**; **prices** (2c AD 13.3 vs lit ~7–12) + **taxes** validated; **AUTONOMY finding DONE** on the trained model — model NER over all 61,249 docs (1.37M entities) → gender+guardian → χωρὶς-κυρίου curve **0%→39%→80% (3c→4c AD)**, gold-validated | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ⬜ | findings write-up (price series, women-as-principals) | — |
 | 11 Release | 🔶 PACKAGED | NER model **packaged for HF** (licence firewall + model card + `launch`/`push_to_hub`); 2 owner-run commands from live | [phase_11](docs/phases/phase_11_release.md) |
@@ -317,25 +319,17 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 >    deterministic** (613/613 matched spans agree); PERSON relaxed recall 0.91;
 >    guardian-women over-counted on the μετὰ (with) side, but **χωρὶς matches gold
 >    exactly** — so the autonomy rise is **conservative**, not inflated. Trend robust.
-> 7. **IN PROGRESS — code all landed, GPU-verification pending (see below).**
->    Revive the RE model. **(a) DONE + verified**: `RelationHead` extracted to a
->    module-level `build_relation_head` factory in `modal_app/relations.py` (lazy
->    torch); re-verified via `xval` → **F1 0.729, PARTY_OF 0.678** (matches the
->    frozen profile). **(b) DONE (code, committed)**: `save_final` + `launch`
->    entrypoint save a custom `state_dict`+`config.json` to
->    `/vol/models/relation/final`. **(c)+(d) DONE (code, committed, UNVERIFIED)**:
->    `eval_e2e` entrypoint + `evaluate_e2e_remote` run the saved model on the gold
->    docs twice — oracle (gold entities) vs end-to-end (NER-predicted entities,
->    joined by stem) — and print the PARTY_OF drop.
->    **⇒ FIRST JOB OF THE NEW SESSION (two GPU runs, then commit the result):**
->    ```
->    .venv/bin/modal run --detach modal_app/relations.py::launch   # produce /vol/models/relation/final (verifies b's save)
->    .venv/bin/modal run modal_app/relations.py::eval_e2e          # verifies c+d; expect oracle PARTY_OF ≈0.678, e2e lower
->    ```
->    If both run clean, record the end-to-end PARTY_OF number here + in the
->    phase-8 doc; that CLOSES step 7. If `eval_e2e` errors, the save/load or
->    inference-encode path has a bug to fix (it is untested torch — like the NER
->    stem bug, expect a possible first-run fix).
+> 7. ✅ **DONE + GPU-verified (2026-07-24).** RE model revived, saved, and
+>    end-to-end measured. **(a)** `RelationHead` → module-level `build_relation_head`
+>    factory; re-verified via `xval` (F1 0.729, PARTY_OF 0.678). **(b)** `launch`
+>    trained silver→all-gold and **saved** the custom `state_dict`+`config.json` to
+>    `/vol/models/relation/final` (5-fold CV F1 0.721, PARTY_OF 0.705 — matches the
+>    frozen profile). **(c)+(d)** `eval_e2e` ran the saved model on the 115 gold docs
+>    twice, **`docs_missing_pred=0`** (stem↔doc_id join clean):
+>    **PARTY_OF held-out-oracle 0.705 → end-to-end 0.623** (NER-predicted entities);
+>    the entity cascade costs **≈0.08** on PARTY_OF, which survives at ~0.6 — usable
+>    (noisy) for step 8. (The same-model oracle on these docs reads 0.993 but that is
+>    train-on-test, not a generalization number.) Detail in the phase-8 doc.
 > 8. Fuller finding — women as principals across deal types: run the RE model over
 >    the corpus PERSON/MONEY entities (reuse `evaluate_e2e_remote`'s inference
 >    machinery), join PARTY_OF to the gendered persons (`db/persons.parquet`) +
@@ -346,14 +340,17 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 > BIO). DAPT backbone `oikonomia-dapt:/checkpoints/full/final`. Volume data:
 > `silver/gold/labels/relation_labels` (relation_labels **re-pushed 2026-07-24**,
 > now 8b-current with AGE/OCCUPATION). `predictions/ner_corpus.jsonl` (1.37M ents).
-> **RE MODEL: probably NOT saved yet** — `launch` writes `/vol/models/relation/final`;
-> check `modal volume ls oikonomia-ner /models/relation` before assuming it exists.
+> **RE MODEL: SAVED 2026-07-24** at `oikonomia-ner:/models/relation/final` (custom
+> `relation_head.pt` state_dict + `config.json`; written by `launch`, load-verified
+> by `eval_e2e`). This is what step 8's corpus RE inference loads.
 >
-> **Progress:** steps **1–6 DONE + validated** (autonomy finding complete: χωρὶς-
-> κυρίου curve 0%→39%→80% over 3c→4c AD, gold-validated). **Step 7 code all landed
-> and committed; (a) verified via xval (0.729 F1 / PARTY_OF 0.678); (b)(c)(d)
-> committed but NOT yet GPU-run.** ⇒ **the new session's first job is the two GPU
-> runs above (`launch` then `eval_e2e`)**, record the end-to-end PARTY_OF, then step 8.
+> **Progress:** steps **1–7 DONE + validated.** Steps 1–6: autonomy finding complete
+> (χωρὶς-κυρίου curve 0%→39%→80% over 3c→4c AD, gold-validated). **Step 7 GPU-verified
+> 2026-07-24:** RE model saved to `/vol/models/relation/final`; end-to-end **PARTY_OF
+> 0.623** (held-out oracle 0.705, cascade cost ≈0.08, `docs_missing_pred=0`). ⇒ **the
+> new session's first job is STEP 8** — women as principals across deal types (reuse
+> `evaluate_e2e_remote`'s inference to run RE over the corpus PERSON/MONEY spans, join
+> PARTY_OF to the gendered persons in `db/persons.parquet` + split-person `CHILD_OF`).
 
 **PARKED — model release (deliverable #1).** Superseded by the directive above.
 NER release is PACKAGED (licence firewall `oikonomia.models.licensing`; model card
@@ -395,7 +392,8 @@ contribution in itself), and (2) for the **person/place-heavy findings** (women-
 principals, kinship) where PERSON/PLACE are open-class and rules fail (model beats
 rules +19 PERSON / +11 PLACE). The entity model is now **wired into the DB** — its
 corpus-scale run (`ner_corpus.jsonl`) drives the autonomy finding (steps 1–6). The
-relation model was only xval-measured, never saved — that is **step 7**, next.
+relation model is now **saved too** (step 7, 2026-07-24: `/vol/models/relation/final`,
+end-to-end PARTY_OF 0.623) and drives **step 8** (women as principals), next.
 
 **Tax finding — DONE + validated (`oik db taxes`).** `src/oikonomia/db/taxes.py`
 + `places.py`. (1) **Fiscal-regime map** (tax × era) reproduces textbook history:
@@ -439,14 +437,12 @@ cd /Users/abdoumagico/Development/ACHATES
 # 1. Green before changing anything (587 tests, mypy 84 files, ruff clean at last save)
 .venv/bin/ruff check src tests modal_app && .venv/bin/python -m mypy src && .venv/bin/python -m pytest
 
-# 2. ⇒ STEP 7 (c)+(d) — the FIRST thing to do this session: two GPU runs (Modal).
-#    Code is committed but UNVERIFIED on GPU. If launch already produced the model,
-#    skip straight to eval_e2e. (Run with the VENV's modal — container imports oikonomia.)
-.venv/bin/modal run --detach modal_app/relations.py::launch   # → /vol/models/relation/final (verifies save)
-.venv/bin/modal run modal_app/relations.py::eval_e2e          # oracle PARTY_OF ≈0.678, e2e lower = the (d) number
-#    Then record the end-to-end PARTY_OF here + phase-8 doc, and COMMIT the run result.
-#    Prereq (already true): relation_labels re-pushed (8b-current); predictions/ner_corpus.jsonl on volume.
-#    If eval_e2e errors → untested torch; fix the save/load or inference-encode path (expect a first-run fix).
+# 2. ⇒ STEP 8 — the FIRST thing to do this session: women as principals across deal
+#    types. Step 7 is DONE (RE model saved to /vol/models/relation/final; e2e PARTY_OF
+#    0.623). Reuse evaluate_e2e_remote's inference machinery (relations.py) to run the
+#    saved RE model over the corpus PERSON/MONEY spans (predictions/ner_corpus.jsonl),
+#    join PARTY_OF to the gendered persons (db/persons.parquet) + split-person CHILD_OF.
+#    The saved RE model + relation_labels (8b-current) + ner_corpus.jsonl are all on the volume.
 
 # 3. Laptop artifacts intact? (only if the women/db work needs rebuilding; all gitignored)
 .venv/bin/oik gold check            # 115 docs, all human_validated, 0 errors
@@ -459,9 +455,10 @@ cd /Users/abdoumagico/Development/ACHATES
 (`unit_price = value/quantity` over-divides when the amount is already per-unit),
 full-corpus run → a defensible series with error bars vs Rathbone/Bagnall. **(2)
 women finding — the autonomy curve is DONE** (steps 1–6: model NER → gender+guardian
-→ χωρὶς-κυρίου curve, gold-validated; PERSON-blob split recovered 129k father links).
-What remains: **step 7** (revive/save the RE model) → **step 8** the fuller "women
-as principals across deal types" (PARTY_OF 0.65 + split-person `CHILD_OF` kinship).
+→ χωρὶς-κυρίου curve, gold-validated; PERSON-blob split recovered 129k father links);
+**step 7 DONE** (RE model saved, end-to-end PARTY_OF 0.623). What remains: **step 8**
+the fuller "women as principals across deal types" (run the saved RE model over the
+corpus PERSON/MONEY spans, join e2e PARTY_OF + split-person `CHILD_OF` kinship).
 **(3) entity identity / coreference** for cross-document prosopography. **(4) release
 the frozen models** (deliverable #1, already at bar). **Do NOT** reopen relation-F1
 work, silver re-emission, or Modal xval unless a *specific finding* proves the frozen

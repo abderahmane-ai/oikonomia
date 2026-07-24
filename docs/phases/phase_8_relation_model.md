@@ -177,9 +177,34 @@ vocabulary (status vs office) first; a schema question, not a rule.
   model-predicted virtual EVENT node (which would break span-traceability).
 - HGV date + Pleiades place linking hooks for Phase 9.
 
-#### Measurement still owed
-- End-to-end eval (**predicted** entities → RE) — the real deliverable number vs
-  the 0.713 oracle ceiling.
+#### End-to-end eval — DONE (2026-07-24, `relations.py::eval_e2e`, saved all-gold RE model)
+
+The shippable RE model (`launch` → `/vol/models/relation/final`, silver→all-gold,
+custom `state_dict`+`config.json`) was run on the 115 gold docs **twice**: oracle
+(gold entity spans) vs end-to-end (the NER model's corpus-run spans, joined by
+stem). `docs_missing_pred = 0` — the stem↔doc_id join is clean.
+
+| PARTY_OF (the edge the women step-8 finding rides on) | F1 |
+|---|---|
+| Held-out oracle — `launch` 5-fold CV, gold entities (**the honest generalization number**) | **0.705** |
+| Same-model oracle on gold docs (`eval_e2e`) | 0.993 ⚠️ train-on-test: these docs are in the all-gold model's training set; **not** a generalization estimate — it only confirms the save/load + constrained-decode inference path works |
+| **End-to-end — NER-predicted entities** | **0.623** |
+
+**The entity cascade costs ≈ 0.08 on PARTY_OF** (held-out oracle 0.705 →
+end-to-end 0.623). The 0.623 is itself mildly optimistic (the saved model trained
+on these gold docs), so the true corpus-wide end-to-end PARTY_OF is likely a shade
+under 0.62 — but it **survives the cascade at ~0.6, usable (noisy) for step 8**.
+Full end-to-end profile: overall RE F1 0.970 oracle → 0.609 e2e (P 0.771 / R
+0.503); direction stays weak as parked (PAID_BY 0.231, PAID_TO 0.507); rare
+relations HAS_PRICE / CHARGED_UNDER collapse to 0.0 e2e (NER rarely predicts their
+COMMODITY/PRICE/TAX_TERM endpoints) — irrelevant to the deliverables, since the
+DB's price/tax findings run on the lexicon+rules, not RE.
+
+**This closes step 7** (revive + save the RE model + standalone e2e inference).
+(a) `RelationHead` → module-level `build_relation_head` factory, re-verified via
+`xval` (F1 0.729, PARTY_OF 0.678). (b) `save_final`/`launch` persist the custom
+model (verified: `eval_e2e` loaded it). (c)+(d) standalone RE on NER-predicted
+entities + the e2e drop, above.
 
 **Cut / shelved:** direction features (null); BOND self-training (un-auditable,
 unproven); virtual EVENT node as a model construct (do it in the DB layer).
