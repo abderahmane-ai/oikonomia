@@ -680,7 +680,7 @@ def infer(backbone: str = "b1", seq_len: int = 512, stride: int = 64, batch: int
 #
 #   1. .venv/bin/modal run --detach modal_app/ner.py::launch           # → models/release/final
 #   2. modal secret create huggingface HF_TOKEN=hf_xxx                 # once (a write token)
-#   3. .venv/bin/modal run modal_app/ner.py::push_to_hub --repo-id <org>/oikonomia-ner
+#   3. .venv/bin/modal run modal_app/ner.py::push_to_hub --repo-id oikonomia/grammateus-grc
 #
 RELEASE_RUN = "release"
 RELEASE_CKPT = f"{MODEL_ROOT}/{RELEASE_RUN}/final"
@@ -725,14 +725,14 @@ def push_to_hub_remote(repo_id: str, checkpoint: str, model_card: str, labels_js
 
 
 @app.local_entrypoint()
-def push_to_hub(repo_id: str, checkpoint: str = RELEASE_CKPT, private: bool = True) -> None:
-    """Publish the shipped NER model to the Hub (starts PRIVATE — flip to public on HF).
+def push_to_hub(repo_id: str = "oikonomia/grammateus-grc", checkpoint: str = RELEASE_CKPT, private: bool = True) -> None:
+    """Publish OIKONOMIA-Grammateus (the entity model) to the Hub (starts PRIVATE — flip to public on HF).
 
     Requires a Modal secret ``huggingface`` carrying an HF **write** token, and a
     checkpoint produced by ``launch``. Attaches the model card + labels; the licence
     firewall runs before any bytes leave.
     """
-    card = (REPO / "resources" / "release" / "MODEL_CARD.md").read_text(encoding="utf-8")
+    card = (REPO / "resources" / "release" / "GRAMMATEUS_CARD.md").read_text(encoding="utf-8")
     labels_json = LOCAL["labels.json"].read_text(encoding="utf-8")
     url = push_to_hub_remote.remote(
         repo_id=repo_id, checkpoint=checkpoint, model_card=card, labels_json=labels_json, private=private

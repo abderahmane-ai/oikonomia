@@ -140,9 +140,13 @@ uv run oik silver label                       # emit silver over train (~5 min);
 .venv/bin/modal run --detach modal_app/ner.py::xval --backbone b1 --loss ce   # paired 5-fold CV
 
 # --- Model release (Phase 11) — deliverable #1; OWNER-RUN (needs HF write token) ---
+# Two models: OIKONOMIA-Grammateus (entities) + OIKONOMIA-Homologia (relations).
+modal secret create huggingface HF_TOKEN=hf_xxx                # once, covers both
 .venv/bin/modal run --detach modal_app/ner.py::launch          # all-gold train + save → models/release/final
-modal secret create huggingface HF_TOKEN=hf_xxx                # once
-.venv/bin/modal run modal_app/ner.py::push_to_hub --repo-id <org>/oikonomia-ner  # push (starts private)
+.venv/bin/modal run modal_app/ner.py::push_to_hub              # → oikonomia/grammateus-grc (private)
+.venv/bin/modal run modal_app/relations.py::push_to_hub        # → oikonomia/homologia-grc (private; weights already saved)
+# Pull the models down (dest dir MUST exist first, else volume get writes one opaque file):
+mkdir -p artifacts/models/g && .venv/bin/modal volume get oikonomia-ner models/b1/final artifacts/models/g
 
 # --- Relations (Phase 8) — FROZEN; GPU runs owner-triggered, not the default path ---
 .venv/bin/oik relation prepare                # freeze relation_labels.json; recall guard MUST be 0 uncovered
@@ -263,7 +267,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); saved + **end-to-end measured** (PARTY_OF oracle 0.705 → e2e 0.623); 8a data-bound; 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
 | 9 Corpus→DB | ✅ (opt. hardening left) | **195,906 facts**; 5 findings — **prices**, **taxes**, **AUTONOMY** χωρὶς curve **0%→39%→80% (3c→4c AD)**, **PRINCIPALS by deal type** (21,895; women 18.0% mentions / 20.1% distinct; **sale 30%/loan 28% vs receipt 10%**), monetization; **DB packaged + queryable** (`oik db export`, `docs/database.md`) | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ⬜ | findings write-up (price series, women-as-principals) | — |
-| 11 Release | 🔶 PACKAGED | NER model **packaged for HF** (licence firewall + model card + `launch`/`push_to_hub`); 2 owner-run commands from live | [phase_11](docs/phases/phase_11_release.md) |
+| 11 Release | 🔶 READY TO PUSH | **both** models named + carded + verified locally: **Grammateus** (entities) · **Homologia** (relations); licence firewall + push paths for each; owner-run commands only | [phase_11](docs/phases/phase_11_release.md) |
 
 ---
 
@@ -379,11 +383,19 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 > of the findings (prices, taxes, autonomy curve, principals-by-deal-type), and/or
 > Phase 11 model release (deliverable #1, already packaged).
 
-**PARKED — model release (deliverable #1).** Superseded by the directive above.
-NER release is PACKAGED (licence firewall `oikonomia.models.licensing`; model card
-`resources/release/MODEL_CARD.md`; owner-run `launch`+`push_to_hub` in
-`modal_app/ner.py`; GreBerta apache-2.0 verified; `MODEL_LICENSES.md` corrected).
-Resume only after the women work. Detail:
+**MODEL RELEASE (deliverable #1) — BOTH MODELS NAMED, CARDED, VERIFIED (2026-07-24).**
+Family **OIKONOMIA**; the two models are **Grammateus** (γραμματεύς "the scribe" —
+entities, `oikonomia/grammateus-grc`) and **Homologia** (ὁμολογία "the
+acknowledgment" — relations, `oikonomia/homologia-grc`). Both pulled off the Modal
+volume to `artifacts/models/{grammateus,homologia}/` (gitignored) and **verified to
+load and run locally** (Grammateus tags a test phrase correctly; Homologia's
+state_dict loads `strict=True` against a rebuilt head). Cards:
+`resources/release/{GRAMMATEUS,HOMOLOGIA}_CARD.md`, guarded by
+`tests/test_release_cards.py`. Push paths behind the licence firewall exist for
+**both** (`ner.py::push_to_hub`, `relations.py::push_to_hub`, default repo ids,
+start private). **Remaining is owner-run only:** `modal secret create huggingface`,
+Grammateus's all-gold `ner.py::launch`, then the two pushes. Homologia's shippable
+weights already exist (`models/relation/final`). Detail:
 [`docs/phases/phase_11_release.md`](docs/phases/phase_11_release.md).
 
 **THE PIVOT — read before doing anything.** The deliverable is a **queryable,
@@ -571,6 +583,14 @@ audits say it is not.
   distinct women principals / 7,022 = 20.1%**, the honest headcount vs the 18%
   mention share), `manifest.json` (inventory + `corpus_rev` + CC BY 3.0). Regen:
   `oik db export`. Schema doc: [`docs/database.md`](docs/database.md). Gitignored.
+- `artifacts/models/grammateus/` — **OIKONOMIA-Grammateus**, the entity model pulled
+  off the volume (125.4M params, `RobertaForTokenClassification`, 31 BIO tags).
+  Load-verified locally. Regen: `mkdir -p <dst> && modal volume get oikonomia-ner
+  models/b1/final <dst>`. Gitignored.
+- `artifacts/models/homologia/` — **OIKONOMIA-Homologia**, the relation model
+  (129.1M params, custom span-pair head: `relation_head.pt` + `config.json`, 12
+  relation classes / 13 entity endpoints). `state_dict` load-verified `strict=True`.
+  Regen: same, from `models/relation/final`. Gitignored.
 - **Modal Volume `oikonomia-dapt`:** `shards/{train,dev}.bin`,
   `checkpoints/full/final` (**B1** — load this for b1). Stale `checkpoints/b1-*`
   from the first sweep are safe to `modal volume rm -r`.
@@ -599,7 +619,7 @@ DELETED** (`db/parties.py`, `oik db women`, `tests/test_db_parties.py`,
 model; the gold-validation numbers it produced live on in the phase-9 doc.
 
 **Quality gate at last save:** ruff (src tests modal_app) · mypy (87 files) ·
-612 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
+620 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
 provenance-validated 0/1.37M mismatch. Women pipeline gold-validated (gender rules
 100% deterministic, autonomy trend robust). Step 8: corpus RE 61,249 docs /
 16,315 PARTY_OF; principals finding deal-type ordering stable at n≥40. DB packaged

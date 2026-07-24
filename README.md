@@ -67,9 +67,11 @@ Two principles hold the design together:
 
 Three deliverables:
 
-1. **Open models** — a papyri-adapted Greek entity + relation extraction family,
-   built on [GreBerta](https://huggingface.co/bowphs/GreBerta) with domain-adaptive
-   pretraining on the corpus.
+1. **Open models** — a papyri-adapted Greek extraction pair built on
+   [GreBerta](https://huggingface.co/bowphs/GreBerta) with domain-adaptive
+   pretraining on the corpus: **OIKONOMIA-Grammateus** (γραμματεύς, "the scribe")
+   finds the entities, **OIKONOMIA-Homologia** (ὁμολογία, "the acknowledgment")
+   links them into transactions.
 2. **A derived database** — every transaction traceable to a span in a specific
    document at a specific corpus revision.
 3. **Historical findings** — price and wage series across a millennium, the
@@ -156,7 +158,7 @@ load-bearing facts never to re-derive.
 | 7–8 | Entity NER (0.737) · Relation extraction (0.713) | ✅ frozen |
 | 9 | Corpus → queryable database ([schema](docs/database.md)) | ✅ shipped |
 | **10** | **Historical findings — the write-up** | 🔶 active |
-| 11 | Model release (packaged; owner-run push) | 🔶 packaged |
+| 11 | Model release — **Grammateus** + **Homologia** (carded; owner-run push) | 🔶 ready |
 
 ## Data, models & licensing
 

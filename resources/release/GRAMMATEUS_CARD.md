@@ -17,7 +17,7 @@ datasets:
 metrics:
 - f1
 model-index:
-- name: OIKONOMIA-NER
+- name: OIKONOMIA-Grammateus
   results:
   - task:
       type: token-classification
@@ -31,7 +31,10 @@ model-index:
       value: 0.837
 ---
 
-# OIKONOMIA-NER — Named Entity Recognition for Greek Documentary Papyri
+# OIKONOMIA-Grammateus — Entity Recognition for Greek Documentary Papyri
+
+> **γραμματεύς** *grammateús*, "the scribe" — the village clerk of Greco-Roman
+> Egypt, whose job was to write down who, where, and how much.
 
 A token-classification model that reads the everyday economic language of the
 documentary papyri of Greco-Roman Egypt — tax receipts, leases, loans, wages,
@@ -103,7 +106,7 @@ open-class onomastic labels the adaptation was meant to help: **PERSON +19.0**,
 from transformers import AutoTokenizer, AutoModelForTokenClassification
 import torch
 
-repo = "<your-org>/oikonomia-ner"  # set to the published repo id
+repo = "oikonomia/grammateus-grc"  # the published repo id
 tok = AutoTokenizer.from_pretrained(repo)
 model = AutoModelForTokenClassification.from_pretrained(repo).eval()
 
@@ -120,6 +123,13 @@ for (s, e), p in zip(offsets.tolist(), pred.tolist()):
 Built for **information extraction over documentary (not literary) Ancient Greek**,
 to populate a structured economic database. Well suited to research in papyrology,
 digital humanities, and ancient economic history.
+
+## The OIKONOMIA model pair
+
+Grammateus finds the *entities*. Its sibling
+[**OIKONOMIA-Homologia**](https://huggingface.co/oikonomia/homologia-grc) links them
+into *transactions* — who is a party to a deal, who paid whom, which amount prices
+which commodity. Run Grammateus first; feed its spans to Homologia.
 
 ## Limitations
 
@@ -159,8 +169,8 @@ If you use this model, please cite the OIKONOMIA project, the GreBerta backbone,
 and the DDbDP corpus:
 
 ```bibtex
-@misc{oikonomia_ner,
-  title  = {OIKONOMIA-NER: Named Entity Recognition for Greek Documentary Papyri},
+@misc{oikonomia_grammateus,
+  title  = {OIKONOMIA-Grammateus: Entity Recognition for Greek Documentary Papyri},
   author = {OIKONOMIA project},
   year   = {2026},
   note   = {Base model bowphs/GreBerta; trained on the Duke Databank (DDbDP, CC BY 3.0)}

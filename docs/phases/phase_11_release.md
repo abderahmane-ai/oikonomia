@@ -26,7 +26,7 @@ require credentials/publishing are the owner's.
   was **stale** — it described a superseded GreTa/T5 ablation; corrected to the real
   GreBerta chain. Model weights: apache-2.0 (backbone-inherited); training corpus
   DDbDP is CC BY 3.0 and is attributed in the card.
-- **Model card — `resources/release/MODEL_CARD.md`** (the HF README): frontmatter
+- **Model card — `resources/release/GRAMMATEUS_CARD.md`** (the HF README): frontmatter
   (apache-2.0, `grc`, base_model, metrics), the 15 labels, eval (strict **0.737** /
   relaxed **0.837**, 5-fold CV on 115-doc gold; per-label; DAPT +9.5 vs control),
   intended use + usage snippet, limitations, DDbDP provenance/attribution,
@@ -37,25 +37,69 @@ require credentials/publishing are the owner's.
   the firewall, **starting private**. Modal secret syntax re-checked against
   modal.com/docs.
 
+### The two models, named (2026-07-24)
+
+Both are downloaded from the Modal volumes, verified to load locally, and carded.
+The family is **OIKONOMIA**; the models carry papyrological names that say what
+they do:
+
+| Model | Name | Why | Repo id | Card |
+|---|---|---|---|---|
+| Entity NER | **OIKONOMIA-Grammateus** | γραμματεύς, "the scribe" — the village clerk who wrote down who, where, how much | `oikonomia/grammateus-grc` | `resources/release/GRAMMATEUS_CARD.md` |
+| Relation RE | **OIKONOMIA-Homologia** | ὁμολογία, "the acknowledgment" — the contract formula binding parties to a deal; ὁμολογῶ is the corpus's most frequent transaction word (~3,000 attestations) | `oikonomia/homologia-grc` | `resources/release/HOMOLOGIA_CARD.md` |
+
+**Local copies** (gitignored, `artifacts/` tier): `artifacts/models/grammateus/`
+(125.4M params, `RobertaForTokenClassification`, 31 BIO tags) and
+`artifacts/models/homologia/` (129.1M params, custom span-pair head, 12 relation
+classes / 13 entity endpoints). Pulled with
+`modal volume get oikonomia-ner models/<b1|relation>/final <dest>` — **the
+destination directory must already exist**, or `volume get` writes the folder as a
+single opaque file.
+
+**Both verified to load and run locally**, not merely downloaded: Grammateus tags
+`πυροῦ ἀρτάβας δύο δραχμῶν ἑκατόν` as COMMODITY / UNIT / MONEY_AMOUNT / CURRENCY
+correctly; Homologia's `state_dict` loads `strict=True` against a freshly built
+head, confirming the config.json rebuild recipe printed in its card is exact.
+
+**Homologia's card carries what a standard card would hide:** it is *not* an
+`AutoModel` (custom head → `relation_head.pt` + a rebuild config), its oracle
+scores are flattering, so the card leads the practitioner to the **end-to-end**
+number (PARTY_OF 0.623), and payment *direction* is documented as weak
+(PAID_BY 0.145) with the reason (87 gold direction edges, every model-side remedy
+measured neutral).
+
 ### The owner run-sequence (needs an HF write token — Claude cannot authenticate)
 
-```bash
-# 1. Train the single shippable model on all gold (Modal A10, GPU spend) → models/release/final
-.venv/bin/modal run --detach modal_app/ner.py::launch
+An HF **organization** is created from an existing account (huggingface.co → New
+Organization) — it is not a second login, and a personal write token covers org
+repos you administer.
 
-# 2. Give Modal your HF write token, once:
+```bash
+# 0. Give Modal your HF write token, once (covers both pushes):
 modal secret create huggingface HF_TOKEN=hf_xxx
 
-# 3. Push (starts PRIVATE — review on HF, then flip to public):
-.venv/bin/modal run modal_app/ner.py::push_to_hub --repo-id <your-org>/oikonomia-ner
+# --- Grammateus (entities) ---
+.venv/bin/modal run --detach modal_app/ner.py::launch          # all-gold train → models/release/final
+.venv/bin/modal run modal_app/ner.py::push_to_hub              # → oikonomia/grammateus-grc (PRIVATE)
+
+# --- Homologia (relations) --- (already trained + saved: models/relation/final)
+.venv/bin/modal run modal_app/relations.py::push_to_hub        # → oikonomia/homologia-grc (PRIVATE)
 ```
 
-Set the repo id (`<your-org>/…`) in the model card usage snippet after the id is
-final. The push refuses to run if the licence firewall does not pass.
+Both pushes default to the repo ids above (`--repo-id` overrides) and **start
+private** — review on HF, then flip to public. Each refuses to run if the licence
+firewall does not pass. Note the asymmetry: Homologia's shippable weights **already
+exist** on the volume (saved by `relations.py::launch` during step 7 of the women
+work), while Grammateus still needs its all-gold `launch` run — `models/b1/final`
+is the Phase-7 checkpoint used for corpus inference, not the release train.
+
+If you publish under a personal account instead of an org, pass
+`--repo-id <username>/grammateus-grc` and update the two cross-links + the usage
+snippet in the cards (`tests/test_release_cards.py` guards against placeholders
+being left behind).
 
 ### Remaining / next
 
-- **RE model (deliverable #1b)** is *not* shippable yet — it was only xval-measured,
-  never saved. A `launch`-style all-data train + save is needed before it can be
-  pushed (same pattern as the NER `save_final`).
-- After NER is live: the findings write-up (#3) and the DB package (#2).
+- **Owner-run:** the three commands above. Everything up to the authentication line
+  is done, tested and verified.
+- After both are live: the findings write-up (#3). The DB package (#2) is shipped.
