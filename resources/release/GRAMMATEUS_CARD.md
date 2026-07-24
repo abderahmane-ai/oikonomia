@@ -8,12 +8,21 @@ base_model: bowphs/GreBerta
 tags:
 - token-classification
 - named-entity-recognition
+- ner
+- information-extraction
 - ancient-greek
+- greek-ner
 - papyrology
+- epigraphy
+- classics
+- classical-studies
 - digital-humanities
 - economic-history
+- greberta
 datasets:
 - papyri/DDbDP
+widget:
+- text: "Αὐρηλία Θεοδώρα θυγάτηρ τοῦ μακαρίου Ἀλεξάνδρου χωρὶς κυρίου χρηματιζούσης τέκνων δικαίῳ ἐν Ἑρμουπόλει. σίτου ἀρτάβας ἑκατόν γίνονται (ἀρτάβαι) ρ, καὶ ἀργυρίου δραχμὰς πεντακισχιλίας."
 metrics:
 - f1
 model-index:

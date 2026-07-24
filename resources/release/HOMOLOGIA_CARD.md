@@ -5,11 +5,18 @@ language:
 base_model: bowphs/GreBerta
 tags:
 - relation-extraction
+- re
+- information-extraction
 - ancient-greek
+- greek-re
 - papyrology
+- epigraphy
+- classics
+- classical-studies
 - digital-humanities
 - economic-history
 - pytorch
+- greberta
 datasets:
 - papyri/DDbDP
 metrics:
