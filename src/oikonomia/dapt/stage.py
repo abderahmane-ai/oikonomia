@@ -28,11 +28,11 @@ class BuildDaptShardsStage:
     """Tokenise and pack the DAPT corpus, offline and reproducibly."""
 
     name = "build_dapt_shards"
-    # 3: stop lowercasing. GreBerta distinguishes case and keeping it is
-    #    *cheaper* in tokens; v1-v2 discarded the best PERSON/PLACE cue.
-    # 2: frame each block as <s> ... </s>. v1 emitted raw packed streams, which
-    #    is off-distribution for RoBERTa at position 0 and silently costs
-    #    adaptation quality without showing up in the loss.
+    # 3: preserve case. GreBerta distinguishes it, keeping it is *cheaper* in
+    #    tokens, and it is the strongest PERSON/PLACE cue in the corpus.
+    # 2: frame each block as <s> ... </s>. A raw packed stream is
+    #    off-distribution for RoBERTa at position 0 and silently costs adaptation
+    #    quality without showing up in the loss.
     version = "3"
 
     def inputs_key(self, s: Settings) -> str:

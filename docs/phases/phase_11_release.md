@@ -45,8 +45,8 @@ they do:
 
 | Model | Name | Why | Repo id | Card |
 |---|---|---|---|---|
-| Entity NER | **OIKONOMIA-Grammateus** | γραμματεύς, "the scribe" — the village clerk who wrote down who, where, how much | `oikonomia/grammateus-grc` | `resources/release/GRAMMATEUS_CARD.md` |
-| Relation RE | **OIKONOMIA-Homologia** | ὁμολογία, "the acknowledgment" — the contract formula binding parties to a deal; ὁμολογῶ is the corpus's most frequent transaction word (~3,000 attestations) | `oikonomia/homologia-grc` | `resources/release/HOMOLOGIA_CARD.md` |
+| Entity NER | **OIKONOMIA-Grammateus** | γραμματεύς, "the scribe" — the village clerk who wrote down who, where, how much | [`ainouche-abderahmane/grammateus`](https://huggingface.co/ainouche-abderahmane/grammateus) | `resources/release/GRAMMATEUS_CARD.md` |
+| Relation RE | **OIKONOMIA-Homologia** | ὁμολογία, "the acknowledgment" — the contract formula binding parties to a deal; ὁμολογῶ is the corpus's most frequent transaction word (~3,000 attestations) | [`ainouche-abderahmane/homologia`](https://huggingface.co/ainouche-abderahmane/homologia) | `resources/release/HOMOLOGIA_CARD.md` |
 
 **Local copies** (gitignored, `artifacts/` tier): `artifacts/models/grammateus/`
 (125.4M params, `RobertaForTokenClassification`, 31 BIO tags) and
@@ -110,8 +110,8 @@ mkdir -p artifacts/models/grammateus && .venv/bin/modal volume get \
 # --- publish both from the laptop ---
 hf auth login                                                  # once (or export HF_TOKEN)
 .venv/bin/oik release check grammateus                         # pre-flight, uploads nothing
-.venv/bin/oik release push  grammateus                         # → oikonomia/grammateus-grc (private)
-.venv/bin/oik release push  homologia                          # → oikonomia/homologia-grc (private)
+.venv/bin/oik release push  grammateus                         # → ainouche-abderahmane/grammateus
+.venv/bin/oik release push  homologia                          # → ainouche-abderahmane/homologia
 ```
 
 Both start **private** — review on HF, then flip to public. Note the asymmetry:
@@ -121,12 +121,65 @@ Grammateus's local copy is `models/b1/final`, the Phase-7 checkpoint used for co
 inference — publishable, but the intended release model is the all-gold `launch`
 above.
 
-To publish under a personal account instead of an org, pass
-`--repo-id <username>/grammateus-grc` and update the two cross-links in the cards
-(`tests/test_release_cards.py` guards against placeholders being left behind).
+### ✅ PUBLISHED (2026-07-24) — all three artifacts are live
+
+| Artifact | Hub |
+|---|---|
+| OIKONOMIA-Grammateus (entities) | <https://huggingface.co/ainouche-abderahmane/grammateus> |
+| OIKONOMIA-Homologia (relations) | <https://huggingface.co/ainouche-abderahmane/homologia> |
+| OIKONOMIA-DB (dataset, deliverable #2) | <https://huggingface.co/datasets/ainouche-abderahmane/oikonomia-db> |
+
+All three cards verified live: apache-2.0 on the models, CC BY 3.0 on the dataset,
+`grc` language tag, base-model lineage, metrics, limitations and citation present.
+
+### Post-publication audit (2026-07-24)
+
+An external review of the three live repos, plus a sweep of our own, found seven
+defects. All are fixed locally; **the live pages still carry them until a re-push.**
+
+| # | Defect | Fix |
+|---|---|---|
+| 1 | Cards referenced the never-created `oikonomia/*-grc` org repos in three places, including the Grammateus usage snippet — copy-paste gave a 404 | Both cards, the three `repo_id` defaults in `models/release.py`, and the cross-reference test now use the real `ainouche-abderahmane/*` ids |
+| 2 | **Homologia's architecture lived in `modal_app/relations.py`** — a §3 violation: the published model was unloadable without the orchestration layer the boundary says must be deletable | `build_relation_head` moved to `oikonomia/relations/model.py`; added `load_homologia()`, one call from a repo id or a local dir. `modal_app` now delegates. Guarded by `test_published_architectures_are_defined_in_the_library` |
+| 3 | Dataset card documented a `person_id` join key that **did not exist** | `persons_distinct` now ships a real `person_id` — a stable 16-hex hash of the coref-lite key, unique across all 17,362 rows and identical across rebuilds |
+| 4 | Dataset viewer was dead: the frontmatter used a malformed `dataset_info.features` block listing tables as features | Replaced with a `configs:` block, one config per table. Enables the viewer and `load_dataset(..., "prices")`. A test ties the declared configs to the release spec's required files so they cannot drift |
+| 5 | **`check_ready` listed only top-level files** while `upload_folder` uploads recursively — the pre-flight under-reported what went public, and could ship a dataset missing two of its eight tables | Listing recurses; `export/documents.parquet` and `export/persons_distinct.parquet` added to `required`; two tests cover it |
+| 6 | `docs/project_summary.md` claimed a *"Late Roman Hyperinflation (4th c. AD): prices soaring to 300.00 dr/artaba"* — **there is no 4th-century wheat data at all** (wheat spans 3c BC–3c AD), and the two 4c rows are *wine in keramia*. A known unit artifact was written up as a finding | Section rewritten against the shipped tables: the five findings with their real numbers, mechanisms and limits |
+| 7 | No CI; the gate was manual | `.github/workflows/ci.yml` runs ruff → mypy → pytest on push and PR, installing only `.[dev]` so it also enforces the no-ML-stack boundary. `pre-commit` now covers `modal_app` like the documented gate |
+
+Card content also hardened where the review pushed on statistics rather than
+defects: Grammateus now states that 115 documents over 5 folds is ~23 per fold,
+that per-label figures on rare labels are indicative of rank rather than precise,
+and that per-fold variance was never recorded (a known gap needing a GPU re-run).
+Homologia now states that payment direction is *deliberately absent* from the
+published database rather than present and wrong. The dataset card gained a
+Limitations section covering the thin price sample, the two error regimes, the
+missing direction columns, mentions-vs-people and survival bias.
+
+Verified end to end, not assumed:
+
+- `load_homologia("ainouche-abderahmane/homologia")` downloads and loads the live
+  weights `strict=True` → 129.1M params, 12 relation labels, eval mode.
+- The Grammateus card's usage snippet, run verbatim, tags
+  *πυροῦ ἀρτάβας δύο δραχμῶν ἑκατόν* as COMMODITY / UNIT / MONEY_AMOUNT / CURRENCY.
+- Every SQL block in `docs/database.md` (11) and in the dataset card (2) executes.
+- The gate passes in **both** environments — with the ML stack (646 tests) and in a
+  clean venv without torch (644 + 2 skipped) — after adding mypy overrides so the
+  answer no longer depends on whether torch happens to be installed.
 
 ### Remaining / next
 
-- **Owner-run:** the three commands above. Everything up to the authentication line
-  is done, tested and verified.
-- After both are live: the findings write-up (#3). The DB package (#2) is shipped.
+- **Owner-run, and required for any of the above to reach users:**
+
+  ```bash
+  .venv/bin/oik release push grammateus
+  .venv/bin/oik release push homologia
+  .venv/bin/oik release push db          # re-pushes with person_id + viewer configs
+  ```
+
+- Optional: `training_args.bin` ships inside Grammateus. It is standard HF output,
+  but it is a pickle, so the Hub flags it. Drop it if the warning matters more than
+  the record of the training configuration.
+- Optional: the all-gold `ner.py::launch` Grammateus retrain, if the released
+  Phase-7 checkpoint is to be swapped for the all-gold one.
+- Deliverable #3 is recorded: [`phase_10_findings.md`](phase_10_findings.md).

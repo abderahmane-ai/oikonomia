@@ -65,3 +65,29 @@ def test_distinct_count_never_exceeds_mentions() -> None:
 def test_empty_frame_yields_empty_person_table() -> None:
     out = collapse_to_persons(pd.DataFrame())
     assert out.empty and "n_mentions" in out.columns
+
+
+def test_person_id_is_stable_and_tracks_the_key() -> None:
+    """The shipped id must be a pure function of the identity key: same person →
+    same id on every rebuild, different people → different ids."""
+    from oikonomia.db.identity import person_id
+
+    assert person_id("Ἀπολλωνία", "Πτολεμαίου", 100) == person_id("ἀπολλωνία  ", " πτολεμαίου", 100.0)
+    assert person_id("Ταῆσις", "X", 5) != person_id("Ταῆσις", None, None)
+    assert len(person_id("Ταῆσις", None, None)) == 16
+
+
+def test_collapsed_table_carries_one_id_per_person() -> None:
+    """`person_id` is the documented join key of persons_distinct — it must exist
+    and be unique, or every join in the dataset card silently fans out."""
+    df = pd.DataFrame({
+        "head_text": ["Ταῆσις", "ταῆσις ", "Ἡρακλῆς"],
+        "father_text": ["Πτολεμαίου", "πτολεμαίου", None],
+        "place_pleiades": [100, 100.0, None],
+        "gender": ["female", "female", "male"],
+        "guardian": ["with", "without", "none"],
+    })
+    out = collapse_to_persons(df)
+    assert next(iter(out.columns)) == "person_id"
+    assert len(out) == 2
+    assert out["person_id"].is_unique

@@ -55,23 +55,31 @@ A structured, hyper-compressed 8-table Parquet database (**12.3 MB total**) quer
 
 ### 3. 📜 **Deliverable #3: Historical Discoveries & Findings**
 
-OIKONOMIA automatically recovered **three major historical discoveries** directly from raw papyrus text:
+Five findings, ranked by evidential strength, are recorded in
+[`docs/phases/phase_10_findings.md`](phases/phase_10_findings.md) — each with its
+mechanism, the known history it has to recover as a control, and its limits. Two
+are *validation* findings (already-known history, recovered unsupervised); two are
+*novel* counts at a scale nobody has done by hand; one is honest but thin.
 
-#### 🌾 **Finding 1: The 1,000-Year Commodity Inflation Series**
-- **High Roman Period (2nd c. AD):** Median wheat price of **13.33 drachmas per artaba** (IQR: 6.0–27.5), reproducing published papyrological literature (Rathbone 1997: ~7–12 drachmas).
-- **Late Roman Hyperinflation (4th c. AD):** Captured the 4th-century currency collapse, with prices soaring to **300.00 dr/artaba**.
+#### 🪙 **F1: The silver→gold monetization transition** *(validation, strongest)*
+- Gold's share of dated money facts: **eleven centuries at ~0.00, then 4th c. AD 0.155 → 5th c. 0.931 → 8th c. 1.000.**
+- Recovers the collapse of the Alexandrian silver tetradrachm and Constantine's gold *solidus* (309–312 AD) from raw text, with no historical input. n = 195,906 facts.
 
-#### 🏛️ **Finding 2: The Fiscal Regime Shift Map**
-- Recovered the Roman poll tax (*laographia*) as strictly Roman-era (**560 attestations vs. 0 in Ptolemaic or Byzantine periods**).
-- Identified tax installments paid in uniform **~4.0 drachma median increments** across regional administrative centers (*metropoleis*).
+#### 🏛️ **F2: The fiscal-regime map** *(validation)*
+- 6,441 tax facts across 18 named taxes periodize themselves: *laographia* (poll tax) **560 of 569 attestations in the 1st–3rd c. AD, zero after, zero in the 3rd/2nd c. BC**; *prosdiagraphomena* 99.9% Roman; *phylakitikon* 73% Ptolemaic; *demosia* 1,596 of 1,674 in the 6th–8th c. AD.
+- Poll-tax payments: corpus-wide median **~4 dr** (an installment, not an annual assessment), p90 **16–39 dr**, which brackets the known annual rate.
 
-#### 👩 **Finding 3: The Female Legal Autonomy & Property Ownership Gradient (Crown Jewel)**
-- **The Autonomy Curve:** Quantified the unsupervised decline of Roman male legal guardianship (*tutela mulierum*) across 800 years:
-  - **1st c. BCE – 1st c. CE:** **0% autonomous** (near-total requirement of male guardian `μετὰ κυρίου`).
-  - **2nd c. CE:** **1% autonomous** (early *ius liberorum* transition under Roman imperial law).
-  - **3rd c. CE:** **39% autonomous** (inflection point post-*Constitutio Antoniniana* 212 CE).
-  - **4th c. CE:** **80% autonomous** (near-total collapse of male guardianship `χωρὶς κυρίου` in Late Antiquity).
-- **The Property Gradient:** Proved that female economic agency concentrated in private property transactions (**30.4% in sales, 28.5% in credit/loans** of dowry and inherited property) and was thinnest in state tax machinery (**5.1% in delivery receipts, 10.2% in fiscal lists**).
+#### 👩 **F3: The female autonomy curve** *(novel, model-driven)*
+- Women's **χωρὶς-κυρίου (unguardianed) share by century: 0% (≤1st c. AD) → 1% (2nd) → 39% (3rd) → 80% (4th)** — the spread of the *ius liberorum* and the decline of *tutela mulierum*, unsupervised.
+- Gold-validated: the gender rules are 100% deterministic (613/613 matched spans), and the over-count sits on the *with-guardian* side, so **the rise is conservative**. Denominators thin sharply after the 3rd century (n=35 in the 4th).
+
+#### 🤝 **F4: Women as principals, by deal type** *(novel, model-driven)*
+- **21,895 principals; women are 18.0% of mentions and 20.1% of distinct people.** The finding is the **gradient**, not the average: **sale 30.4% · loan 28.5% · contract 23.0%** versus **receipt 10.2% · delivery 5.1%** — property transactions versus fiscal paperwork.
+- End-to-end `PARTY_OF` F1 is 0.623, so the **ordering** is the result and the exact percentages are approximate; the ordering is stable for every bucket with n ≥ 40.
+
+#### 🌾 **F5: Commodity prices** *(real, but thin — the weakest)*
+- **98 clean observations.** Only **2nd c. AD wheat (n=37, median 13.33 dr/artaba, IQR 6.0–27.5)** is defensible; its IQR brackets the literature (~7–12 dr).
+- The other buckets have single-digit n, the per-unit arithmetic over-divides where an amount is already per-unit, and the non-wheat commodities are too sparse to report. This is a validated method on a thin sample, **not a price history**.
 
 ---
 

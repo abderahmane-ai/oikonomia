@@ -109,13 +109,22 @@ backbone (no papyri DAPT), DAPT adds **+9.5 strict F1** overall, concentrated in
 open-class onomastic labels the adaptation was meant to help: **PERSON +19.0**,
 **PLACE +11.4** — with no label regressing.
 
+**How much to trust these numbers.** 115 documents over 5 folds is roughly **23
+documents per fold**, so every figure above is a point estimate on a small sample.
+The micro-averaged totals rest on 2,995 entities and are the sturdiest; the
+**per-label** figures for rare labels rest on far fewer instances and should be
+read as indicative of rank, not as precise values — ten more annotated documents
+could move them. Per-fold variance was not recorded and is a known gap. The
+headline comparisons (DAPT vs no-DAPT, silver-only vs silver→gold) are paired runs
+on identical folds, which is what makes their *direction* reliable even at this n.
+
 ## Intended use
 
 ```python
 from transformers import AutoTokenizer, AutoModelForTokenClassification
 import torch
 
-repo = "oikonomia/grammateus-grc"  # the published repo id
+repo = "ainouche-abderahmane/grammateus"  # the published repo id
 tok = AutoTokenizer.from_pretrained(repo)
 model = AutoModelForTokenClassification.from_pretrained(repo).eval()
 
@@ -136,7 +145,7 @@ digital humanities, and ancient economic history.
 ## The OIKONOMIA model pair
 
 Grammateus finds the *entities*. Its sibling
-[**OIKONOMIA-Homologia**](https://huggingface.co/oikonomia/homologia-grc) links them
+[**OIKONOMIA-Homologia**](https://huggingface.co/ainouche-abderahmane/homologia) links them
 into *transactions* — who is a party to a deal, who paid whom, which amount prices
 which commodity. Run Grammateus first; feed its spans to Homologia.
 

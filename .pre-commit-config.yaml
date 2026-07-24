@@ -5,9 +5,9 @@ repos:
     hooks:
       - id: ruff
         args: [--fix]
-        files: ^(src|tests)/
+        files: ^(src|tests|modal_app)/
       - id: ruff-format
-        files: ^(src|tests)/
+        files: ^(src|tests|modal_app)/
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:

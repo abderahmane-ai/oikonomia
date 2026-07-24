@@ -56,6 +56,19 @@ def test_modal_app_may_import_the_library() -> None:
     assert any("oikonomia" in p.read_text(encoding="utf-8") for p in sources)
 
 
+def test_published_architectures_are_defined_in_the_library() -> None:
+    """A released model must stay loadable if modal_app/ is deleted.
+
+    Homologia ships as a state_dict, so whichever module defines its layers *is*
+    the model. That definition belongs in the library; modal_app may only call it.
+    """
+    from oikonomia.relations.model import build_relation_head
+
+    assert build_relation_head.__module__ == "oikonomia.relations.model"
+    body = (MODAL_APP / "relations.py").read_text(encoding="utf-8")
+    assert "nn.Module" not in body, "modal_app/relations.py defines layers; move them into the library"
+
+
 def test_library_imports_without_ml_stack() -> None:
     """The end-to-end version of the rule: importing every module must not
     require torch/peft/modal, none of which are installed here."""

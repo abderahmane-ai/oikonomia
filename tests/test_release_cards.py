@@ -57,8 +57,8 @@ def test_no_unfilled_placeholders(name: str) -> None:
 def test_cards_cross_reference_each_other() -> None:
     # The pair is only useful together (entities → relations); each card must send
     # a reader to the sibling model.
-    assert "homologia-grc" in CARDS["grammateus"].read_text(encoding="utf-8")
-    assert "grammateus-grc" in CARDS["homologia"].read_text(encoding="utf-8")
+    assert "ainouche-abderahmane/homologia" in CARDS["grammateus"].read_text(encoding="utf-8")
+    assert "ainouche-abderahmane/grammateus" in CARDS["homologia"].read_text(encoding="utf-8")
 
 
 def test_relation_card_warns_it_is_not_an_automodel() -> None:
@@ -67,3 +67,39 @@ def test_relation_card_warns_it_is_not_an_automodel() -> None:
     text = CARDS["homologia"].read_text(encoding="utf-8")
     assert "not a `transformers` `AutoModel`" in text
     assert "relation_head.pt" in text
+
+
+# --- the dataset card (deliverable #2), which ships the same way ---
+
+DB_CARD = RELEASE / "OIKONOMIA_DB_CARD.md"
+
+
+def test_dataset_card_declares_the_corpus_licence() -> None:
+    # The data is derived from DDbDP/HGV, so the card must carry that licence
+    # forward rather than the code's.
+    assert str(_frontmatter(DB_CARD)["license"]) == "cc-by-3.0"
+    assert _frontmatter(DB_CARD)["language"] == ["grc"]
+
+
+def test_dataset_card_configs_match_the_shipped_files() -> None:
+    """The card's `configs:` block is what the Hub viewer and `load_dataset` read.
+
+    A config naming a file the release does not ship gives a viewer error and a
+    download that fails, so the two lists must not drift apart.
+    """
+    from oikonomia.models.release import MODELS
+
+    configs = _frontmatter(DB_CARD)["configs"]
+    assert isinstance(configs, list)
+    declared = {str(c["data_files"]) for c in configs}  # type: ignore[index]
+    shipped = set(MODELS["db"].required)
+    assert declared == shipped, f"card declares {declared ^ shipped} that the release does not"
+
+
+def test_dataset_card_does_not_oversell_the_price_table() -> None:
+    """98 observations is a thin sample; the card must say so where a reader
+    meets the number, not bury it."""
+    text = DB_CARD.read_text(encoding="utf-8")
+    assert "Limitations" in text
+    assert "not as a price history" in text
+    assert "98" in text  # the actual n, stated rather than rounded away

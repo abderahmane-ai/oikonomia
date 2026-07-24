@@ -58,7 +58,7 @@ principals = pd.read_parquet("data/processed/db/principals.parquet")
 | table | file | rows | grain (one row =) | key | written by |
 |---|---|---:|---|---|---|
 | [`documents`](#documents--the-spine) | `db/export/documents.parquet` | 61,249 | one text document | `stem` | `oik db export` |
-| [`persons_distinct`](#persons_distinct--coreference-lite-people) | `db/export/persons_distinct.parquet` | 17,362 | one distinct person | `head_text+father_text+place_pleiades` | `oik db export` |
+| [`persons_distinct`](#persons_distinct--coreference-lite-people) | `db/export/persons_distinct.parquet` | 17,362 | one distinct person | `person_id` | `oik db export` |
 | [`monetary`](#monetary--the-fact-table) | `db/monetary.parquet` | 195,906 | one monetary amount | `tm_id` + char span | `oik db build --sample 0` |
 | [`prices`](#prices--clean-price-observations) | `db/prices.parquet` | 98 | one clean price observation | `tm_id` + char span | `oik db prices` |
 | [`taxes`](#taxes--clean-tax-payments) | `db/taxes.parquet` | 592 | one clean tax payment | `tm_id` + char span | `oik db taxes` |
@@ -257,6 +257,7 @@ claim. It is not full prosopographical coreference; see `oikonomia.db.identity`.
 
 | column | type | meaning |
 |---|---|---|
+| `person_id` | VARCHAR | stable 16-hex-char hash of the identity key; unique, and identical across rebuilds |
 | `head_text`, `father_text`, `place_pleiades` | VARCHAR/DOUBLE | representative name / patronymic / place |
 | `gender` | VARCHAR | folded across mentions: an attributed sex beats `unknown`, majority wins — `female` 1,414 \| `male` 5,608 \| `unknown` 10,340 |
 | `guardian` | VARCHAR | folded with `without` winning: one unambiguous χωρὶς-κυρίου attestation establishes the person acted alone |
@@ -267,7 +268,9 @@ claim. It is not full prosopographical coreference; see `oikonomia.db.identity`.
 ### `autonomy` — the published curve
 
 A derived summary, not a fact table: the χωρὶς-κυρίου share of guardian-formula
-women, by century and by region.
+women, by century and by region. It is shipped so the headline finding is
+inspectable, not as a source of new facts — to re-slice the question by nome,
+deal type or a different time granularity, group `principals` yourself.
 
 | column | type | meaning |
 |---|---|---|

@@ -1,0 +1,46 @@
+# The quality gate CLAUDE.md §2 requires, run on every push and pull request.
+#
+# It installs only `.[dev]` — no torch, no Modal. That is deliberate: it is the
+# same environment a new contributor gets on a laptop, so it enforces the §3
+# boundary that the library stays importable and testable with no ML stack.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    name: ruff → mypy → pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      # Mirrors `make install` / `make check` exactly, so a green CI run and a
+      # green laptop run mean the same thing.
+      - name: Install the package with dev tools
+        run: |
+          uv venv --python 3.12
+          uv pip install -e ".[dev]"
+
+      - name: Ruff
+        run: .venv/bin/ruff check src tests modal_app
+
+      - name: Mypy (strict)
+        run: .venv/bin/python -m mypy src
+
+      - name: Pytest
+        # `corpus` needs the 6.1 GB raw checkout and `network` reaches the Hub;
+        # neither belongs in a gate that must stay fast and hermetic.
+        run: .venv/bin/python -m pytest -m "not corpus and not network" -q

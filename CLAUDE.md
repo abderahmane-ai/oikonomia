@@ -112,6 +112,12 @@ its logic** (or run `--force` while iterating). Full detail:
 uv venv --python 3.12
 uv pip install -e ".[dev]"        # library + dev tools (no GPU stack)
 # Modal extras (.[modal], .[train]) only when a Modal phase begins.
+# NOTE: this .venv additionally has torch/transformers/huggingface_hub + duckdb,
+# installed to verify the published models actually load and to run the documented
+# DuckDB cookbook. They are NOT project deps. Two tests in test_relations_model.py
+# skip without torch; CI installs `.[dev]` only, so it still enforces §3's
+# no-ML-stack boundary. The gate is green in both states — do not "fix" the mypy
+# overrides for torch/transformers, they are what keeps the two answers identical.
 
 # --- Quality gate — run after ANY unit of work, in this order ---
 .venv/bin/ruff check src tests modal_app     # must be: All checks passed!
@@ -149,8 +155,9 @@ mkdir -p artifacts/models/grammateus && .venv/bin/modal volume get \
   oikonomia-ner models/release/final artifacts/models/grammateus
 hf auth login                                                  # once (or export HF_TOKEN)
 .venv/bin/oik release check grammateus                         # pre-flight: licence + files, no upload
-.venv/bin/oik release push grammateus                          # → oikonomia/grammateus-grc (private)
-.venv/bin/oik release push homologia                           # → oikonomia/homologia-grc (private)
+.venv/bin/oik release push grammateus                          # → ainouche-abderahmane/grammateus  [LIVE]
+.venv/bin/oik release push homologia                           # → ainouche-abderahmane/homologia   [LIVE]
+.venv/bin/oik release push db                                  # → datasets/ainouche-abderahmane/oikonomia-db [LIVE]
 
 # --- Relations (Phase 8) — FROZEN; GPU runs owner-triggered, not the default path ---
 .venv/bin/oik relation prepare                # freeze relation_labels.json; recall guard MUST be 0 uncovered
@@ -191,26 +198,39 @@ find . -path ./.venv -prune -o -name "*.pyc" -exec rm -f {} + 2>/dev/null || tru
 
 ## 5. Where the project stands
 
-**PIVOTED (2026-07-23): models frozen at a publishable bar; now building the
-database (Phase 9) — deliverable #2/#3 — driven by a concrete finding.** The
-objective (§1) is a queryable, auditable database of economic life + the historical
-findings it enables. After 8 phases the *reading* was solid but **zero database
-rows existed and zero historical questions were answered**; the relation-F1 grind
-(esp. 8a direction) was polishing scaffolding. So: freeze the models, build the DB.
-Full rationale + first result: [`docs/phases/phase_9_database.md`](docs/phases/phase_9_database.md).
+**ALL THREE DELIVERABLES ARE SHIPPED (2026-07-24).** §1's objective is met end to
+end: open models, a derived auditable database, and the historical findings.
 
-**LATEST (2026-07-24) — the WOMEN FRONT IS COMPLETE (all 8 steps).** Two findings
-on the trained models. **(A) Autonomy** (steps 1–6): trained-model NER over all
-61,249 docs (1.37M entities), person-blob split (129k father links), gender +
-typed guardian → **women's χωρὶς-κυρίου (autonomous) share rises 0% (≤1c AD) → 39%
-(3c) → 80% (4c AD)** — *ius liberorum* / decline of tutela mulierum, unsupervised,
-gold-validated. **(B) Principals by deal type** (steps 7–8): saved the RE model
-(end-to-end PARTY_OF 0.623), ran it over the corpus (16,315 PARTY_OF), joined to
-the gendered persons → **21,895 principals, women's share 18.0%, deal-type gradient
-sale 30% / loan 28% (property) vs receipt/delivery 5–10% (fiscal paperwork)**;
-guardian split 92/8 matches step 4; 65% carry a patronymic. **Five findings now
-exist** (prices, taxes, autonomy, principals-by-deal-type, + the monetization
-transition). **Next: Phase 10 write-up** (details in §7).
+| # | Deliverable | Where |
+|---|---|---|
+| 1 | **Open models** | [grammateus](https://huggingface.co/ainouche-abderahmane/grammateus) (entities) · [homologia](https://huggingface.co/ainouche-abderahmane/homologia) (relations) — apache-2.0, cards verified live |
+| 2 | **Derived database** | [oikonomia-db](https://huggingface.co/datasets/ainouche-abderahmane/oikonomia-db) — 8 parquet tables, CC BY 3.0, span-level provenance |
+| 3 | **Historical findings** | [`docs/phases/phase_10_findings.md`](docs/phases/phase_10_findings.md) — five findings, all numbers recomputed from the shipped tables |
+
+**LATEST (2026-07-24) — PHASE 10 RECORDED. The five findings, ranked by evidential
+strength, are written up with mechanism + control + limits each:**
+
+- **F1 monetization** (validation, strongest) — gold share of dated money facts:
+  eleven centuries at ~0.00, then **4c AD 0.155 → 5c AD 0.931 → 8c 1.000**.
+  Recovers the *solidus* transition unsupervised. n = 195,906 facts.
+- **F2 fiscal-regime map** (validation) — 6,441 tax facts / 18 named taxes
+  periodize themselves: *laographia* **560/569 in 1c–3c AD, zero after, zero in
+  3c/2c BC**; *prosdiagraphomena* 99.9% Roman; *phylakitikon* 73% in 3c BC;
+  *demosia* 1,596/1,674 in 6c–8c AD. Poll-tax median ~4 dr (installment), p90
+  16–39 dr (= the known annual rate).
+- **F3 autonomy** (novel, models) — women's **χωρὶς-κυρίου share 0% (≤1c AD) → 1%
+  (2c) → 39% (3c) → 80% (4c)**. Gold-validated; the over-count is on the μετὰ side,
+  so **the rise is conservative**. Denominators thin after the 3c (n=35 in 4c).
+- **F4 principals** (novel, models) — **21,895 principals, women 18.0% of mentions
+  / 20.1% of distinct people**; the finding is the **deal-type gradient**: sale
+  0.304 · loan 0.285 · contract 0.230 vs receipt 0.102 · delivery 0.051. Ordering
+  is the result (e2e PARTY_OF 0.623), stable for every bucket n ≥ 40.
+- **F5 prices** (weakest, flagged as such) — 98 clean obs; only **2c AD wheat
+  13.33 dr/artaba [IQR 6–27.5], n=37** is defensible. Per-unit over-division and
+  wine unit errors are documented in the open, not suppressed.
+
+All four documented DuckDB queries were run verbatim against the shipped parquet
+files when the write-up was made; every number in it matches.
 
 **The models are DONE, not abandoned (deliverable #1, publishable):**
 - Entity NER: DAPT **B1** (GreBerta full-FT) → silver-pretrain → gold-FT →
@@ -270,140 +290,82 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 7b Two-stage silver→gold | ✅ | gold-FT recipe → **strict 0.737 / relaxed 0.837**; GCE rejected (−5.7) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); saved + **end-to-end measured** (PARTY_OF oracle 0.705 → e2e 0.623); 8a data-bound; 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
 | 9 Corpus→DB | ✅ (opt. hardening left) | **195,906 facts**; 5 findings — **prices**, **taxes**, **AUTONOMY** χωρὶς curve **0%→39%→80% (3c→4c AD)**, **PRINCIPALS by deal type** (21,895; women 18.0% mentions / 20.1% distinct; **sale 30%/loan 28% vs receipt 10%**), monetization; **DB packaged + queryable** (`oik db export`, `docs/database.md`) | [phase_9](docs/phases/phase_9_database.md) |
-| 10 Analysis | ⬜ | findings write-up (price series, women-as-principals) | — |
-| 11 Release | 🔶 READY TO PUSH | **both** models named + carded + verified locally: **Grammateus** (entities) · **Homologia** (relations); licence firewall + push paths for each; owner-run commands only | [phase_11](docs/phases/phase_11_release.md) |
+| 10 Analysis | ✅ | **the five findings recorded**, every number recomputed from the shipped tables, each with mechanism + control + limits | [phase_10](docs/phases/phase_10_findings.md) |
+| 11 Release | ✅ PUBLISHED | all three artifacts live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; cards verified. One post-publication card fix pending a re-push | [phase_11](docs/phases/phase_11_release.md) |
 
 ---
 
 ## 7. Current machine state — READ THIS FIRST in a new session
 
-_Last updated: 2026-07-24. Branch **`main`**; working tree clean._
+_Last updated: 2026-07-24. Branch **`main`**._
 
-> ## ✅✅ COMPLETED DIRECTIVE — WOMEN ANALYSIS, done PROPERLY with the models (owner, 2026-07-24)
+> ## ⚠️ ONE ACTION OUTSTANDING — re-push all three artifacts
 >
-> **DONE — all 8 steps complete + validated (2026-07-24).** Two findings on the
-> trained models: the **autonomy curve** (steps 1–6) and **principals by deal type**
-> (steps 7–8). Numbers in §5 LATEST + the phase-9 doc. The step record below is kept
-> as the build log. **The front is closed; next is Phase 10 (findings write-up).**
-> Original binding directive (every point delivered):
+> A post-publication audit fixed **seven defects** that are still live on the Hub.
+> Nothing reaches users until the owner runs (needs `hf auth login`):
 >
-> - **FOCUS: the "autonomy" finding FIRST** — of women who transact, how many act
->   **with** a guardian (`μετὰ κυρίου`) vs **without** (`χωρὶς κυρίου`) — the curve
->   over time and region. Then the fuller "women as principals across deal types."
-> - **USE THE TRAINED MODELS, not rules.** **Download the model(s) from the Modal
->   volumes at run time — do NOT rely on any locally-saved copy.**
-> - **CORPUS-SCALE INFERENCE, ON MODAL GPU** — run the NER model over ALL 61,249
->   text docs on an **A10** (`modal_app/ner.py`, `gpu="A10"`). The model already
->   lives on the volume; batched encoder forward passes = **minutes on GPU vs an
->   hour+ on laptop CPU**. Push corpus text (`tm_id`+`edited_text`) to the
->   `oikonomia-ner` volume first, write spans back to the volume, then pull down for
->   the deterministic laptop steps. Keep chunk/stride + assembly in the pure library
->   (laptop-testable); the Modal function is a thin GPU entrypoint.
-> - **LONG DOCUMENTS MUST BE HANDLED** — no 512-token truncation loss; chunk/stride
->   so NO people are dropped. We need the long docs.
-> - **FIX EVERY RELATION-MODEL ISSUE, all of them:** (a) extract `RelationHead` out
->   of the `train()` closure into a reusable module; (b) add all-gold train + save
->   (custom `state_dict` + config — it is not a standard HF model); (c) add
->   standalone RE inference that runs on the **NER-predicted** entities (reuse
->   `label_candidates` / `admissible_mask` / `constrain` / direction features);
->   (d) measure the end-to-end drop vs the 0.65 oracle PARTY_OF.
-> - **FIX ALL MISSING STUFF, ALL OF IT:** batched corpus NER inference; read the
->   exact `corpus.parquet edited_text` and carry `tm_id`; **person-blob splitting**
->   (43% of PERSON spans are name+patronymic collapsed) for gender + kinship; feed
->   model spans into the gender rules (guardian formula + nomen + kin); a model-fed
->   assembler + metadata join (date/place/genre); **end-to-end validation of the
->   women pipeline vs the 115-doc gold.**
-> - **AIM FOR THE BEST, NEVER FOR GREEN (§2).** Validate with rough versions;
->   deliver only the best. No synthetic slop.
+> ```bash
+> .venv/bin/oik release push grammateus   # corrected card (dead repo links, stats caveats)
+> .venv/bin/oik release push homologia    # corrected card + the new one-call loader
+> .venv/bin/oik release push db           # adds person_id + the viewer configs
+> ```
 >
-> **Order (chronological; steps 1–2 on Modal GPU, 3–8 deterministic on laptop):**
-> 1. ✅ **DONE** — `oik ner corpus-text` emits `{stem, tm_id, text}` for the 61,249
->    non-empty docs; batched **Modal A10** entrypoint `modal_app/ner.py::infer_corpus`
->    (chunk/stride in the pure `oikonomia.ner.inference`; loads the model from the
->    volume at run time via `_resolve_ckpt`).
-> 2. ✅ **DONE** — ran NER over all 61,249 docs on the A10 → **1,368,079 entities**
->    (PERSON 350k, PLACE 48k, …), 3,304 long docs windowed, **provenance validated
->    0/1.37M mismatch** against `corpus.parquet.edited_text`. Output
->    `data/processed/ner/ner_corpus.jsonl`, keyed by **`stem`** (NOT tm_id — see §8).
-> 3. ✅ **DONE** — person-blob split (`oikonomia.db.names.parse_person_name`):
->    head + patronymic chain + metronymic/alias/status, each with offsets.
->    **128,896 father links recovered** (99% of the 130k blobs), 100% heads, 0
->    offset errors. Fixed a `μητρ`-stem bug (was eating names like Δημητρίου).
-> 4. ✅ **DONE** — gender+guardian over model spans (`oikonomia.db.personscan`,
->    `oik db persons` → `db/persons.parquet`, 350k rows). `guardian_status` types
->    the formula **with** (μετὰ) vs **without** (χωρὶς κυρίου). Result: 30%
->    gender-attributable, women's share 21.7%; **autonomy signal — 1,770 women
->    with a guardian formula: 92% μετὰ / 8% χωρὶς** (94% clean of competing male
->    signal; the 6% mis-scoped window is what step 6 measures).
-> 5. ✅ **DONE** — the autonomy **curve** (`oikonomia.db.autonomy`, `oik db
->    autonomy` → `db/autonomy.parquet`). **χωρὶς-κυρίου (autonomous) share by
->    century: 0% (≤1c AD) → 1% (2c) → 39% (3c) → 80% (4c) → 77% (6c)** — reproduces
->    the *ius liberorum* spread / decline of tutela mulierum, unsupervised. Region
->    cut is confounded by each nome's era-composition (secondary).
-> 6. ✅ **DONE** — gold validation (`oik db validate-women`): gender rules **100%
->    deterministic** (613/613 matched spans agree); PERSON relaxed recall 0.91;
->    guardian-women over-counted on the μετὰ (with) side, but **χωρὶς matches gold
->    exactly** — so the autonomy rise is **conservative**, not inflated. Trend robust.
-> 7. ✅ **DONE + GPU-verified (2026-07-24).** RE model revived, saved, and
->    end-to-end measured. **(a)** `RelationHead` → module-level `build_relation_head`
->    factory; re-verified via `xval` (F1 0.729, PARTY_OF 0.678). **(b)** `launch`
->    trained silver→all-gold and **saved** the custom `state_dict`+`config.json` to
->    `/vol/models/relation/final` (5-fold CV F1 0.721, PARTY_OF 0.705 — matches the
->    frozen profile). **(c)+(d)** `eval_e2e` ran the saved model on the 115 gold docs
->    twice, **`docs_missing_pred=0`** (stem↔doc_id join clean):
->    **PARTY_OF held-out-oracle 0.705 → end-to-end 0.623** (NER-predicted entities);
->    the entity cascade costs **≈0.08** on PARTY_OF, which survives at ~0.6 — usable
->    (noisy) for step 8. (The same-model oracle on these docs reads 0.993 but that is
->    train-on-test, not a generalization number.) Detail in the phase-8 doc.
-> 8. ✅ **DONE (2026-07-24) — women as principals ACROSS DEAL TYPES.** Ran the saved
->    RE model over all 61,249 docs' NER entities on the A10 (`relations.py::infer`
->    → `infer_corpus`) → **228,945 relations, 16,315 PARTY_OF** (`re_corpus.jsonl`).
->    `oik db principals` keeps PARTY_OF/PAID_* heads, joins gender+guardian+father
->    from `persons.parquet`, tags by deal type → **21,895 principals, women's share
->    18.0%** (9,130 gender-attributable). **Headline — the deal-type gradient: sale
->    30% / loan 28% (property transactions) vs receipt/delivery/account 5-10%
->    (fiscal paperwork).** Guardian split 92% μετὰ / 8% χωρὶς (= step-4 number, RE
->    didn't distort it); 65% of women principals carry a patronymic (`CHILD_OF`).
->    Pure windowing/candidate logic in `oikonomia/relations/infer.py` (laptop-tested);
->    assembler `oikonomia/db/principals.py`. 35 giant registers RE-skipped by design
->    (quadratic cost, no party structure). Detail: phase-9 doc.
->
-> **What is on Modal (checked 2026-07-24, do not re-guess):** NER model SAVED at
-> `oikonomia-ner:/models/b1/final` (`RobertaForTokenClassification`, 15 labels / 31
-> BIO). DAPT backbone `oikonomia-dapt:/checkpoints/full/final`. Volume data:
-> `silver/gold/labels/relation_labels` (relation_labels **re-pushed 2026-07-24**,
-> now 8b-current with AGE/OCCUPATION). `predictions/ner_corpus.jsonl` (1.37M ents).
-> **RE MODEL: SAVED 2026-07-24** at `oikonomia-ner:/models/relation/final` (custom
-> `relation_head.pt` state_dict + `config.json`; written by `launch`, load-verified
-> by `eval_e2e`). **Corpus RE run DONE 2026-07-24:** `predictions/re_corpus.jsonl`
-> (61,249 docs, 228,945 relations, 16,315 PARTY_OF; 35 dense registers skipped).
->
-> **Progress:** steps **1–8 ALL DONE + validated — THE WOMEN FRONT IS COMPLETE.**
-> Steps 1–6: autonomy finding (χωρὶς-κυρίου curve 0%→39%→80% over 3c→4c AD,
-> gold-validated). Step 7: RE model saved + end-to-end **PARTY_OF 0.623**. **Step 8
-> (2026-07-24):** corpus RE → `oik db principals` → **women as principals 18.0%,
-> deal-type gradient sale 30%/loan 28% vs receipt/delivery 5-10%** (guardian split
-> 92/8 = step-4 number; 65% carry a patronymic). ⇒ **Next session: Phase 10 write-up**
-> of the findings (prices, taxes, autonomy curve, principals-by-deal-type), and/or
-> Phase 11 model release (deliverable #1, already packaged).
+> The headline fixes, in case they need re-deciding: **Homologia's architecture was
+> living in `modal_app/`** (a §3 violation — the published model could not load
+> without the layer that boundary says must be deletable); it now lives in
+> `oikonomia/relations/model.py` with a one-call `load_homologia()`. **The dataset
+> documented a `person_id` that did not exist** — it now ships one. **The dataset
+> viewer was dead** (malformed frontmatter) — now a proper `configs:` block.
+> **`check_ready` listed only top-level files** while the upload recurses, so it
+> could ship a dataset missing two of its eight tables. **`docs/project_summary.md`
+> wrote up a unit artifact as a 4th-century hyperinflation finding** — there is no
+> 4c wheat data at all; that section is rewritten. Plus CI
+> (`.github/workflows/ci.yml`). Full table: the phase-11 doc.
 
-**MODEL RELEASE (deliverable #1) — BOTH MODELS NAMED, CARDED, VERIFIED (2026-07-24).**
-Family **OIKONOMIA**; the two models are **Grammateus** (γραμματεύς "the scribe" —
-entities, `oikonomia/grammateus-grc`) and **Homologia** (ὁμολογία "the
-acknowledgment" — relations, `oikonomia/homologia-grc`). Both pulled off the Modal
-volume to `artifacts/models/{grammateus,homologia}/` (gitignored) and **verified to
-load and run locally** (Grammateus tags a test phrase correctly; Homologia's
-state_dict loads `strict=True` against a rebuilt head). Cards:
-`resources/release/{GRAMMATEUS,HOMOLOGIA}_CARD.md`, guarded by
-`tests/test_release_cards.py`. **Publishing is a LAPTOP step, not a Modal one**
-(`oik release check|push`, `src/oikonomia/{models/release.py,cli/release_cmd.py}`):
-licence firewall + completeness gate, `--dry-run`, private by default, token read
-from `hf auth login`/`HF_TOKEN` and **never** from argv. The old Modal
-`push_to_hub` functions were deleted — Modal now does only the GPU train.
-**Remaining is owner-run only:** Grammateus's all-gold `ner.py::launch`, pull it
-down, `hf auth login`, then `oik release push` twice. Homologia's shippable weights
-already exist (`models/relation/final`) and its local copy is verified. Detail:
-[`docs/phases/phase_11_release.md`](docs/phases/phase_11_release.md).
+**WOMEN ANALYSIS — COMPLETE (2026-07-24).** Ran end to end on the trained models,
+not rules, as directed. Corpus-scale NER on an A10 over all 61,249 docs (1,368,079
+entities, 3,304 long docs windowed, provenance 0/1.37M mismatch) → person-blob
+split (`db/names.py`, 129k father links) → gender + typed guardian over the 350k
+model PERSON spans (`db/personscan.py`) → the autonomy curve (`db/autonomy.py`).
+Then the RE model was made shippable (`build_relation_head` factory, all-gold train
++ save, standalone inference on NER-predicted entities), measured end to end
+(**PARTY_OF oracle 0.705 → e2e 0.623**), and run over the corpus (228,945 relations
+/ 16,315 PARTY_OF) to produce the principals table. Gold-validated: gender rules
+100% deterministic (613/613), χωρὶς matches gold exactly so the autonomy rise is
+conservative. Findings F3/F4 in §5; build detail in the phase-9 doc.
+
+**What is on Modal (checked 2026-07-24, do not re-guess):** NER model at
+`oikonomia-ner:/models/b1/final` (`RobertaForTokenClassification`, 15 labels / 31
+BIO) — this is what the corpus run loaded. DAPT backbone
+`oikonomia-dapt:/checkpoints/full/final`. Volume data: `silver/gold/labels/
+relation_labels` (relation_labels re-pushed 2026-07-24, carries AGE/OCCUPATION).
+RE model at `oikonomia-ner:/models/relation/final` (custom `relation_head.pt`
+state_dict + `config.json`). Predictions: `predictions/ner_corpus.jsonl` (1.37M
+entities), `predictions/re_corpus.jsonl` (16,315 PARTY_OF; 35 dense registers
+skipped by design).
+
+**MODEL RELEASE (deliverable #1) — PUBLISHED (2026-07-24).** Family **OIKONOMIA**;
+**Grammateus** (γραμματεύς "the scribe" — entities,
+`ainouche-abderahmane/grammateus`) and **Homologia** (ὁμολογία "the acknowledgment"
+— relations, `ainouche-abderahmane/homologia`), plus the dataset
+`datasets/ainouche-abderahmane/oikonomia-db`. Local copies in
+`artifacts/models/{grammateus,homologia}/` (gitignored), verified against the
+**live** repos: the Grammateus card snippet tags a test phrase correctly, and
+`load_homologia("ainouche-abderahmane/homologia")` pulls from the Hub and loads
+`strict=True` (129.1M params). Cards: `resources/release/*_CARD.md`, all three now
+guarded by `tests/test_release_cards.py` (the dataset card's `configs:` block is
+tied to the release spec's required files, so they cannot drift).
+
+**Publishing is a LAPTOP step, not a Modal one** (`oik release check|push`,
+`src/oikonomia/{models/release.py,cli/release_cmd.py}`): licence firewall +
+completeness gate, `--dry-run`, private by default, token read from `hf auth
+login`/`HF_TOKEN` and **never** from argv. The completeness gate **recurses** —
+it did not, which meant it could ship the dataset missing the two `export/` tables.
+
+**The published RE architecture lives in `oikonomia/relations/model.py`, not
+`modal_app/`.** Use `load_homologia(repo_or_dir)`; `modal_app` delegates to the
+same factory. `tests/test_architecture.py` fails if layers reappear in `modal_app`.
+Detail: [`docs/phases/phase_11_release.md`](docs/phases/phase_11_release.md).
 
 **THE PIVOT — read before doing anything.** The deliverable is a **queryable,
 auditable economic database + findings** (§1). The models are frozen at a
@@ -481,28 +443,31 @@ preserved in the phase-9 doc and is not re-runnable at HEAD.
 ```bash
 cd /Users/abdoumagico/Development/ACHATES
 
-# 1. Green before changing anything (604 tests, mypy 86 files, ruff clean at last save)
+# 1. Green before changing anything (651 tests, mypy 90 files, ruff clean at last save)
 .venv/bin/ruff check src tests modal_app && .venv/bin/python -m mypy src && .venv/bin/python -m pytest
 
-# 2. ⇒ The WOMEN FRONT IS COMPLETE (steps 1-8). Next is PHASE 10 — write up the five
-#    findings (prices, taxes, autonomy curve, principals-by-deal-type, monetization).
-#    All finding tables regenerate on the laptop (all gitignored, re-derivable):
+# 2. ⇒ ALL THREE DELIVERABLES ARE SHIPPED. The one outstanding action is the
+#    re-push of the three corrected artifacts (see the box at the top of §7):
+.venv/bin/oik release check grammateus && .venv/bin/oik release check homologia && .venv/bin/oik release check db
+
+# 3. Finding tables regenerate on the laptop (all gitignored, re-derivable):
 .venv/bin/oik db persons && .venv/bin/oik db autonomy      # autonomy curve (reads ner_corpus.jsonl)
 .venv/bin/oik db principals                                # principals-by-deal-type (reads re_corpus.jsonl + persons.parquet)
+.venv/bin/oik db export                                    # the packaged DB (now carries person_id)
 #    (needs data/processed/ner/ner_corpus.jsonl AND data/processed/re/re_corpus.jsonl —
 #     pull from the oikonomia-ner volume if missing: /predictions/{ner,re}_corpus.jsonl)
 
-# 3. Laptop artifacts intact? (only if rebuilding; all gitignored)
+# 4. Laptop artifacts intact? (only if rebuilding; all gitignored)
 .venv/bin/oik gold check            # 115 docs, all human_validated, 0 errors
 ```
 
-**Then, in priority order (the women front is DONE — findings now exist):**
-**(1) Phase 10 — write up the five findings** (prices, taxes, autonomy curve,
-principals-by-deal-type, monetization transition): the venue paper. This is the
-natural next front now that the women analysis is complete. **(2) harden the wheat
+**Then, in priority order (all three deliverables are out):**
+**(1) Re-push the three corrected artifacts** — everything below is downstream of
+users actually getting the fixes. **(2) harden the wheat
 price slice** — outlier filter, fix per-unit semantics (`unit_price =
 value/quantity` over-divides when the amount is already per-unit), → a defensible
-series with error bars vs Rathbone/Bagnall. **(3) entity identity / coreference**
+series with error bars vs Rathbone/Bagnall. This is also the weakest published
+finding (F5), so it is where a reviewer will push first. **(3) entity identity / coreference**
 for cross-document prosopography (the principals table now has 65% patronymic
 coverage — a real hook). **(4) release the frozen models** (deliverable #1, already
 packaged). **Do NOT** reopen relation-F1 work, silver re-emission, or Modal xval
@@ -586,7 +551,8 @@ audits say it is not.
   `re_corpus.jsonl` + `persons.parquet`). Gitignored, re-derivable.
 - `data/processed/db/export/` — **the packaged database** (deliverable #2):
   `documents.parquet` (61,249-doc spine w/ per-doc counts + price/tax flags),
-  `persons_distinct.parquet` (**17,362 distinct people**, coref-lite — **1,414
+  `persons_distinct.parquet` (**17,362 distinct people**, coref-lite, keyed on
+  **`person_id`** — a stable 16-hex hash of (name, patronymic, place); **1,414
   distinct women principals / 7,022 = 20.1%**, the honest headcount vs the 18%
   mention share), `manifest.json` (inventory + `corpus_rev` + CC BY 3.0). Regen:
   `oik db export`. Schema doc: [`docs/database.md`](docs/database.md). Gitignored.
@@ -597,7 +563,9 @@ audits say it is not.
 - `artifacts/models/homologia/` — **OIKONOMIA-Homologia**, the relation model
   (129.1M params, custom span-pair head: `relation_head.pt` + `config.json`, 12
   relation classes / 13 entity endpoints). `state_dict` load-verified `strict=True`.
-  Regen: same, from `models/relation/final`. Gitignored.
+  Regen: same, from `models/relation/final`. Gitignored. **Load it with
+  `oikonomia.relations.model.load_homologia(repo_id_or_dir)`** — that also works
+  straight off the Hub, and is what the card tells users to do.
 - **Modal Volume `oikonomia-dapt`:** `shards/{train,dev}.bin`,
   `checkpoints/full/final` (**B1** — load this for b1). Stale `checkpoints/b1-*`
   from the first sweep are safe to `modal volume rm -r`.
@@ -617,20 +585,28 @@ is now the full reference: per-table column dictionaries with measured types +
 null-coverage, the join map, controlled vocabularies (currency/commodity/unit/tax
 ids, `gender_basis`, `roles`, `deal_type`), a **verified** DuckDB query cookbook
 (every output pasted from a real run), and 8 pitfalls. [`docs/db.sql`](docs/db.sql)
-bootstraps one view per table. README + `docs/architecture.md` updated (Phase 9
-shipped → Phase 10 active; corpus→DB data flow). Cleanup: removed the empty
-`scratch/`, `.claude/`, `tests/fixtures/translations/`; `make lint` now covers
-`modal_app` like the documented gate. **The superseded rule-based party path was
+bootstraps one view per table. Cleanup: removed the empty
+`scratch/`, `.claude/`, `tests/fixtures/translations/`; `make lint` and
+`pre-commit` both cover `modal_app` like the documented gate. **The superseded rule-based party path was
 DELETED** (`db/parties.py`, `oik db women`, `tests/test_db_parties.py`,
 `db/parties.parquet`) — step 8's `oik db principals` covers it with the trained RE
 model; the gold-validation numbers it produced live on in the phase-9 doc.
 
-**Quality gate at last save:** ruff (src tests modal_app) · mypy (89 files) ·
-632 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
-provenance-validated 0/1.37M mismatch. Women pipeline gold-validated (gender rules
-100% deterministic, autonomy trend robust). Step 8: corpus RE 61,249 docs /
-16,315 PARTY_OF; principals finding deal-type ordering stable at n≥40. DB packaged
-(`oik db export`): 61,249-doc spine + 17,362 distinct people; schema `docs/database.md`.
+**Quality gate at last save:** ruff (src tests modal_app) · mypy (90 files) ·
+**651 tests** · caches cleared — all green. Also green in a **clean venv with no ML
+stack** (644 + 2 skipped): mypy overrides now make the answer independent of whether
+torch happens to be installed, so CI and the laptop agree. `oik gold check` 0 errors.
+Corpus NER run provenance-validated 0/1.37M mismatch. Women pipeline gold-validated
+(gender rules 100% deterministic, autonomy trend robust). Step 8: corpus RE 61,249
+docs / 16,315 PARTY_OF; principals deal-type ordering stable at n≥40. DB packaged
+(`oik db export`): 61,249-doc spine + 17,362 distinct people **with `person_id`**;
+schema `docs/database.md`. Every SQL block in `docs/database.md` (11) and the
+dataset card (2) was executed against the shipped parquet files.
+
+**CI (new):** `.github/workflows/ci.yml` runs the gate on every push and PR,
+installing only `.[dev]` — so it enforces the §3 no-ML-stack boundary as a side
+effect. It mirrors `make install` + `make check` so green means the same thing in
+both places.
 
 ---
 

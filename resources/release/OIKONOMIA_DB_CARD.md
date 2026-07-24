@@ -12,24 +12,23 @@ tags:
 - duckdb
 size_categories:
 - 100K<n<1M
-dataset_info:
-  features:
-  - name: monetary
-    description: 195,906 extracted monetary facts with character-span provenance
-  - name: prices
-    description: 98 clean commodity price series across 10 centuries
-  - name: taxes
-    description: 592 named tax payment attestations
-  - name: persons
-    description: 350,206 gendered person attestations
-  - name: principals
-    description: 21,895 economic transaction principals
-  - name: autonomy
-    description: 800-year legal autonomy curve of women
-  - name: documents
-    description: 61,249 master document join spine
-  - name: persons_distinct
-    description: 17,362 deduplicated distinct individuals
+configs:
+- config_name: monetary
+  data_files: monetary.parquet
+- config_name: prices
+  data_files: prices.parquet
+- config_name: taxes
+  data_files: taxes.parquet
+- config_name: persons
+  data_files: persons.parquet
+- config_name: principals
+  data_files: principals.parquet
+- config_name: autonomy
+  data_files: autonomy.parquet
+- config_name: documents
+  data_files: export/documents.parquet
+- config_name: persons_distinct
+  data_files: export/persons_distinct.parquet
 ---
 
 # OIKONOMIA-DB: A 195,000-Fact Database of Economic Life in Greco-Roman Egypt
@@ -43,7 +42,7 @@ dataset_info:
 | Table | File Path | Rows | Grain (One row =) | Primary Join Key |
 |---|---|---:|---|---|
 | `documents` | `export/documents.parquet` | **61,249** | One text document | `stem` / `tm_id` |
-| `persons_distinct` | `export/persons_distinct.parquet` | **17,362** | One distinct person | `person_id` |
+| `persons_distinct` | `export/persons_distinct.parquet` | **17,362** | One distinct person (coref-lite) | `person_id` |
 | `monetary` | `monetary.parquet` | **195,906** | One monetary amount | `tm_id` + char span |
 | `prices` | `prices.parquet` | **98** | One clean price observation | `tm_id` + char span |
 | `taxes` | `taxes.parquet` | **592** | One clean tax payment | `tm_id` + char span |
@@ -51,14 +50,55 @@ dataset_info:
 | `principals` | `principals.parquet` | **21,895** | One transaction principal | `stem` + char span |
 | `autonomy` | `autonomy.parquet` | **32** | One time/region bucket | `dimension` + `bucket` |
 
+The first seven are **data**. `autonomy` is different: it is a **derived summary**
+(a published aggregate of `principals` × century/region), shipped so the headline
+finding is inspectable, not because it is a source of new facts. To re-slice the
+autonomy question by nome, document type or a different time granularity, group
+`principals.parquet` yourself — that is the underlying table.
+
+`person_id` is a stable 16-hex-char hash of the coreference-lite identity key
+(normalized name + patronymic + place). It is deterministic across rebuilds. The
+key under-merges rather than over-merges, so 17,362 is an **upper bound** on the
+true number of distinct people.
+
+---
+
+## ⬇️ Getting the data
+
+One table, straight into a dataframe:
+
+```python
+from datasets import load_dataset
+
+prices = load_dataset("ainouche-abderahmane/oikonomia-db", "prices", split="train")
+```
+
+Every config name in the table above works: `monetary`, `prices`, `taxes`,
+`persons`, `principals`, `autonomy`, `documents`, `persons_distinct`.
+
+The whole database (14 MB) as local Parquet files:
+
+```python
+from huggingface_hub import snapshot_download
+
+path = snapshot_download("ainouche-abderahmane/oikonomia-db", repo_type="dataset")
+```
+
+Or without Python at all:
+
+```bash
+hf download ainouche-abderahmane/oikonomia-db --repo-type dataset --local-dir oikonomia-db
+```
+
 ---
 
 ## 💻 Quickstart (DuckDB & Python)
 
-Query the Parquet tables directly in DuckDB with zero import step:
+Query the Parquet tables directly in DuckDB with zero import step (run from the
+directory you downloaded them into):
 
 ```sql
--- Query wheat price series across centuries
+-- Wheat prices by century. n is small outside the 2nd century AD — see Limitations.
 SELECT century, count(*) AS n, round(median(unit_price), 2) AS dr_per_artaba
 FROM 'prices.parquet'
 WHERE commodity = 'wheat'
@@ -91,6 +131,37 @@ print(df)
 
 ---
 
+## ⚠️ Limitations — read before quoting a number
+
+- **`prices` is 98 observations, not a millennium-long series.** Only **2nd
+  century AD wheat (n=37, median 13.33 dr/artaba, IQR 6–27.5)** has enough
+  observations to defend; the 3rd century has 9 and the rest fewer. Two known
+  defects remain: `unit_price = value / quantity` over-divides where the recorded
+  amount is already per-unit, and the non-wheat commodities are too sparse to use
+  (some wine rows are unit errors, not prices). Treat this table as a validated
+  method on a thin sample, not as a price history.
+- **Two different error regimes.** `monetary`, `prices` and `taxes` come from a
+  lexicon + deterministic rules — high precision, closed vocabulary, systematic
+  misses. `persons` and `principals` come from the trained models, whose measured
+  end-to-end accuracy is entity F1 0.737 (strict) and `PARTY_OF` 0.623 on
+  predicted entities. Do not blend an error bar across the two.
+- **Payment direction is not in this database.** There are no `paid_by` /
+  `paid_to` columns. The relation model scores direction at `PAID_BY` F1 0.145,
+  too low to ship, so "who paid whom" is deliberately absent rather than present
+  and wrong. `principals` records *that* someone is a party to a deal, not which
+  side of the payment they stand on.
+- **58% of principals have no attributable gender** and are excluded from the
+  gendered shares, never imputed.
+- **Mentions are not people.** `persons` and `principals` count mentions;
+  `persons_distinct` is the only head-count table.
+- **Survival bias is not correctable.** Everything here counts *surviving,
+  published, digitized* papyri, skewed toward the Arsinoite nome and dry sites.
+  Shares within a bucket are interpretable; raw counts across buckets are not.
+- **Dates are HGV's**, assigned to a century by range midpoint, which smears
+  sharp transitions.
+
+---
+
 ## 📜 Citation & Attribution
 
 Source papyrological texts are derived from the **Duke Databank of Documentary Papyri (DDbDP)** and **Heidelberg Gesamtverzeichnis (HGV)** under **CC BY 3.0**.
@@ -98,7 +169,7 @@ Source papyrological texts are derived from the **Duke Databank of Documentary P
 ```bibtex
 @dataset{oikonomia_db_2026,
   author       = {Ainouche, Abderahmane},
-  title        = {OIKONOMIA-DB: A 195,000-Fact Database of Economic Life, Commodity Inflation, and Female Legal Autonomy in Greco-Roman Egypt},
+  title        = {OIKONOMIA-DB: A 195,000-Fact Database of Economic Life in Greco-Roman Egypt},
   year         = {2026},
   publisher    = {Hugging Face},
   url          = {https://huggingface.co/datasets/ainouche-abderahmane/oikonomia-db}

@@ -130,82 +130,13 @@ def reset_models(names: list[str]) -> list[str]:
 RELATION_MODEL_DIR = f"{VOL_ROOT}/models/relation/final"
 
 
-def build_relation_head(
-    *,
-    backbone: str,
-    n_entity_labels: int,
-    n_rel_labels: int,
-    type_dim: int = 64,
-    feat_dim: int = 16,
-    dropout: float = 0.2,
-):
-    """Construct the span-pair relation head, reusable by training and inference.
-
-    Extracted from the ``train`` closure so the *same* architecture builds the
-    model for the k-fold CV, the all-gold save, and standalone inference on
-    NER-predicted entities. Torch is imported lazily (module-level torch would
-    break the local Modal dispatch, which has no ML stack).
-
-    Per candidate pair the classifier sees: head/tail max-pooled reps, the
-    between-span context, a WIDE context reaching before the payer (the direction
-    verb), CLS, entity-type embeddings, and the 3 symbolic direction features.
+def build_relation_head(**kwargs):
+    """Construct the span-pair head. The architecture lives in the library, so the
+    published model loads without this file — see ``oikonomia.relations.model``.
     """
-    import torch
-    from torch import nn
-    from transformers import AutoModel
+    from oikonomia.relations.model import build_relation_head as _build
 
-    from oikonomia.relations.features import FEATURE_CARDINALITIES
-
-    class RelationHead(nn.Module):
-        def __init__(self) -> None:
-            super().__init__()
-            self.encoder = AutoModel.from_pretrained(backbone)
-            hsz = self.encoder.config.hidden_size
-            self.type_emb = nn.Embedding(n_entity_labels, type_dim)
-            self.feat_emb = nn.ModuleList(
-                nn.Embedding(card, feat_dim) for card in FEATURE_CARDINALITIES
-            )
-            self.no_ctx = nn.Parameter(torch.zeros(hsz))
-            self.mlp = nn.Sequential(
-                nn.Dropout(dropout),
-                nn.Linear(5 * hsz + 2 * type_dim + 3 * feat_dim, hsz),
-                nn.GELU(),
-                nn.Dropout(dropout),
-                nn.Linear(hsz, n_rel_labels),
-            )
-
-        def encode(self, input_ids, attention_mask):
-            h = self.encoder(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
-            return h, h[:, 0, :]  # token states, CLS
-
-        def score_pairs(self, hb, cls_b, cands):
-            """Logits [P, n_rel_labels] for one document's candidate pairs."""
-            dev = hb.device
-            reps_h, reps_t, ctxs, wides = [], [], [], []
-            for c in cands:
-                reps_h.append(hb[c.h0:c.h1].amax(0))
-                reps_t.append(hb[c.t0:c.t1].amax(0))
-                if c.h1 <= c.t0:  # head entirely left of tail
-                    c0, c1 = c.h1, c.t0
-                elif c.t1 <= c.h0:  # tail entirely left of head
-                    c0, c1 = c.t1, c.h0
-                else:  # overlapping token spans
-                    c0, c1 = 0, 0
-                ctxs.append(hb[c0:c1].amax(0) if c1 > c0 else self.no_ctx)
-                wides.append(hb[c.w0:c.w1].amax(0) if c.w1 > c.w0 else self.no_ctx)
-            rh, rt = torch.stack(reps_h), torch.stack(reps_t)
-            cx, wx = torch.stack(ctxs), torch.stack(wides)
-            th = self.type_emb(torch.tensor([c.htid for c in cands], device=dev))
-            tt = self.type_emb(torch.tensor([c.ttid for c in cands], device=dev))
-            fv = [
-                self.feat_emb[0](torch.tensor([c.vc for c in cands], device=dev)),
-                self.feat_emb[1](torch.tensor([c.vp for c in cands], device=dev)),
-                self.feat_emb[2](torch.tensor([c.pm for c in cands], device=dev)),
-            ]
-            cls = cls_b.unsqueeze(0).expand(rh.size(0), -1)
-            return self.mlp(torch.cat([rh, rt, cx, wx, cls, th, tt, *fv], dim=-1))
-
-    return RelationHead()
+    return _build(**kwargs)
 
 
 @app.function(

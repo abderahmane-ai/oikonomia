@@ -102,6 +102,18 @@ disallow_untyped_defs = true
 module = ["lxml.*", "pandas.*", "pyarrow.*"]
 ignore_missing_imports = true
 
+# The ML stack is installed only in the Modal image; the library imports it
+# lazily. The gate must give the same answer with or without it present.
+[[tool.mypy.overrides]]
+module = ["torch.*", "transformers.*", "huggingface_hub.*"]
+ignore_missing_imports = true
+
+# `nn.Module` is a real class when torch is installed and `Any` when it is not,
+# so subclassing it must not be an error in either state.
+[[tool.mypy.overrides]]
+module = ["oikonomia.relations.model"]
+disallow_subclassing_any = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers"

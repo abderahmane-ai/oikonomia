@@ -23,7 +23,7 @@ clause (gaps up to ~900). So a character-gap cap is applied *only* to the local
 family, where it kills dense-account cross-products without dropping any gold.
 
 Everything here is pure and tokenizer-agnostic; the model side (torch) lives in
-``modal_app/relations.py``.
+:mod:`oikonomia.relations.model`.
 """
 
 from __future__ import annotations

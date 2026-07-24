@@ -36,7 +36,9 @@ def _make_release(root: Path, spec: ReleaseSpec, *, files: tuple[str, ...]) -> N
     ckpt = root / spec.local_dir
     ckpt.mkdir(parents=True, exist_ok=True)
     for name in files:
-        (ckpt / name).write_text("x", encoding="utf-8")
+        dest = ckpt / name
+        dest.parent.mkdir(parents=True, exist_ok=True)  # some tables live under export/
+        dest.write_text("x", encoding="utf-8")
 
 
 def test_complete_release_lists_its_upload(tmp_path: Path) -> None:
@@ -98,3 +100,26 @@ def test_shipped_specs_point_at_real_cards(key: str) -> None:
     # exist in this repository, not just in someone's memory.
     assert (REPO / MODELS[key].card).is_file()
     assert MODELS[key].repo_id.count("/") == 1
+
+
+def test_dataset_release_sees_files_in_subdirectories(tmp_path: Path) -> None:
+    """`upload_folder` is recursive, so the gate must be too.
+
+    The dataset keeps `documents` and `persons_distinct` under export/. A
+    non-recursive listing skipped them: the pre-flight under-reported what was
+    about to go public, and a push could ship a dataset missing two of the eight
+    tables its card documents.
+    """
+    spec = MODELS["db"]
+    _make_release(tmp_path, spec, files=spec.required)
+    listed = {str(f.relative_to(tmp_path / spec.local_dir)) for f in check_ready(tmp_path, spec)}
+    assert "export/documents.parquet" in listed
+    assert "export/persons_distinct.parquet" in listed
+    assert listed == set(spec.required)
+
+
+def test_dataset_missing_an_export_table_blocks_the_push(tmp_path: Path) -> None:
+    spec = MODELS["db"]
+    _make_release(tmp_path, spec, files=tuple(f for f in spec.required if "persons_distinct" not in f))
+    with pytest.raises(NotReadyError, match=re.escape("export/persons_distinct.parquet")):
+        check_ready(tmp_path, spec)

@@ -390,6 +390,10 @@ def label(
                         for r in rels
                     ],
                     "provenance": "silver",
+                    # Frozen tag, not a version to bump: it is baked into the
+                    # 146 MB silver.jsonl on disk and on the Modal volume, whose
+                    # sha is the stale-data canary `push`/`train` compare. Changing
+                    # it re-emits the corpus and invalidates that fingerprint.
                     "labeler": "silver-v1",
                 }
                 fh.write(json.dumps(record, ensure_ascii=False) + "\n")

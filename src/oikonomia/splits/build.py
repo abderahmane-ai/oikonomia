@@ -82,8 +82,8 @@ class BuildSplitsStage:
 
     name = "build_splits"
     # 3: report residual temporal overlap in the chronological regime.
-    # 2: stratify within each stratum, not against a global deficit (v1 put
-    #    whole strata in train and only divided the ones processed last).
+    # 2: stratify within each stratum, not against a global deficit — the latter
+    #    puts whole strata in train and only divides the ones processed last.
     version = "3"
 
     def inputs_key(self, s: Settings) -> str:

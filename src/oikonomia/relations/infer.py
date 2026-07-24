@@ -1,6 +1,6 @@
 """Long-document–safe candidate construction for corpus-scale relation inference.
 
-The saved span-pair RE model (``modal_app/relations.py::launch`` → the
+The saved span-pair RE model (trained by ``modal_app/relations.py::launch`` → the
 ``oikonomia-ner`` Volume) is trained on gold docs that all fit one 512-token
 window. Running it over the *whole* corpus means feeding it the NER model's
 corpus-scale entities (``ner_corpus.jsonl``) — and 5.4% of documents tokenize to

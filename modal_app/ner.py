@@ -41,8 +41,8 @@ def _fingerprint(data: bytes) -> str:
 
     Printed by both ``push`` (what was uploaded) and ``train`` (what was read off
     the Volume) so a stale-data run is obvious at a glance instead of inferred:
-    identical ``sha`` = identical bytes. ``age`` is a cheap canary for the
-    Silver-v2 AGE fix — it is ~1.6k in the new silver and ~0 in the old.
+    identical ``sha`` = identical bytes. ``age`` is a cheap canary: current silver
+    carries ~1.6k AGE spans, so a count near zero means the upload did not land.
     """
     sha = hashlib.sha256(data).hexdigest()[:12]
     docs = data.count(b"\n")
@@ -212,7 +212,7 @@ def train(
 
     # Fetch the latest committed push. Without this a warm/reused container keeps
     # its start-of-life Volume mount and silently trains on the *previous*
-    # silver — the Silver-v2 push looked applied but the run used stale data.
+    # silver, so a push can look applied while the run reads stale data.
     # The fingerprint below must match the `[push] volume silver.jsonl` line.
     ner_volume.reload()
     print(

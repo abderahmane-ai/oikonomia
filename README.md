@@ -158,8 +158,22 @@ load-bearing facts never to re-derive.
 | 5–6 | Gold annotation (115 docs) · Silver labeling | ✅ |
 | 7–8 | Entity NER (0.737) · Relation extraction (0.713) | ✅ frozen |
 | 9 | Corpus → queryable database ([schema](docs/database.md)) | ✅ shipped |
-| **10** | **Historical findings — the write-up** | 🔶 active |
-| 11 | Model release — [Grammateus](https://huggingface.co/ainouche-abderahmane/grammateus) + [Homologia](https://huggingface.co/ainouche-abderahmane/homologia) | ✅ published |
+| 10 | Historical findings — [**the five findings**](docs/phases/phase_10_findings.md) | ✅ recorded |
+| 11 | Release — [Grammateus](https://huggingface.co/ainouche-abderahmane/grammateus) · [Homologia](https://huggingface.co/ainouche-abderahmane/homologia) · [OIKONOMIA-DB](https://huggingface.co/datasets/ainouche-abderahmane/oikonomia-db) | ✅ published |
+
+## The findings
+
+All three deliverables are out. What the database says — each number recomputed
+from the shipped tables, with its mechanism, its control, and its limits, in
+[`docs/phases/phase_10_findings.md`](docs/phases/phase_10_findings.md):
+
+| | Finding | Evidence |
+|---|---|---|
+| **F1** | Currency flips **silver → gold across the 4c–5c AD** (gold share 0.000 → 0.155 → 0.931) | 195,906 money facts; recovers the *solidus* transition unsupervised |
+| **F2** | Named taxes **periodize themselves** — *laographia* Roman-only, *phylakitikon* Ptolemaic, *demosia* Byzantine | 6,441 tax facts, 18 taxes |
+| **F3** | Women's **χωρὶς-κυρίου (unguardianed) share rises 0% (≤1c AD) → 39% (3c) → 80% (4c)** | 1.37M model entities; gold-validated, conservative |
+| **F4** | Women are **18.0% of principals** — but **sale 30% / loan 28% vs receipt 10% / delivery 5%** | 21,895 principals via both models end to end |
+| **F5** | Wheat ≈ **13.3 dr/artaba in the 2c AD** (IQR 6–27.5) — thin, and flagged as such | 98 clean price observations |
 
 ## Data, models & licensing
 

@@ -40,7 +40,7 @@ GRAMMATEUS = ReleaseSpec(
     name="OIKONOMIA-Grammateus",
     local_dir="artifacts/models/grammateus",
     card="resources/release/GRAMMATEUS_CARD.md",
-    repo_id="oikonomia/grammateus-grc",
+    repo_id="ainouche-abderahmane/grammateus",
     # A standard HF token-classification model: weights + config + tokenizer.
     required=("config.json", "model.safetensors", "tokenizer.json", "tokenizer_config.json"),
     extras=("data/processed/ner/labels.json",),
@@ -51,7 +51,7 @@ HOMOLOGIA = ReleaseSpec(
     name="OIKONOMIA-Homologia",
     local_dir="artifacts/models/homologia",
     card="resources/release/HOMOLOGIA_CARD.md",
-    repo_id="oikonomia/homologia-grc",
+    repo_id="ainouche-abderahmane/homologia",
     # NOT a standard HF model: a custom span-pair head, so the state_dict plus the
     # config that `build_relation_head` reads back to rebuild the architecture.
     required=("config.json", "relation_head.pt"),
@@ -62,8 +62,14 @@ OIKONOMIA_DB = ReleaseSpec(
     name="OIKONOMIA-DB",
     local_dir="data/processed/db",
     card="resources/release/OIKONOMIA_DB_CARD.md",
-    repo_id="oikonomia/oikonomia-db",
-    required=("monetary.parquet", "prices.parquet", "taxes.parquet", "persons.parquet", "principals.parquet", "autonomy.parquet"),
+    repo_id="ainouche-abderahmane/oikonomia-db",
+    required=(
+        "monetary.parquet", "prices.parquet", "taxes.parquet", "persons.parquet",
+        "principals.parquet", "autonomy.parquet",
+        # The card documents eight tables; these two live under export/ and were
+        # invisible to the completeness gate until it recursed.
+        "export/documents.parquet", "export/persons_distinct.parquet",
+    ),
     repo_type="dataset",
 )
 
@@ -100,7 +106,9 @@ def check_ready(root: Path, spec: ReleaseSpec) -> list[Path]:
     if missing:
         raise NotReadyError(f"{spec.local_dir} is incomplete — missing {', '.join(missing)}")
 
-    return sorted(p for p in ckpt.iterdir() if p.is_file())
+    # Recursive, because the upload is: the dataset keeps two tables under
+    # export/, and a listing that hid them would under-report what goes public.
+    return sorted(p for p in ckpt.rglob("*") if p.is_file())
 
 
 def stage_card(root: Path, spec: ReleaseSpec) -> Path:

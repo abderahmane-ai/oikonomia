@@ -50,7 +50,7 @@ quantity, which tax a payment discharges.
 It is the relation arm of **OIKONOMIA**, a project turning the ~68,000 Duke
 Databank (DDbDP) papyri of Greco-Roman Egypt into a structured, auditable database
 of ancient economic life. It is designed to run **on top of**
-[**OIKONOMIA-Grammateus**](https://huggingface.co/oikonomia/grammateus-grc), the
+[**OIKONOMIA-Grammateus**](https://huggingface.co/ainouche-abderahmane/grammateus), the
 entity model — Grammateus finds the spans, Homologia links them.
 
 - **Encoder:** [`bowphs/GreBerta`](https://huggingface.co/bowphs/GreBerta)
@@ -125,31 +125,39 @@ numbers if you build on this**, not the oracle ones.
 
 ## Loading
 
-```python
-import json, torch
-from modal_app.relations import build_relation_head   # the head factory
+This is **not** a `transformers` `AutoModel` — it is a custom span-pair head over
+the encoder, shipped as a `state_dict` plus `config.json`. One call loads it,
+downloading from the Hub on first use:
 
-cfg = json.load(open("config.json"))
-model = build_relation_head(
-    backbone=cfg["reconstruct_backbone"],
-    n_entity_labels=len(cfg["entity_labels"]),
-    n_rel_labels=len(cfg["relation_labels"]),
-    type_dim=cfg["type_dim"], feat_dim=cfg["feat_dim"], dropout=cfg["dropout"],
-)
-model.load_state_dict(torch.load("relation_head.pt", map_location="cpu"))
-model.eval()
+```bash
+pip install git+https://github.com/abderahmane-ai/oikonomia
 ```
 
-`build_relation_head` instantiates the architecture by pulling `bowphs/GreBerta`
-from the Hub, then `load_state_dict` overwrites **every** weight — including the
-encoder — with the papyri-adapted ones from this checkpoint. So the first load
-needs network access to the base repo, and the transient "newly initialized
-pooler" notice from `transformers` is expected: the pooler is unused by this head.
+```python
+from oikonomia.relations.model import load_homologia
+
+model, cfg = load_homologia("ainouche-abderahmane/homologia")
+# 129.1M params, eval mode, 12 relation labels over 13 entity types
+```
+
+Point it at a directory instead of a repo id to load files you already have:
+
+```python
+model, cfg = load_homologia("./homologia", device="cuda")
+```
+
+The loader rebuilds the architecture by pulling `bowphs/GreBerta` from the Hub,
+then loads this checkpoint over it with `strict=True` — **every** weight,
+including the encoder, is replaced by the papyri-adapted one. First load therefore
+needs network access to the base repo, and the `transformers` "newly initialized
+pooler" notice during that step is expected and harmless: the pooler is overwritten
+from the checkpoint a moment later, and `strict=True` would fail if anything were
+left uninitialised.
 
 Candidate construction (which entity pairs to score, how to window a document
 longer than 512 tokens, how to fold per-window scores into one edge per pair) lives
-in `oikonomia.relations.infer` and `oikonomia.relations.encode` in the project
-repository. Scoring raw pairs without that logic will not reproduce these numbers:
+in `oikonomia.relations.infer` and `oikonomia.relations.encode`, in the same
+package. Scoring raw pairs without that logic will not reproduce these numbers:
 the schema mask (which entity-type pairs may hold which relation) and the
 window-merge are part of the model's decode.
 
@@ -168,7 +176,12 @@ women as economic principals.
   `PAID_BY` (0.145) and `PAID_TO` (0.300) are far below the adjacency relations.
   The gold set holds only 87 direction edges; every model-side remedy tried
   (direction features, wide context, constrained decoding) measured neutral. Treat
-  a predicted payment *direction* as a hypothesis, not a fact.
+  a predicted payment *direction* as a hypothesis, not a fact. We act on this
+  ourselves: **direction is deliberately absent from the published OIKONOMIA-DB** —
+  there are no `paid_by` / `paid_to` columns, because shipping them at F1 0.145
+  would be shipping noise as data. What the database records is *that* a person is
+  a party to a deal (`PARTY_OF`, end-to-end 0.623), not which side of the payment
+  they stand on. Nothing else in the released findings depends on direction.
 - **Rare relations collapse end-to-end.** `HAS_PRICE` and `CHARGED_UNDER` fall to
   ~0 with predicted entities, because the entity model rarely supplies their
   `COMMODITY` / `TAX_TERM` endpoints. Adjacency relations (`HAS_UNIT`,

@@ -149,12 +149,14 @@ class BuildCorpusStage:
     """Pipeline stage: raw idp.data checkout → ``processed/corpus.parquet``."""
 
     name = "build_corpus"
-    # 4: canonical whitespace. edited/diplomatic text now comes out with single
-    #    spaces and one \n per line break, so stored offsets, gold spans and the
-    #    OffsetMap all index the same string. No consumer re-collapses.
-    # 3: honour <lb break="no"/>. v1-v2 emitted a newline at every line break,
-    #    splitting the 35% of documents whose words continue across a line
-    #    ("ναύκλη ρος" for ναύκληρος) — wrong text, unmatchable by the lexicon.
+    # What each version of the output guarantees; bump on any change to the text
+    # this stage stores, since offsets downstream are keyed to it.
+    # 4: canonical whitespace — single spaces, one \n per line break. Stored
+    #    offsets, gold spans and the OffsetMap all index the same string, so no
+    #    consumer may re-collapse it.
+    # 3: <lb break="no"/> joins the word instead of breaking it. It marks a break
+    #    *inside* a word in 35% of documents ("ναύκλη ρος" for ναύκληρος); a
+    #    separator there yields wrong text the lexicon cannot match.
     # 2: parse with collect_ids=False, recovering the 512 duplicate-xml:id files.
     version = "4"
 

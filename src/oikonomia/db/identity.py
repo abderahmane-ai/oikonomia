@@ -18,6 +18,7 @@ the safe direction for a "not fewer than" claim. Deterministic and pure.
 
 from __future__ import annotations
 
+import hashlib
 import unicodedata
 
 import pandas as pd
@@ -58,6 +59,18 @@ def person_key(head: object, father: object, place: object) -> tuple[str, str, s
     return (_norm(head), _norm(father), _place(place))
 
 
+def person_id(head: object, father: object, place: object) -> str:
+    """A stable, portable id for the person :func:`person_key` identifies.
+
+    The tuple key is the identity; this is that key hashed to 16 hex chars so it
+    survives a parquet round-trip and can be joined on from any tool. It is a pure
+    function of the normalized key, so the same person gets the same id on every
+    rebuild and across the shipped tables.
+    """
+    raw = "\x1f".join(person_key(head, father, place))
+    return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]
+
+
 # Which mention wins when picking a person's representative gender: a positively
 # attributed sex beats "unknown"; among attributed mentions the majority wins.
 def _mode_gender(genders: pd.Series) -> str:
@@ -91,7 +104,7 @@ def collapse_to_persons(df: pd.DataFrame) -> pd.DataFrame:
     """
     if df.empty:
         return pd.DataFrame(
-            columns=["head_text", "father_text", "place_pleiades", "gender",
+            columns=["person_id", "head_text", "father_text", "place_pleiades", "gender",
                      "guardian", "n_mentions", "deal_types", "first_century"]
         )
     keyed = df.copy()
@@ -106,6 +119,7 @@ def collapse_to_persons(df: pd.DataFrame) -> pd.DataFrame:
     for _key, sub in keyed.groupby("_k", sort=False):
         first = sub.iloc[0]
         rows.append({
+            "person_id": person_id(first["head_text"], first["father_text"], first["place_pleiades"]),
             "head_text": first["head_text"],
             "father_text": first["father_text"],
             "place_pleiades": first["place_pleiades"],

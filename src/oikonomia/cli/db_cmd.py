@@ -834,7 +834,7 @@ def export(
 
     specs: list[tuple[TableSpec, pd.DataFrame]] = [
         (TableSpec("documents", "one text document", "stem", "the spine: metadata + per-doc counts + price/tax flags"), idx),
-        (TableSpec("persons_distinct", "one distinct person (coref-lite)", "name+father+place", "principal mentions folded into people"), distinct),
+        (TableSpec("persons_distinct", "one distinct person (coref-lite)", "person_id", "principal mentions folded into people"), distinct),
         (TableSpec("monetary", "one monetary fact", "tm_id + char-span", "money amount + its commodity/quantity/tax links, normalized"), monetary_df),
         (TableSpec("prices", "one clean price observation", "tm_id + char-span", "commodity unit-price (dr/unit), high-precision subset"), prices_df),
         (TableSpec("taxes", "one clean tax payment", "tm_id + char-span", "poll- and land-tax payments"), taxes_df),

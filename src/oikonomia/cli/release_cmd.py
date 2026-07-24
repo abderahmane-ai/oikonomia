@@ -25,7 +25,7 @@ from oikonomia.models.release import (
     stage_card,
 )
 
-release_app = typer.Typer(help="Publish the trained models (deliverable #1).", no_args_is_help=True)
+release_app = typer.Typer(help="Publish the released artifacts: the two models and the database.", no_args_is_help=True)
 
 REPO = Path(__file__).resolve().parents[3]
 
@@ -54,7 +54,10 @@ def check(
     typer.echo(f"  licence lineage verified · card {spec.card}")
     typer.echo(f"  {len(files)} files, {total / 1e6:.0f} MB from {spec.local_dir}:")
     for f in files:
-        typer.echo(f"    {f.name:28} {f.stat().st_size / 1e6:8.1f} MB")
+        # Relative, not bare name: the dataset's export/ tables would otherwise
+        # look like top-level files.
+        rel = f.relative_to(REPO / spec.local_dir)
+        typer.echo(f"    {rel!s:36} {f.stat().st_size / 1e6:8.1f} MB")
 
 
 @release_app.command("push")
