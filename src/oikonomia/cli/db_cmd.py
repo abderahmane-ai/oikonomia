@@ -24,7 +24,10 @@ import typer
 
 from oikonomia.config import load_settings
 from oikonomia.corpus.io import corpus_path, iter_batches
+from oikonomia.db.dates import century as signed_century
+from oikonomia.db.dates import date_mid, half_century_start
 from oikonomia.db.facts import DocMeta, Ent, Rel, assemble_monetary
+from oikonomia.db.parties import PartyMeta, PartyObservation, assemble_parties
 from oikonomia.db.places import load_place_names
 from oikonomia.db.prices import SPECS, clean_prices, price_series
 from oikonomia.db.taxes import clean_tax_payments, fiscal_regime, payments_by_century
@@ -42,6 +45,7 @@ _COLUMNS = ["tm_id", "date_lo", "date_hi", "place_pleiades", "canonical_genres",
 FACTS_NAME = "db/monetary.parquet"
 PRICES_NAME = "db/prices.parquet"
 TAXES_NAME = "db/taxes.parquet"
+PARTIES_NAME = "db/parties.parquet"
 
 # Published anchors for the validation view (dr/artaba), so the series is judged
 # against scholarship, not eyeballed. Rough consensus ranges, not point claims.
@@ -278,3 +282,166 @@ def taxes(
     out_path.parent.mkdir(parents=True, exist_ok=True)
     kept.to_parquet(out_path, index=False)
     typer.echo(f"\nWrote {out_path}: {len(kept)} clean tax payments (poll + land tax, with provenance)")
+
+
+# --- women as economic principals (deliverable #3) ---------------------------
+
+
+def _gold_parties(gold_path: Path) -> Iterator[PartyObservation]:
+    """Party rows from the human gold: trustworthy PERSON spans + PARTY_OF edges.
+
+    The prototype path — it isolates the gender/party logic from labeler noise, so
+    the women-share it reports reflects the *rules*, not extraction error. Gold's
+    own ``meta`` carries the date midpoint and genre; place is not annotated there.
+    """
+    for line in gold_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        doc = json.loads(line)
+        ents = [
+            Ent(e["start"], e["end"], e["label"], e["text"], None, 1.0)
+            for e in doc.get("entities", [])
+        ]
+        rels = [Rel(r["head"], r["tail"], r["type"], 1.0) for r in doc.get("relations", [])]
+        meta_in = doc.get("meta", {})
+        mid = _clean(meta_in.get("date_mid"))
+        meta = PartyMeta(
+            doc_id=str(doc.get("doc_id")),
+            date_mid=mid,
+            century=signed_century(mid),
+            bin50=half_century_start(mid),
+            place_pleiades=None,
+            genres=str(meta_in.get("genre") or ""),
+        )
+        yield from assemble_parties(ents, rels, doc.get("text", ""), meta)
+
+
+def _corpus_parties(settings: Any, sample: int) -> Iterator[PartyObservation]:
+    """Party rows from the rule labeler over the corpus — a noisy *lower bound*.
+
+    Uses the deterministic labeler (PERSON 71.6% precise, PARTY_OF conf 0.28), so
+    the women-share here is an under-precise estimate; the trained model (a Modal
+    run) is the higher-quality path when the finding warrants the spend.
+    """
+    labeler = SilverLabeler(Matcher(load_lexicon(settings.paths.resources)), load_patterns(settings.paths.resources))
+    for frame in _iter_docs(settings.paths.processed, sample):
+        for tm_id, dlo, dhi, place, genres, blob in zip(
+            frame["tm_id"], frame["date_lo"], frame["date_hi"],
+            frame["place_pleiades"], frame["canonical_genres"], frame["document_json"],
+            strict=True,
+        ):
+            doc = json.loads(blob)
+            text = doc.get("edited_text") or ""
+            if not text.strip():
+                continue
+            nums = [CharSpan(start=int(n["edited"]["start"]), end=int(n["edited"]["end"]))
+                    for n in doc.get("numerals", []) if n.get("edited")]
+            lines = [CharSpan(start=int(ln["edited"]["start"]), end=int(ln["edited"]["end"]))
+                     for ln in doc.get("lines", []) if ln.get("edited")]
+            pred = labeler.label(text, nums, lines)
+            ents = [Ent(e.span.start, e.span.end, e.label, e.text, e.entry_id, e.confidence) for e in pred.entities]
+            rels = [Rel(r.head, r.tail, r.type, r.confidence) for r in pred.relations]
+            place_i = _clean(place)
+            mid = date_mid(_clean(dlo), _clean(dhi))
+            meta = PartyMeta(
+                doc_id=str(tm_id),
+                date_mid=mid,
+                century=signed_century(mid),
+                bin50=half_century_start(mid),
+                place_pleiades=int(place_i) if place_i is not None else None,
+                genres=_genres_str(genres),
+            )
+            yield from assemble_parties(ents, rels, text, meta)
+
+
+@db_app.command("women")
+def women(
+    env: EnvOpt = "local",
+    set_: SetOpt = None,
+    source: Annotated[str, typer.Option("--source", help="gold (validated logic) | corpus (rule labeler, noisy).")] = "gold",
+    sample: Annotated[int, typer.Option("--sample", help="corpus only: max docs (0 = whole corpus).")] = 0,
+    out: Annotated[Path | None, typer.Option("--out", help="Party observations (default: processed/db/parties.parquet).")] = None,
+) -> None:
+    """Women as economic principals — gender of the parties to transactions.
+
+    Assembles a party table (one row per named principal, gender-attributed) and
+    reports the women's share among gender-attributable principals, overall and by
+    century and transaction type, plus the guardian (``κύριος``) breakdown. Every
+    attribution keeps its rule-of-record and span, so the share is auditable.
+
+    ``--source gold`` (default) runs over the human annotations — the honest test
+    of the logic. ``--source corpus`` runs the rule labeler over the corpus, a
+    noisy lower bound (the trained model is the higher-quality path, spent later).
+    """
+    s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    if source == "gold":
+        gold_path = Path(s.paths.gold) / "annotated.jsonl"
+        if not gold_path.is_file():
+            typer.secho(f"{gold_path} missing.", fg="red")
+            raise typer.Exit(1)
+        rows = list(_gold_parties(gold_path))
+    elif source == "corpus":
+        if not corpus_path(s.paths.processed).is_file():
+            typer.secho("corpus.parquet missing — run `oik ingest build` first.", fg="red")
+            raise typer.Exit(1)
+        rows = list(_corpus_parties(s, sample))
+    else:
+        typer.secho(f"unknown --source {source!r} (expected gold | corpus)", fg="red")
+        raise typer.Exit(1)
+
+    df = pd.DataFrame([r.model_dump() for r in rows])
+    out_path = out or (Path(s.paths.processed) / PARTIES_NAME)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(out_path, index=False)
+    _summarize_women(df, source, out_path)
+
+
+def _share(sub: pd.DataFrame) -> tuple[int, int, float | None]:
+    """(n_female, n_gendered, female_share) over a party frame."""
+    gendered = sub[sub["gender"].isin(["female", "male"])]
+    nf = int((gendered["gender"] == "female").sum())
+    ng = len(gendered)
+    return nf, ng, (nf / ng if ng else None)
+
+
+def _summarize_women(df: pd.DataFrame, source: str, out_path: Path) -> None:
+    typer.echo(f"\nWrote {out_path}: {len(df)} principals ({source}) — one row per named party")
+    if df.empty:
+        typer.echo("  (no principals found)")
+        return
+    nf, ng, share = _share(df)
+    cov = ng / len(df) if len(df) else 0.0
+    typer.echo(f"  gender-attributable: {ng}/{len(df)} ({cov:.0%})   [unknown gender: {len(df) - ng}]")
+    if share is not None:
+        typer.echo(f"  WOMEN'S SHARE among attributable principals: {nf}/{ng} = {share:.1%}")
+
+    typer.echo("\n  by century (min n=8 attributable):")
+    for cen, sub in sorted(df.groupby("century"), key=lambda kv: (kv[0] is None, kv[0])):
+        nf, ng, sh = _share(sub)
+        if ng >= 8 and cen is not None:
+            typer.echo(f"    {_cen(cen):>7}: women {nf:3}/{ng:3} = {sh:.0%}")
+
+    typer.echo("\n  by transaction type (genre, min n=8 attributable):")
+    prim = df.assign(_g=df["genres"].map(lambda x: (x.split("|")[0] if x else "?") or "?"))
+    for g, sub in sorted(prim.groupby("_g"), key=lambda kv: -len(kv[1])):
+        nf, ng, sh = _share(sub)
+        if ng >= 8:
+            typer.echo(f"    {g!s:16}: women {nf:3}/{ng:3} = {sh:.0%}")
+
+    # Guardian (κύριος): the legal marker of a woman transacting.
+    fem = df[df["gender"] == "female"]
+    if not fem.empty:
+        wg = int(fem["guardian_present"].sum())
+        typer.echo(f"\n  guardian (κύριος) formula present for {wg}/{len(fem)} female principals")
+
+    # Attribution provenance — how the gender was decided (auditability).
+    typer.echo("\n  gender basis breakdown:")
+    for (gen, basis), n in df.groupby(["gender", "gender_basis"]).size().sort_values(ascending=False).items():
+        if gen != "unknown":
+            typer.echo(f"    {gen:7} via {basis:13} {n}")
+
+    # A hand-checkable sample of female principals (the precision spot-check).
+    typer.echo("\n  female-principal sample (person | basis | guardian | roles | tx):")
+    for _, r in fem.head(12).iterrows():
+        guard = "κύριος" if r["guardian_present"] else "-"
+        typer.echo(f"    {r['person_text'][:26]:28} {r['gender_basis']:12} {guard:7} {r['roles']:12} {r['transaction_term'] or ''}")

@@ -156,13 +156,62 @@ nothing there. The models earn their keep on:
    where PERSON/PLACE are open-class and rules fail (model beats rules +19 PERSON /
    +11 PLACE) — those will run the trained entity model over the corpus (a Modal job).
 
+### The women-as-principals finding — logic validated on gold (`oik db women`)
+
+The third finding, and the first whose *people* are open-class (a name gazetteer
+can't be at ceiling the way the price/tax closed classes are). Built the
+gender+party layer and **validated it on gold first** (the free, laptop path)
+before spending any Modal — the decision that was teed up at the pivot.
+
+- **`persons.py`** — deterministic, precision-ordered gender attribution for a
+  PERSON span, each call returning the *rule that fired* (auditable): (1) the
+  guardian formula `μετὰ`/`χωρὶς κυρίου` → female (only women had a κύριος; ~0.97);
+  (2) Roman nomen declension `Αὐρήλιος` m / `Αὐρηλία` f across all cases (~0.9);
+  (3) kin nouns θυγάτηρ f / υἱός m (~0.9); (4) the Egyptian article prefix *tꜣ-*
+  (`Τα-`) f / *pꜣ-* (`Πα-`/`Πετε-`) m (~0.72); (5) a small Greek-name gazetteer
+  (~0.8). Three guards earn their keep — the **metronymic** `… μητρὸς X` names the
+  *mother*, not the head person (μήτηρ ignored); the **handoff** `… καὶ ὁ υἱὸς …` /
+  `… καὶ … χωρὶς κυρίου` points the noun at a *co-ordinated other* party; and a
+  **masculine-inflection veto** stops a female stem reading `Δίδυμον`/`Διδύμῳ`
+  (Δίδυμος m) or `Θερμούθιος` (m) as the feminine Διδύμη/Θερμοῦθις.
+- **`parties.py`** — `assemble_parties` walks `PARTY_OF`/`PAID_BY`/`PAID_TO` into
+  one row per named principal: gender + basis, guardian-present flag, role
+  (party/payer/payee), transaction term, date/century/genre, `(doc, span)`.
+- **`oik db women --source gold|corpus`** — gold runs the human annotations (the
+  honest test of the *logic*); corpus runs the rule labeler (a noisy lower bound).
+
+**Result on gold (115 docs, human PARTY_OF):** 178 principals, 42% gender-
+attributable, **women's share 13.5% (10/74)** — inside the literature's ~15–25%.
+Precision on the female sample is **10/10** (every one hand-verifiable: guardian
+formula, Aurelia, θυγάτηρ, Ta-/Isidora). The cut that matters: **women are 44% of
+*sale* principals but 0% of leases and 6% of loans** — the textbook pattern (women
+bought/sold and inherited property far more than they leased or lent). 4/10 female
+principals carry an explicit κύριος guardian.
+
+**Corpus lower bound (4,000 docs, rule labeler, noisy):** 2,587 principals, 17.7%
+women, and a plausible large-n arc — 3c BC 3% → **2c AD 28%** → 3c AD 16%. The 2c
+AD peak is partly a detection artifact (guardian formula + Aurelia nomina cluster
+there) but also the real Roman-era rise in women's documented activity. Writes
+`db/parties.parquet` with full provenance.
+
+**Honest limits (the trained model is the next lever, not a rewrite of this):**
+coverage is ~40% — the 60% unknown-gender principals are names with no nomen, no
+article prefix, and not in the gazetteer, and they are *not* missing at random
+(women are over-represented among the guardian/nomen-flagged). The share is
+therefore reported *only among attributable principals*, with that caveat. Two
+paths raise it: a Trismegistos name-gender gazetteer (deterministic, laptop) for
+coverage, and the **trained entity model over the corpus** (a Modal run) to lift
+PERSON recall + PARTY_OF precision (0.28→0.65) for a defensible full-corpus series.
+
 ### Next
 
 1. ✅ **Price finding** (wheat series) — done, validated.
 2. ✅ **Tax finding** (fiscal-regime map + poll tax by century/region) — done, validated.
-3. **Women as economic principals** — the first finding that *needs* the trained
-   model: gender (deterministic) + `PARTY_OF` + guardian-`κύριος`, plus splitting the
-   PERSON blob for `CHILD_OF` kinship (43% of gold PERSON spans are collapsed). This
-   is where the trained entity model gets wired into the DB (a Modal inference run).
+3. 🔶 **Women as economic principals** — gender+party layer built and **validated
+   on gold** (10/10 female precision; 13.5% share; sale 44% vs lease 0%). Corpus
+   lower bound runs (17.7%, 2c AD peak). Remaining for a *publishable* series:
+   Trismegistos name gazetteer (coverage) + trained entity model over the corpus
+   (the Modal spend — an owner budget call, now de-risked). Splitting the PERSON
+   blob for `CHILD_OF` kinship is still open.
 4. Entity identity/coreference for cross-document prosopography.
 5. Release the frozen entity+relation models (deliverable #1).
