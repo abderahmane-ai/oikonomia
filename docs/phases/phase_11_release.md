@@ -2,7 +2,7 @@
 
 ### Why now — the pivot from build to ship (2026-07-24)
 
-After the women-as-principals finding and the coverage lever, an honest audit put
+After the women-as-principals work, an honest audit put
 the project at **0/3 shipped deliverables** despite a large validated substance
 base (models at bar, ~196k-row fact table, three findings). Decision: stop
 accumulating substance, take **one** deliverable all the way out. Chosen first

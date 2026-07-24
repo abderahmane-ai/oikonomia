@@ -20,7 +20,6 @@ it, so a papyrologist can audit each row against the text.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import NamedTuple
 
 from pydantic import BaseModel
@@ -75,14 +74,12 @@ def assemble_parties(
     relations: list[Rel],
     text: str,
     meta: PartyMeta,
-    gazetteer: Mapping[str, str] | None = None,
 ) -> list[PartyObservation]:
     """Emit one row per PERSON that is a principal (party / payer / payee).
 
     A person in several roles collapses to one row carrying all its roles.
     PERSON_ROLE principals (unnamed roles like "the lessor") are skipped — there is
-    no name to gender — so the table holds only namable principals. ``gazetteer`` is
-    the optional corpus-learned name→gender map, raising coverage on bare names.
+    no name to gender — so the table holds only namable principals.
     """
     # gather, per person-entity index, the roles it plays and the confidences
     roles: dict[int, set[str]] = {}
@@ -106,7 +103,7 @@ def assemble_parties(
     for pi in sorted(roles):
         p = entities[pi]
         after = text[p.end : p.end + _AFTER_WINDOW]
-        g = classify_gender(p.text, after, gazetteer)
+        g = classify_gender(p.text, after)
         obs.append(
             PartyObservation(
                 doc_id=meta.doc_id,

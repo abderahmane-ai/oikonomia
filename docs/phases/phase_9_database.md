@@ -194,40 +194,33 @@ AD peak is partly a detection artifact (guardian formula + Aurelia nomina cluste
 there) but also the real Roman-era rise in women's documented activity. Writes
 `db/parties.parquet` with full provenance.
 
-**The coverage lever — a corpus-bootstrapped name gazetteer (`oik db names`,
-free/laptop, done).** The rule classifier only genders a name that carries a local
-marker (~40%). But a name that appears once as a bare form here appears many times
-corpus-wide, and *somewhere* usually carries a decisive one. `db/name_gender.py`
-harvests that: it votes each name-form's gender from its high-precision
-attestations (guardian/nomen/kin/Egyptian-prefix) across all 61,249 docs and keeps
-the forms that vote ≥85%-consistently with ≥3 attestations → **2,807 names (964 F /
-1,843 M)**, each traceable to its attestations. No external data (a Trismegistos
-pull isn't freely/legally bulk-downloadable; this uses only the CC BY 3.0 corpus)
-and no learning — aggregation of the classifier's own signals, consulted for bare
-names but out-ranked by any in-clause marker.
+**A bootstrapped name gazetteer was tried and REMOVED (2026-07-24).** It voted each
+name-form's gender from rule attestations corpus-wide to lift coverage 42%→54% on
+gold. It worked, but it was **synthetic slop built to pump a coverage number** —
+the exact shortcut CLAUDE.md §2 now forbids. Deleted (`db/name_gender.py`, its CLI
+`oik db names`, its tests, `db/name_gender.json`). Gender stays on the
+**high-precision, principled** signals only (guardian formula, Roman nomen, kin
+noun), each labeled by `basis` so an analysis can keep only the strong ones.
 
-**Effect (A/B on gold):** attributable coverage **42% → 54%** (74→97 principals),
-women's share stable (13.5%→12.4% — the added coverage is not gender-biased), and
-**female precision holds** — the two new female entries are `Ἡραΐδι` (Herais) and
-`Σαραπιάδι` (Sarapias, the -ιάς female form), both correct. On corpus it lifts
-coverage 38%→48% at a stable 17.5% share.
-
-**Honest limits (the trained model is the next lever, not a rewrite of this):** even
-at 54% the unknown-gender principals are *not* missing at random (women are
-over-represented among the guardian/nomen-flagged), so the share is reported *only
-among attributable principals*, with that caveat. The remaining lift is the
-**trained entity model over the corpus** (a Modal run) to raise PERSON recall +
-PARTY_OF precision (0.28→0.65) for a defensible full-corpus series with error bars.
+**The real path — use the trained models as the extraction engine.** People and
+parties are open-class; that is precisely where the model beats rules (PERSON +19,
+PARTY_OF 0.28→0.65). The delivered finding runs the **trained NER model over the
+corpus** (a Modal inference run) for the people, plus the deterministic legal
+formulae — μετὰ / χωρὶς κυρίου (guardian; only women carry one → near-certain
+gender), χρηματίζουσα, γράμματα μὴ εἰδυίης (literacy proxy) — as first-class
+features. The rule-labeler `--source corpus` path stays only as a noisy lower-bound
+sanity check; it is not the deliverable.
 
 ### Next
 
 1. ✅ **Price finding** (wheat series) — done, validated.
 2. ✅ **Tax finding** (fiscal-regime map + poll tax by century/region) — done, validated.
-3. 🔶 **Women as economic principals** — gender+party layer + corpus name
-   gazetteer built and **validated on gold** (female precision held; coverage
-   42%→54%; 12.4% share; sale 44% vs lease 0%). Corpus lower bound runs (17.5%,
-   coverage 48%, 2c AD peak). Remaining for a *publishable* series: the trained
-   entity model over the corpus (the Modal spend — an owner budget call, now
-   de-risked). Splitting the PERSON blob for `CHILD_OF` kinship is still open.
+3. 🔶 **Women as economic principals** — gender+party logic built and **validated
+   on gold** (guardian/nomen/kin signals; sale 44% vs lease 0%). The bootstrapped
+   gazetteer was removed as slop. The deliverable runs the **trained NER model over
+   the corpus** (Modal) as the extraction engine + the legal formulae (κύριος,
+   χρηματίζουσα, γράμματα μὴ εἰδυίης) as first-class features; targeting the
+   guardianship-autonomy curve first. Splitting the PERSON blob for `CHILD_OF`
+   kinship is still open.
 4. Entity identity/coreference for cross-document prosopography.
 5. Release the frozen entity+relation models (deliverable #1).

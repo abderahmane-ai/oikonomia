@@ -37,7 +37,6 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Mapping
 from typing import Literal, NamedTuple
 
 Gender = Literal["female", "male", "unknown"]
@@ -78,16 +77,6 @@ def first_name_token(name: str) -> str:
 def _strip_accents(s: str) -> str:
     """Fold accents/breathings for accent-insensitive stem matching (keep case)."""
     return "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
-
-
-def name_key(name: str) -> str:
-    """The accent-folded first name token — the join key for the name gazetteer.
-
-    Folding on the exact surface form (no lemmatisation) keeps distinct names
-    apart; case forms fragment, but a common name still reaches the vote threshold
-    in whichever cases recur, and lookup uses the same key.
-    """
-    return _strip_accents(first_name_token(name))
 
 
 # --- rule 1: guardian formula ------------------------------------------------
@@ -241,20 +230,17 @@ def _gazetteer_gender(first_raw: str) -> GenderGuess | None:
 # --- the classifier ----------------------------------------------------------
 
 
-def classify_gender(
-    name: str, after: str = "", gazetteer: Mapping[str, str] | None = None
-) -> GenderGuess:
+def classify_gender(name: str, after: str = "") -> GenderGuess:
     """Attribute a gender to a PERSON span, precision-first.
 
     ``name``  — the PERSON span text (may carry leading articles/prepositions).
     ``after`` — the text immediately following the span (for guardian/kin frames);
     the caller should truncate it at the next co-ordinated principal for tightest
     precision, but the guardian rule also self-guards on an intervening ``καὶ``.
-    ``gazetteer`` — an optional corpus-learned ``name_key → gender`` map
-    (:mod:`oikonomia.db.name_gender`). It aggregates the decisive signals across
-    the whole corpus, so it fires for a *bare* name that carries no local marker —
-    consulted after the in-clause rules, but ahead of the single-occurrence
-    Egyptian-prefix heuristic it out-evidences.
+
+    The high-precision signals — the guardian formula, the Roman nomen, an explicit
+    kin noun — are the ones to trust; the ``basis`` on every result says which fired
+    so a downstream analysis can keep only the strong ones.
     """
     first = first_name_token(name)
     if not first:
@@ -263,13 +249,10 @@ def classify_gender(
     if has_guardian(after):
         return GenderGuess("female", "guardian", 0.97)
 
-    local = _nomen_gender(first) or _kin_gender(after)
-    if local is not None:
-        return local
-
-    if gazetteer is not None:
-        learned = gazetteer.get(_strip_accents(first))
-        if learned in ("female", "male"):
-            return GenderGuess(learned, "corpus_name", 0.85)  # type: ignore[arg-type]
-
-    return _gazetteer_gender(first) or _egypt_prefix_gender(first) or UNKNOWN
+    return (
+        _nomen_gender(first)
+        or _kin_gender(after)
+        or _gazetteer_gender(first)
+        or _egypt_prefix_gender(first)
+        or UNKNOWN
+    )
