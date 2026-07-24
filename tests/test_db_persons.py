@@ -9,7 +9,12 @@ these are the semantics a wrong number would trace back to.
 
 from __future__ import annotations
 
-from oikonomia.db.persons import classify_gender, first_name_token, has_guardian
+from oikonomia.db.persons import (
+    classify_gender,
+    first_name_token,
+    guardian_status,
+    has_guardian,
+)
 
 # --- token cleanup -----------------------------------------------------------
 
@@ -38,6 +43,23 @@ def test_guardian_handoff_does_not_leak_to_prior_coordinated_name() -> None:
     assert has_guardian(after) is False
     # ...but with no intervening καί it binds to this name:
     assert has_guardian(" χωρὶς κυρίου χρηματιζούσης") is True
+
+
+def test_guardian_status_types_with_versus_without() -> None:
+    # The autonomy axis: μετὰ = with a guardian, χωρὶς = without (autonomous).
+    assert guardian_status(" μετὰ κυρίου τοῦ ἀνδρός") == "with"
+    assert guardian_status(" χωρὶς κυρίου χρηματίζουσα") == "without"
+    assert guardian_status(" δραχμὰς ἑκατὸν πεντήκοντα") == "none"
+
+
+def test_guardian_status_respects_the_handoff() -> None:
+    # A καὶ before the formula hands it to a later principal → none here.
+    assert guardian_status(" καὶ Αταρι μετὰ κυρίου") == "none"
+
+
+def test_guardian_status_nearest_formula_wins() -> None:
+    # Whichever form sits closest to the name is the one that binds.
+    assert guardian_status(" μετὰ κυρίου ... ἄλλη χωρὶς κυρίου") == "with"
 
 
 # --- rule 2: Roman nomen (α-declension f, ο-declension m), across cases -------

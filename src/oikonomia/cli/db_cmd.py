@@ -28,6 +28,7 @@ from oikonomia.db.dates import century as signed_century
 from oikonomia.db.dates import date_mid, half_century_start
 from oikonomia.db.facts import DocMeta, Ent, Rel, assemble_monetary
 from oikonomia.db.parties import PartyMeta, PartyObservation, assemble_parties
+from oikonomia.db.personscan import PersonMeta, PersonObservation, assemble_persons
 from oikonomia.db.places import load_place_names
 from oikonomia.db.prices import SPECS, clean_prices, price_series
 from oikonomia.db.taxes import clean_tax_payments, fiscal_regime, payments_by_century
@@ -46,6 +47,8 @@ FACTS_NAME = "db/monetary.parquet"
 PRICES_NAME = "db/prices.parquet"
 TAXES_NAME = "db/taxes.parquet"
 PARTIES_NAME = "db/parties.parquet"
+PERSONS_NAME = "db/persons.parquet"
+NER_CORPUS_NAME = "ner/ner_corpus.jsonl"
 
 # Published anchors for the validation view (dr/artaba), so the series is judged
 # against scholarship, not eyeballed. Rough consensus ranges, not point claims.
@@ -446,3 +449,126 @@ def _summarize_women(df: pd.DataFrame, source: str, out_path: Path) -> None:
     for _, r in fem.head(12).iterrows():
         guard = "κύριος" if r["guardian_present"] else "-"
         typer.echo(f"    {r['person_text'][:26]:28} {r['gender_basis']:12} {guard:7} {r['roles']:12} {r['transaction_term'] or ''}")
+
+
+# --- persons: gender over the model's PERSON spans (the autonomy input) -------
+
+
+def _model_persons(settings: Any) -> Iterator[PersonObservation]:
+    """Gender+guardian rows from the trained model's PERSON spans (``ner_corpus.jsonl``).
+
+    Loads the PERSON spans per ``stem``, then streams ``corpus.parquet`` to join the
+    exact document text (for the guardian frame) and the HGV date/place/genre. The
+    join is on ``stem`` — the unique key — not ``tm_id`` (which repeats across rows).
+    """
+    ner_path = Path(settings.paths.processed) / NER_CORPUS_NAME
+    by_stem: dict[str, list[Ent]] = {}
+    with ner_path.open(encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            ents = [
+                Ent(e["start"], e["end"], e["label"], e["text"], None, 1.0)
+                for e in r.get("entities", [])
+                if e["label"] == "PERSON"
+            ]
+            if ents:
+                by_stem[str(r["stem"])] = ents
+
+    cols = ["stem", "tm_id", "edited_text", "date_lo", "date_hi", "place_pleiades", "canonical_genres"]
+    for frame in iter_batches(corpus_path(settings.paths.processed), cols):
+        for stem, tm_id, text, dlo, dhi, place, genres in zip(
+            frame["stem"], frame["tm_id"], frame["edited_text"],
+            frame["date_lo"], frame["date_hi"], frame["place_pleiades"], frame["canonical_genres"],
+            strict=True,
+        ):
+            person_ents = by_stem.get(str(stem))
+            if person_ents is None:
+                continue
+            mid = date_mid(_clean(dlo), _clean(dhi))
+            place_i = _clean(place)
+            meta = PersonMeta(
+                stem=str(stem),
+                tm_id=str(tm_id),
+                date_mid=mid,
+                century=signed_century(mid),
+                bin50=half_century_start(mid),
+                place_pleiades=int(place_i) if place_i is not None else None,
+                genres=_genres_str(genres),
+            )
+            yield from assemble_persons(person_ents, text or "", meta)
+
+
+@db_app.command("persons")
+def persons(
+    env: EnvOpt = "local",
+    set_: SetOpt = None,
+    out: Annotated[Path | None, typer.Option("--out", help="Person table (default: processed/db/persons.parquet).")] = None,
+) -> None:
+    """Gender + guardian for every model-extracted PERSON — the autonomy finding's input.
+
+    Runs the deterministic gender rules over the trained model's corpus-scale PERSON
+    spans (``ner_corpus.jsonl``, keyed by stem), splitting each blob to gender the
+    head and typing the guardian formula (μετὰ vs χωρὶς κυρίου). Writes one row per
+    PERSON mention with full provenance, and prints the women's share and the
+    with-vs-without-guardian split — the autonomy signal step 5 turns into a curve.
+    """
+    s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    if not (Path(s.paths.processed) / NER_CORPUS_NAME).is_file():
+        typer.secho(
+            f"{NER_CORPUS_NAME} missing — run the corpus NER inference first "
+            "(oik ner corpus-text → modal ner.py::infer → pull down).",
+            fg="red",
+        )
+        raise typer.Exit(1)
+    if not corpus_path(s.paths.processed).is_file():
+        typer.secho("corpus.parquet missing — run `oik ingest build` first.", fg="red")
+        raise typer.Exit(1)
+
+    rows = list(_model_persons(s))
+    df = pd.DataFrame([r.model_dump() for r in rows])
+    out_path = out or (Path(s.paths.processed) / PERSONS_NAME)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(out_path, index=False)
+    _summarize_persons(df, out_path)
+
+
+def _summarize_persons(df: pd.DataFrame, out_path: Path) -> None:
+    typer.echo(f"\nWrote {out_path}: {len(df)} PERSON mentions (model spans, gender-attributed)")
+    if df.empty:
+        typer.echo("  (no persons found)")
+        return
+    nf, ng, share = _share(df)
+    cov = ng / len(df) if len(df) else 0.0
+    typer.echo(f"  gender-attributable: {ng}/{len(df)} ({cov:.0%})   [unknown: {len(df) - ng}]")
+    if share is not None:
+        typer.echo(f"  women's share among gendered mentions: {nf}/{ng} = {share:.1%}")
+
+    typer.echo("\n  gender basis breakdown (which rule fired):")
+    for (gen, basis), n in df.groupby(["gender", "gender_basis"]).size().sort_values(ascending=False).items():
+        if gen != "unknown":
+            typer.echo(f"    {gen:7} via {basis:12} {n:>8,}")
+
+    # THE autonomy signal: among women who carry a guardian formula, with vs without.
+    fem = df[df["gender"] == "female"]
+    g = fem["guardian"].value_counts().to_dict()
+    n_with, n_without = int(g.get("with", 0)), int(g.get("without", 0))
+    formulaic = n_with + n_without
+    typer.echo(f"\n  women with a guardian FORMULA: {formulaic:,} of {len(fem):,} female mentions")
+    if formulaic:
+        typer.echo(f"    μετὰ κυρίου  (with guardian):    {n_with:>7,} ({n_with / formulaic:.0%})")
+        typer.echo(f"    χωρὶς κυρίου (without / autonomous): {n_without:>7,} ({n_without / formulaic:.0%})")
+        typer.echo("    → step 5 breaks this by century and region into the autonomy curve.")
+
+    typer.echo("\n  female sample (person | head | father | basis | guardian):")
+    for _, r in fem[fem["guardian"] != "none"].head(10).iterrows():
+        typer.echo(
+            f"    {_txt(r['person_text'])[:24]:26} {_txt(r['head_text'], '')[:14]:15} "
+            f"{_txt(r['father_text'])[:12]:13} {r['gender_basis']:10} {r['guardian']}"
+        )
+
+
+def _txt(v: object, default: str = "-") -> str:
+    """A parquet cell to a clean one-line string (NaN/None → default; no newlines)."""
+    return v.replace("\n", " ") if isinstance(v, str) else default

@@ -287,11 +287,19 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 >    (PERSON 350k, PLACE 48k, …), 3,304 long docs windowed, **provenance validated
 >    0/1.37M mismatch** against `corpus.parquet.edited_text`. Output
 >    `data/processed/ner/ner_corpus.jsonl`, keyed by **`stem`** (NOT tm_id — see §8).
-> 3. **← NEXT.** Person-blob split (name+patronymic) for gender + kinship.
-> 4. Feed model spans into the gender rules (guardian formula + nomen + kin).
-> 5. Assemble the **autonomy finding** — with- vs without-guardian, joined to
->    date/region → the curve. (No RE model needed.)
-> 6. Validate the women pipeline vs the 115-doc gold.
+> 3. ✅ **DONE** — person-blob split (`oikonomia.db.names.parse_person_name`):
+>    head + patronymic chain + metronymic/alias/status, each with offsets.
+>    **128,896 father links recovered** (99% of the 130k blobs), 100% heads, 0
+>    offset errors. Fixed a `μητρ`-stem bug (was eating names like Δημητρίου).
+> 4. ✅ **DONE** — gender+guardian over model spans (`oikonomia.db.personscan`,
+>    `oik db persons` → `db/persons.parquet`, 350k rows). `guardian_status` types
+>    the formula **with** (μετὰ) vs **without** (χωρὶς κυρίου). Result: 30%
+>    gender-attributable, women's share 21.7%; **autonomy signal — 1,770 women
+>    with a guardian formula: 92% μετὰ / 8% χωρὶς** (94% clean of competing male
+>    signal; the 6% mis-scoped window is what step 6 measures).
+> 5. **← NEXT.** The autonomy **curve** — break the 92/8 by century and region
+>    (reads `persons.parquet`). No RE model needed.
+> 6. Validate the women pipeline vs the 115-doc gold (guardian precision + window tune).
 > 7. Revive the RE model — (a) `RelationHead` into a module; (b) all-gold train +
 >    save; (c) standalone RE inference on NER-predicted entities; (d) measure the
 >    end-to-end drop vs the 0.65 oracle PARTY_OF.
@@ -304,10 +312,10 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 > `oikonomia-dapt:/checkpoints/full/final`. Volume data: `silver/gold/labels/
 > relation_labels`. **RE MODEL: NOTHING SAVED** — `relations.py` only measured it.
 >
-> **Progress:** owner authorized steps 1–2 ("cook these", 2026-07-24) — both DONE
-> and validated (see above). **Steps 3–8 await the owner's go-ahead**; next is
-> step 3 (person-blob split), then the autonomy scan (gender + guardian) over
-> `ner_corpus.jsonl`, then gold validation.
+> **Progress:** steps **1–4 DONE and validated** (owner-authorized incrementally,
+> 2026-07-24). Next is **step 5** (the autonomy curve by century/region over
+> `db/persons.parquet`), then **step 6** (gold validation). Steps 7–8 (RE model)
+> after.
 
 **PARKED — model release (deliverable #1).** Superseded by the directive above.
 NER release is PACKAGED (licence firewall `oikonomia.models.licensing`; model card
@@ -475,6 +483,9 @@ the binding constraint — the audits say it is not.
 - `data/processed/db/parties.parquet` — party (principal) table w/ gender+guardian
   +role+span. Regen: `oik db women --source gold` (178 rows) or `--source corpus`
   (noisy lower bound). Gitignored, re-derivable.
+- `data/processed/db/persons.parquet` — **350,206 rows**, gender+guardian for every
+  model PERSON span (step 4): head/father split, gender_basis, guardian with/without
+  /none, provenance. Regen: `oik db persons` (reads `ner_corpus.jsonl`). Gitignored.
 - **Modal Volume `oikonomia-dapt`:** `shards/{train,dev}.bin`,
   `checkpoints/full/final` (**B1** — load this for b1). Stale `checkpoints/b1-*`
   from the first sweep are safe to `modal volume rm -r`.

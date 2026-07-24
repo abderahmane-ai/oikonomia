@@ -84,21 +84,45 @@ def _strip_accents(s: str) -> str:
 # Only women transact μετὰ/χωρὶς κυρίου. Kept tight: the formula must fall in the
 # window *right after* the name and before any conjunction that would hand off to
 # a different principal (so "A καὶ B χωρὶς κυρίου" attributes to B, not A).
-_GUARDIAN = re.compile(r"(?:μετὰ|μετα|χωρὶς|χωρις)\s+κυρ(?:ίου|ιου|ία|ια)")
+# The two forms are kept apart because their *difference* is the finding: μετὰ
+# κυρίου = with a guardian (dependent); χωρὶς κυρίου = without one (autonomous).
+_GUARD_WITH = re.compile(r"(?:μετὰ|μετα)\s+κυρ(?:ίου|ιου|ία|ια)")
+_GUARD_WITHOUT = re.compile(r"(?:χωρὶς|χωρις)\s+κυρ(?:ίου|ιου|ία|ια)")
 _HANDOFF = re.compile(r"\s(?:καὶ|καί|και)\s")
 
 
+def guardian_status(after: str) -> Literal["with", "without", "none"]:
+    """Classify the guardian (κύριος) formula attaching to the name before ``after``.
+
+    ``μετὰ κυρίου`` → ``"with"`` (a woman transacting under her guardian); ``χωρὶς
+    κυρίου`` → ``"without"`` (transacting in her own right, ius liberorum). The
+    formula must precede any ``καὶ`` that hands off to a co-ordinated principal, so
+    "A καὶ B μετὰ κυρίου" is not read onto A. This with/without split is the axis of
+    the autonomy finding; whichever form sits closest to the name wins.
+    """
+    cands: list[tuple[int, str]] = []
+    mw = _GUARD_WITH.search(after)
+    if mw:
+        cands.append((mw.start(), "with"))
+    mo = _GUARD_WITHOUT.search(after)
+    if mo:
+        cands.append((mo.start(), "without"))
+    if not cands:
+        return "none"
+    pos, label = min(cands)
+    handoff = _HANDOFF.search(after)
+    if handoff is not None and handoff.start() < pos:
+        return "none"  # the formula belongs to a later, co-ordinated principal
+    return "with" if label == "with" else "without"
+
+
 def has_guardian(after: str) -> bool:
-    """True if a guardian formula attaches to the name introducing ``after``.
+    """True if any guardian formula (μετὰ/χωρὶς κυρίου) attaches to the name.
 
     ``after`` is the text immediately following the person span. A ``καὶ`` before
     the formula means it belongs to a later, co-ordinated principal, not this one.
     """
-    m = _GUARDIAN.search(after)
-    if not m:
-        return False
-    handoff = _HANDOFF.search(after)
-    return handoff is None or handoff.start() >= m.start()
+    return guardian_status(after) != "none"
 
 
 # --- rule 2: Roman nomina ----------------------------------------------------
