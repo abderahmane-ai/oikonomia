@@ -37,6 +37,27 @@ data/processed/corpus.parquet   (+ ingest_failures.json)
 Every processed artifact carries the corpus git rev (as the stage's
 `inputs_key`) so any downstream number is traceable to an exact corpus state.
 
+## Data flow (Phase 9): corpus → database
+
+```
+data/processed/corpus.parquet   (text + HGV dates/places/genres + decoded numerals)
+        │
+        ├─ lexicon labeler ──────► db/facts.py ──► monetary.parquet ──► prices / taxes
+        │   (closed-class: currency, commodity, unit, tax — rules beat a model)
+        │
+        └─ NER model (ner_corpus.jsonl) ─► db/names.py + db/persons*.py ─► persons.parquet
+                │                              (open-class: people — the model wins)     │
+                └─ RE model (re_corpus.jsonl) ─► db/principals.py ─► principals.parquet ──┤
+                                                                                          ▼
+                                                          db/export.py ─► export/{documents,
+                                                            persons_distinct}.parquet + manifest.json
+```
+
+The `db/` layer **normalizes and assembles; it does not re-extract** dates, places
+or numerals — those are already columns on `corpus.parquet`. Every row keeps
+`(document, char span)` provenance into `edited_text`. Schema, join model and query
+cookbook: [`docs/database.md`](database.md).
+
 ## The pipeline runner
 
 `pipeline/stage.py` defines a `Stage` protocol and `run_stage`. A stage declares

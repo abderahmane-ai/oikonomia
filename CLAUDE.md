@@ -160,7 +160,15 @@ modal secret create huggingface HF_TOKEN=hf_xxx                # once
 .venv/bin/oik db women --source gold          # OLD rule-based principals (superseded by `oik db principals`)
 ```
 
-Database schema + data dictionary: [`docs/database.md`](docs/database.md).
+**Querying the DB (DuckDB — not a project dep; `pip install duckdb`):**
+
+```bash
+duckdb -init docs/db.sql        # one view per table; run from the repo root
+```
+
+Schema, join model, controlled vocabularies, verified query cookbook and the
+pitfalls (never sum `value_base` across `system`; `tm_id` is not unique; mentions ≠
+people): [`docs/database.md`](docs/database.md). View bootstrap: [`docs/db.sql`](docs/db.sql).
 
 Explicit cache-clear (if `make clean` is unavailable). **Never use `find -delete`
 here** — it implies `-depth`, which disables `-prune` and walks into `.venv`:
@@ -580,8 +588,20 @@ audits say it is not.
   model — the shippable NER model is produced by **`launch`**
   (`train(save_final=True)` → `models/release/final`, all gold), then **`push_to_hub`**.
 
+**DB DOCUMENTATION COMPLETE (2026-07-24).** [`docs/database.md`](docs/database.md)
+is now the full reference: per-table column dictionaries with measured types +
+null-coverage, the join map, controlled vocabularies (currency/commodity/unit/tax
+ids, `gender_basis`, `roles`, `deal_type`), a **verified** DuckDB query cookbook
+(every output pasted from a real run), and 8 pitfalls. [`docs/db.sql`](docs/db.sql)
+bootstraps one view per table. README + `docs/architecture.md` updated (Phase 9
+shipped → Phase 10 active; corpus→DB data flow). Cleanup: removed the empty
+`scratch/`, `.claude/`, `tests/fixtures/translations/`; `make lint` now covers
+`modal_app` like the documented gate. `db/parties.parquet` + `oik db women` are
+documented as **legacy** (superseded by `oik db principals`) — kept because the
+phase-9 write-up quotes the rule-based lower bound.
+
 **Quality gate at last save:** ruff (src tests modal_app) · mypy (88 files) ·
-619 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
+620 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
 provenance-validated 0/1.37M mismatch. Women pipeline gold-validated (gender rules
 100% deterministic, autonomy trend robust). Step 8: corpus RE 61,249 docs /
 16,315 PARTY_OF; principals finding deal-type ordering stable at n≥40. DB packaged

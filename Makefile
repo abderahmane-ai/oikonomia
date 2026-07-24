@@ -9,7 +9,7 @@ install:  ## Create venv and install the package with dev tools
 	uv pip install -e ".[dev]"
 
 lint:  ## Ruff lint
-	$(RUFF) check src tests
+	$(RUFF) check src tests modal_app
 
 type:  ## Strict type check
 	$(PY) -m mypy src
