@@ -748,6 +748,7 @@ def infer_corpus(
     limit: int = 0,
     log_every: int = 2000,
     constrain_decode: bool = True,
+    max_entities: int = 2000,
     payment_lex: dict[str, list[str]] | None = None,
 ) -> dict[str, object]:
     """Run the saved RE model over every document's NER-predicted entities.
@@ -835,14 +836,14 @@ def infer_corpus(
             if limit and len(docs) >= limit:
                 break
     print(f"[re-infer] {len(docs)} docs, {len(ents_by_stem)} with NER entities "
-          f"seq_len={seq_len} stride={stride} batch={batch}", flush=True)
+          f"seq_len={seq_len} stride={stride} batch={batch} max_entities={max_entities}", flush=True)
 
     out_dir = Path(RE_CORPUS_OUT).parent
     out_dir.mkdir(parents=True, exist_ok=True)
 
     pending: dict[int, dict[str, object]] = {}
     buf: list[tuple[int, list[int], list]] = []
-    n_done = n_rel = n_party = n_windows = n_long = 0
+    n_done = n_rel = n_party = n_windows = n_long = n_skipped_dense = 0
 
     with Path(RE_CORPUS_OUT).open("w", encoding="utf-8") as out_fh:
 
@@ -904,7 +905,15 @@ def infer_corpus(
             ents = ents_by_stem.get(stem, [])
             ent_tuples = [(int(e["start"]), int(e["end"]), str(e["label"])) for e in ents]
             pending[di] = {"stem": stem, "tm_id": tm_id, "entities": ents, "scored": [], "remaining": 0}
-            if len(ent_tuples) < 2:
+            # Skip candidate generation on the giant tabular registers: their cost
+            # is quadratic in per-window entity density (a 37k-entity poll-tax roll
+            # is millions of pairs) yet they carry no party-to-a-deal structure —
+            # they are lists, not contracts. Their people are already gendered by
+            # the NER step (persons.parquet); RE only decides who is a principal,
+            # and a register has none. Emitted with no relations, so the record set
+            # stays complete and every skip is auditable via `skipped_dense`.
+            if len(ent_tuples) < 2 or len(ent_tuples) > max_entities:
+                n_skipped_dense += 1 if len(ent_tuples) > max_entities else 0
                 finalize(di)
                 continue
             folded = fold(text)
@@ -940,6 +949,8 @@ def infer_corpus(
         "party_of": n_party,
         "windows": n_windows,
         "long_docs_windowed": n_long,
+        "skipped_dense": n_skipped_dense,
+        "max_entities": max_entities,
         "output": RE_CORPUS_OUT,
         "seq_len": seq_len,
         "stride": stride,
@@ -956,6 +967,7 @@ def infer(
     batch: int = 32,
     limit: int = 0,
     constrain_decode: bool = True,
+    max_entities: int = 2000,
 ) -> None:
     """Trigger corpus-scale RE on the A10; results land at ``/predictions/re_corpus.jsonl``.
 
@@ -966,7 +978,9 @@ def infer(
         modal volume get oikonomia-ner /predictions/re_corpus.jsonl data/processed/re/
 
     and assemble the finding with ``oik db principals``. ``limit`` caps docs for a
-    smoke test.
+    smoke test; ``max_entities`` skips RE on documents denser than the cap (the
+    giant tabular registers — 35 docs at 2000 — which cost the vast majority of the
+    O(n²) candidate work but carry no party structure).
     """
     from oikonomia.relations.features import load_payment_lexicon
 
@@ -974,7 +988,7 @@ def infer(
     print(json.dumps(
         infer_corpus.remote(
             seq_len=seq_len, stride=stride, batch=batch, limit=limit,
-            constrain_decode=constrain_decode, payment_lex=payment_lex,
+            constrain_decode=constrain_decode, max_entities=max_entities, payment_lex=payment_lex,
         ),
         indent=2, ensure_ascii=False,
     ))
