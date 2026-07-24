@@ -141,12 +141,16 @@ uv run oik silver label                       # emit silver over train (~5 min);
 
 # --- Model release (Phase 11) — deliverable #1; OWNER-RUN (needs HF write token) ---
 # Two models: OIKONOMIA-Grammateus (entities) + OIKONOMIA-Homologia (relations).
-modal secret create huggingface HF_TOKEN=hf_xxx                # once, covers both
-.venv/bin/modal run --detach modal_app/ner.py::launch          # all-gold train + save → models/release/final
-.venv/bin/modal run modal_app/ner.py::push_to_hub              # → oikonomia/grammateus-grc (private)
-.venv/bin/modal run modal_app/relations.py::push_to_hub        # → oikonomia/homologia-grc (private; weights already saved)
-# Pull the models down (dest dir MUST exist first, else volume get writes one opaque file):
-mkdir -p artifacts/models/g && .venv/bin/modal volume get oikonomia-ner models/b1/final artifacts/models/g
+# MODAL TRAINS; THE LAPTOP PUBLISHES. Uploading local files through a container
+# buys nothing and sends your token somewhere it needn't go.
+.venv/bin/modal run --detach modal_app/ner.py::launch          # GPU: all-gold train → models/release/final
+# Pull weights down — the DEST DIR MUST EXIST, else volume get writes one opaque file:
+mkdir -p artifacts/models/grammateus && .venv/bin/modal volume get \
+  oikonomia-ner models/release/final artifacts/models/grammateus
+hf auth login                                                  # once (or export HF_TOKEN)
+.venv/bin/oik release check grammateus                         # pre-flight: licence + files, no upload
+.venv/bin/oik release push grammateus                          # → oikonomia/grammateus-grc (private)
+.venv/bin/oik release push homologia                           # → oikonomia/homologia-grc (private)
 
 # --- Relations (Phase 8) — FROZEN; GPU runs owner-triggered, not the default path ---
 .venv/bin/oik relation prepare                # freeze relation_labels.json; recall guard MUST be 0 uncovered
@@ -391,11 +395,14 @@ volume to `artifacts/models/{grammateus,homologia}/` (gitignored) and **verified
 load and run locally** (Grammateus tags a test phrase correctly; Homologia's
 state_dict loads `strict=True` against a rebuilt head). Cards:
 `resources/release/{GRAMMATEUS,HOMOLOGIA}_CARD.md`, guarded by
-`tests/test_release_cards.py`. Push paths behind the licence firewall exist for
-**both** (`ner.py::push_to_hub`, `relations.py::push_to_hub`, default repo ids,
-start private). **Remaining is owner-run only:** `modal secret create huggingface`,
-Grammateus's all-gold `ner.py::launch`, then the two pushes. Homologia's shippable
-weights already exist (`models/relation/final`). Detail:
+`tests/test_release_cards.py`. **Publishing is a LAPTOP step, not a Modal one**
+(`oik release check|push`, `src/oikonomia/{models/release.py,cli/release_cmd.py}`):
+licence firewall + completeness gate, `--dry-run`, private by default, token read
+from `hf auth login`/`HF_TOKEN` and **never** from argv. The old Modal
+`push_to_hub` functions were deleted — Modal now does only the GPU train.
+**Remaining is owner-run only:** Grammateus's all-gold `ner.py::launch`, pull it
+down, `hf auth login`, then `oik release push` twice. Homologia's shippable weights
+already exist (`models/relation/final`) and its local copy is verified. Detail:
 [`docs/phases/phase_11_release.md`](docs/phases/phase_11_release.md).
 
 **THE PIVOT — read before doing anything.** The deliverable is a **queryable,
@@ -618,8 +625,8 @@ DELETED** (`db/parties.py`, `oik db women`, `tests/test_db_parties.py`,
 `db/parties.parquet`) — step 8's `oik db principals` covers it with the trained RE
 model; the gold-validation numbers it produced live on in the phase-9 doc.
 
-**Quality gate at last save:** ruff (src tests modal_app) · mypy (87 files) ·
-620 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
+**Quality gate at last save:** ruff (src tests modal_app) · mypy (89 files) ·
+632 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
 provenance-validated 0/1.37M mismatch. Women pipeline gold-validated (gender rules
 100% deterministic, autonomy trend robust). Step 8: corpus RE 61,249 docs /
 16,315 PARTY_OF; principals finding deal-type ordering stable at n≥40. DB packaged

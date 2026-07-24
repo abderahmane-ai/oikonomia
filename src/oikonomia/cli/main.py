@@ -13,6 +13,7 @@ from oikonomia.cli.ingest_cmd import ingest_app
 from oikonomia.cli.lexicon_cmd import lexicon_app
 from oikonomia.cli.ner_cmd import ner_app
 from oikonomia.cli.relation_cmd import relation_app
+from oikonomia.cli.release_cmd import release_app
 from oikonomia.cli.silver_cmd import silver_app
 from oikonomia.cli.splits_cmd import splits_app
 
@@ -30,6 +31,7 @@ app.add_typer(silver_app, name="silver")
 app.add_typer(ner_app, name="ner")
 app.add_typer(relation_app, name="relation")
 app.add_typer(db_app, name="db")
+app.add_typer(release_app, name="release")
 
 
 @app.command("version")

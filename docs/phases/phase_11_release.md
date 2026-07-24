@@ -68,6 +68,33 @@ number (PARTY_OF 0.623), and payment *direction* is documented as weak
 (PAID_BY 0.145) with the reason (87 gold direction edges, every model-side remedy
 measured neutral).
 
+### Where the push runs — a correction (2026-07-24)
+
+The first wiring ran the Hub push *inside* a Modal function, following the pattern
+already in `ner.py`. That pattern was right when the weights existed only on the
+volume: uploading from a container avoided a 500 MB down-then-up round trip, and
+the HF token lived as a Modal secret.
+
+It stopped being right the moment both models were pulled to local disk. Pushing
+local files through a container means shipping an auth token to a remote machine to
+upload files that are already here. **So the Modal `push_to_hub` functions were
+deleted and publishing moved to the laptop:**
+
+- `src/oikonomia/models/release.py` — what a release *is* (`ReleaseSpec`: weights
+  dir, card, repo id, required files) and `check_ready`, the pre-flight. It runs the
+  **licence firewall first**, then refuses on a missing card or an incomplete
+  checkpoint. A half-uploaded Hub repo — weights without a config, or the reverse —
+  looks published and loads for nobody; that is the failure this prevents.
+- `src/oikonomia/cli/release_cmd.py` — `oik release check|push`, with `--dry-run`,
+  private by default, `--public` only when meant.
+- **The token is never a CLI argument.** `huggingface_hub` reads it from the stored
+  login (`hf auth login`) or `HF_TOKEN`; argv lands in shell history and is visible
+  to every process on the box.
+- Tests: `tests/test_models_release.py` (7) + `tests/test_release_cards.py` (8).
+
+Modal keeps exactly the job it is good at: the **GPU train** (`ner.py::launch`,
+`relations.py::launch`).
+
 ### The owner run-sequence (needs an HF write token — Claude cannot authenticate)
 
 An HF **organization** is created from an existing account (huggingface.co → New
@@ -75,28 +102,28 @@ Organization) — it is not a second login, and a personal write token covers or
 repos you administer.
 
 ```bash
-# 0. Give Modal your HF write token, once (covers both pushes):
-modal secret create huggingface HF_TOKEN=hf_xxx
+# --- Grammateus (entities): still needs its all-gold train on the GPU ---
+.venv/bin/modal run --detach modal_app/ner.py::launch          # → models/release/final
+mkdir -p artifacts/models/grammateus && .venv/bin/modal volume get \
+  oikonomia-ner models/release/final artifacts/models/grammateus
 
-# --- Grammateus (entities) ---
-.venv/bin/modal run --detach modal_app/ner.py::launch          # all-gold train → models/release/final
-.venv/bin/modal run modal_app/ner.py::push_to_hub              # → oikonomia/grammateus-grc (PRIVATE)
-
-# --- Homologia (relations) --- (already trained + saved: models/relation/final)
-.venv/bin/modal run modal_app/relations.py::push_to_hub        # → oikonomia/homologia-grc (PRIVATE)
+# --- publish both from the laptop ---
+hf auth login                                                  # once (or export HF_TOKEN)
+.venv/bin/oik release check grammateus                         # pre-flight, uploads nothing
+.venv/bin/oik release push  grammateus                         # → oikonomia/grammateus-grc (private)
+.venv/bin/oik release push  homologia                          # → oikonomia/homologia-grc (private)
 ```
 
-Both pushes default to the repo ids above (`--repo-id` overrides) and **start
-private** — review on HF, then flip to public. Each refuses to run if the licence
-firewall does not pass. Note the asymmetry: Homologia's shippable weights **already
-exist** on the volume (saved by `relations.py::launch` during step 7 of the women
-work), while Grammateus still needs its all-gold `launch` run — `models/b1/final`
-is the Phase-7 checkpoint used for corpus inference, not the release train.
+Both start **private** — review on HF, then flip to public. Note the asymmetry:
+Homologia's shippable weights already exist (saved by `relations.py::launch` during
+step 7 of the women work) and its local copy is verified, so it can go out today.
+Grammateus's local copy is `models/b1/final`, the Phase-7 checkpoint used for corpus
+inference — publishable, but the intended release model is the all-gold `launch`
+above.
 
-If you publish under a personal account instead of an org, pass
-`--repo-id <username>/grammateus-grc` and update the two cross-links + the usage
-snippet in the cards (`tests/test_release_cards.py` guards against placeholders
-being left behind).
+To publish under a personal account instead of an org, pass
+`--repo-id <username>/grammateus-grc` and update the two cross-links in the cards
+(`tests/test_release_cards.py` guards against placeholders being left behind).
 
 ### Remaining / next
 

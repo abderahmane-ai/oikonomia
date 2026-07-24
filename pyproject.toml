@@ -40,6 +40,8 @@ train = [
 ]
 # Local orchestration of Modal jobs.
 modal = ["modal>=1.0"]
+# Publishing the trained models to the Hugging Face Hub (`oik release push`).
+release = ["huggingface-hub>=0.24"]
 # Developer tooling.
 dev = [
     "ruff>=0.6",

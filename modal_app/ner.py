@@ -181,7 +181,7 @@ def train(
 
     With ``save_final=True`` a final model is trained on **all** gold (not a held-out
     fold), same recipe, and saved to ``{MODEL_ROOT}/{run_name}/final`` — the single
-    shippable checkpoint for the Hub release (see ``launch`` / ``push_to_hub``).
+    shippable checkpoint for the Hub release (see ``launch``, then ``oik release``).
     """
     import os
 
@@ -672,20 +672,22 @@ def infer(backbone: str = "b1", seq_len: int = 512, stride: int = 64, batch: int
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
 
-# --- Hub release (deliverable #1): owner-run, needs auth ----------------------
+# --- Hub release (deliverable #1): the GPU half ------------------------------
 #
-# Two owner-run steps produce the public model (Claude cannot authenticate or
-# publish). The eval numbers are the CV run's; `launch` trains the shipped weights
-# on all gold; `push_to_hub` uploads them behind the licence firewall.
+# Modal's job here is the train only. `launch` fits the shipped weights on all gold
+# (not a held-out fold) and saves them to the volume. Publishing is a laptop step:
+# the weights are on local disk after step 2, and an HF token has no business
+# travelling to a container to upload files that are already here.
 #
-#   1. .venv/bin/modal run --detach modal_app/ner.py::launch           # → models/release/final
-#   2. modal secret create huggingface HF_TOKEN=hf_xxx                 # once (a write token)
-#   3. .venv/bin/modal run modal_app/ner.py::push_to_hub --repo-id oikonomia/grammateus-grc
+#   1. .venv/bin/modal run --detach modal_app/ner.py::launch      # → models/release/final
+#   2. mkdir -p artifacts/models/grammateus && .venv/bin/modal volume get \
+#        oikonomia-ner models/release/final artifacts/models/grammateus
+#   3. .venv/bin/oik release push grammateus                      # → the Hub (see cli/release_cmd.py)
 #
 RELEASE_RUN = "release"
 RELEASE_CKPT = f"{MODEL_ROOT}/{RELEASE_RUN}/final"
-# The model's verified lineage — checked by the firewall before any upload.
-RELEASE_LINEAGE = ["bowphs/GreBerta", "DDbDP", "oikonomia-gold"]
+# The licence firewall lives with the publishing step (`oikonomia.models.release`),
+# not here — this file only trains.
 
 
 @app.local_entrypoint()
@@ -696,47 +698,3 @@ def launch(backbone: str = "b1") -> None:
         run_name=RELEASE_RUN, backbone=BACKBONES[backbone], loss="ce", save_final=True
     )
     print(json.dumps(result, indent=2, ensure_ascii=False))
-
-
-@app.function(volumes={VOL_ROOT: ner_volume}, secrets=[modal.Secret.from_name("huggingface")], timeout=1800)
-def push_to_hub_remote(repo_id: str, checkpoint: str, model_card: str, labels_json: str, private: bool) -> str:
-    """Upload a saved checkpoint to the Hub — gated by the licence firewall."""
-    import os
-
-    from huggingface_hub import HfApi
-
-    from oikonomia.models.licensing import assert_releasable
-
-    assert_releasable(RELEASE_LINEAGE)  # refuses NonCommercial / unverified lineage
-
-    ckpt = Path(checkpoint)
-    if not (ckpt / "config.json").exists():
-        raise SystemExit(f"no saved model at {checkpoint} — run `launch` first.")
-    (ckpt / "README.md").write_text(model_card, encoding="utf-8")
-    (ckpt / "labels.json").write_text(labels_json, encoding="utf-8")
-
-    token = os.environ["HF_TOKEN"]
-    api = HfApi(token=token)
-    api.create_repo(repo_id=repo_id, repo_type="model", private=private, exist_ok=True)
-    api.upload_folder(repo_id=repo_id, folder_path=str(ckpt), repo_type="model")
-    url = f"https://huggingface.co/{repo_id}"
-    print(f"[{APP_NAME}] pushed {checkpoint} → {url} (private={private})", flush=True)
-    return url
-
-
-@app.local_entrypoint()
-def push_to_hub(repo_id: str = "oikonomia/grammateus-grc", checkpoint: str = RELEASE_CKPT, private: bool = True) -> None:
-    """Publish OIKONOMIA-Grammateus (the entity model) to the Hub (starts PRIVATE — flip to public on HF).
-
-    Requires a Modal secret ``huggingface`` carrying an HF **write** token, and a
-    checkpoint produced by ``launch``. Attaches the model card + labels; the licence
-    firewall runs before any bytes leave.
-    """
-    card = (REPO / "resources" / "release" / "GRAMMATEUS_CARD.md").read_text(encoding="utf-8")
-    labels_json = LOCAL["labels.json"].read_text(encoding="utf-8")
-    url = push_to_hub_remote.remote(
-        repo_id=repo_id, checkpoint=checkpoint, model_card=card, labels_json=labels_json, private=private
-    )
-    print(f"\n✅ pushed → {url}\n   (private — make it public in the HF repo settings when ready)")
-
-

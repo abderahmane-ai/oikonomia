@@ -1007,62 +1007,6 @@ def eval_e2e(constrain_decode: bool = True) -> None:
     ))
 
 
-# --- Hub release (deliverable #1) -------------------------------------------
-#
-# The RE model ships as **OIKONOMIA-Homologia**. It is NOT a standard HF model —
-# a custom span-pair head over the encoder — so the upload carries the torch
-# state_dict, the rebuild config, the relation schema and the model card, and the
-# card documents the non-`from_pretrained` load path. Owner-run (needs a write
-# token); Claude cannot authenticate or publish.
-#
-#   1. .venv/bin/modal run --detach modal_app/relations.py::launch    # → models/relation/final
-#   2. modal secret create huggingface HF_TOKEN=hf_xxx                # once (a write token)
-#   3. .venv/bin/modal run modal_app/relations.py::push_to_hub --repo-id oikonomia/homologia-grc
-#
-# The verified lineage the firewall checks before any byte leaves.
-RELEASE_LINEAGE = ["bowphs/GreBerta", "DDbDP", "oikonomia-gold"]
-
-
-@app.function(volumes={VOL_ROOT: ner_volume}, secrets=[modal.Secret.from_name("huggingface")], timeout=1800)
-def push_to_hub_remote(repo_id: str, model_card: str, private: bool) -> str:
-    """Upload the saved relation model to the Hub — gated by the licence firewall."""
-    import os
-
-    from huggingface_hub import HfApi
-
-    from oikonomia.models.licensing import assert_releasable
-
-    assert_releasable(RELEASE_LINEAGE)  # refuses NonCommercial / unverified lineage
-
-    ner_volume.reload()
-    ckpt = Path(RELATION_MODEL_DIR)
-    for required in ("config.json", "relation_head.pt"):
-        if not (ckpt / required).is_file():
-            raise SystemExit(f"no saved RE model at {RELATION_MODEL_DIR} ({required} missing) — run `launch` first.")
-    (ckpt / "README.md").write_text(model_card, encoding="utf-8")
-
-    token = os.environ["HF_TOKEN"]
-    api = HfApi(token=token)
-    api.create_repo(repo_id=repo_id, repo_type="model", private=private, exist_ok=True)
-    api.upload_folder(repo_id=repo_id, folder_path=str(ckpt), repo_type="model")
-    url = f"https://huggingface.co/{repo_id}"
-    print(f"[{APP_NAME}] pushed {RELATION_MODEL_DIR} → {url} (private={private})", flush=True)
-    return url
-
-
-@app.local_entrypoint()
-def push_to_hub(repo_id: str = "oikonomia/homologia-grc", private: bool = True) -> None:
-    """Publish OIKONOMIA-Homologia (the relation model) to the Hub.
-
-    Starts PRIVATE — flip it public in the HF repo settings when you are ready.
-    Requires a Modal secret ``huggingface`` with an HF **write** token and a
-    checkpoint produced by ``launch``. The licence firewall runs first.
-    """
-    card = (REPO / "resources" / "release" / "HOMOLOGIA_CARD.md").read_text(encoding="utf-8")
-    url = push_to_hub_remote.remote(repo_id=repo_id, model_card=card, private=private)
-    print(f"\n✅ pushed → {url}\n   (private — make it public in the HF repo settings when ready)")
-
-
 @app.local_entrypoint()
 def launch(backbone: str = "b1", loss: str = "ce") -> None:
     """Train the single shippable RE model on all gold and save it to the volume.
