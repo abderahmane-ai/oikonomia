@@ -171,8 +171,8 @@ from the shipped tables, with its mechanism, its control, and its limits, in
 |---|---|---|
 | **F1** | Currency flips **silver → gold across the 4c–5c AD** (gold share 0.000 → 0.155 → 0.931) | 195,906 money facts; recovers the *solidus* transition unsupervised |
 | **F2** | Named taxes **periodize themselves** — *laographia* Roman-only, *phylakitikon* Ptolemaic, *demosia* Byzantine | 6,441 tax facts, 18 taxes |
-| **F3** | Women's **χωρὶς-κυρίου (unguardianed) share rises 0% (≤1c AD) → 39% (3c) → 80% (4c)** | 1.37M model entities; gold-validated, conservative |
-| **F4** | Women are **18.0% of principals** — but **sale 30% / loan 28% vs receipt 10% / delivery 5%** | 21,895 principals via both models end to end |
+| **F3** | Women's **χωρὶς-κυρίου (unguardianed) share: zero (≤1c AD, n=646) → ~39% (3c) → a majority (4c+)** | 1.37M model entities; gold-validated, conservative |
+| **F4** | Women are **18.0% of principals** (13.0% on symmetric rules only) — but **sale 30% / loan 28% vs receipt 10% / delivery 5%** | 21,895 principals; gradient holds either way (ρ 0.856) |
 | **F5** | Wheat ≈ **13.3 dr/artaba in the 2c AD** (IQR 6–27.5) — thin, and flagged as such | 98 clean price observations |
 
 ## Data, models & licensing

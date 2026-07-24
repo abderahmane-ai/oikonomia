@@ -29,14 +29,14 @@ Two domain-adapted transformer models built on a papyri-adapted [`bowphs/GreBert
 
 - **OIKONOMIA-Homologia (Relation Extraction):**  
   * *Meaning:* ***Ὁμολογία*** (*Homologia*) — Ancient Greek for "The Agreement / Contract".
-  * *Task:* Span-pair relation classifier scoring entity pairs across 9 economic & kinship relation types (`PARTY_OF`, `HAS_UNIT`, `HAS_CURRENCY`, `CHILD_OF`, `PAID_BY`, `PAID_TO`, etc.).
-  * *Performance:* **Micro F1: 0.721 / Precision: 0.762** (`HAS_UNIT` 0.916, `PARTY_OF` 0.705).
+  * *Task:* Span-pair relation classifier scoring entity pairs across **11** economic relation types (`PARTY_OF`, `HAS_UNIT`, `HAS_CURRENCY`, `HAS_QUANTITY`, `HAS_PRICE`, `PAID_BY`, `PAID_TO`, `CHARGED_UNDER`, `DATED_TO`, `HAS_AGE`, `HAS_OCCUPATION`) plus `NO_RELATION`.
+  * *Performance:* **Micro F1: 0.713 / Precision: 0.757** on oracle entities (5-fold CV), `PARTY_OF` 0.705. **End-to-end on predicted entities — the number to quote — `PARTY_OF` 0.623, overall 0.609.**
   * *Hugging Face Hub:* [`ainouche-abderahmane/homologia`](https://huggingface.co/ainouche-abderahmane/homologia)
 
 ---
 
 ### 2. 🗂️ **Deliverable #2: Derived Database (`oikonomia.db`)**
-A structured, hyper-compressed 8-table Parquet database (**12.3 MB total**) queryable via DuckDB or Pandas:
+A structured 8-table Parquet database (**~14 MB total**) queryable via DuckDB or Pandas:
 
 | Table | File Path | Rows | Grain (One row =) | Join Key |
 |---|---|---:|---|---|
@@ -45,7 +45,7 @@ A structured, hyper-compressed 8-table Parquet database (**12.3 MB total**) quer
 | `taxes` | `taxes.parquet` | **592** | One clean tax payment installment | `tm_id` + char span |
 | `persons` | `persons.parquet` | **350,206** | One `PERSON` mention + gender | `stem` + char span |
 | `principals` | `principals.parquet` | **21,895** | One transaction principal + deal type | `stem` + char span |
-| `autonomy` | `autonomy.parquet` | **32** | One 800-year female guardianship bucket | `dimension` + `bucket` |
+| `autonomy` | `autonomy.parquet` | **32** | One century/region guardianship bucket (a derived summary, not a fact table) | `dimension` + `bucket` |
 | `documents` | `export/documents.parquet` | **61,249** | Master document metadata & text spine | `stem` / `tm_id` |
 | `persons_distinct` | `export/persons_distinct.parquet` | **17,362** | Deduplicated distinct person registry | `person_id` |
 
@@ -70,11 +70,11 @@ are *validation* findings (already-known history, recovered unsupervised); two a
 - Poll-tax payments: corpus-wide median **~4 dr** (an installment, not an annual assessment), p90 **16–39 dr**, which brackets the known annual rate.
 
 #### 👩 **F3: The female autonomy curve** *(novel, model-driven)*
-- Women's **χωρὶς-κυρίου (unguardianed) share by century: 0% (≤1st c. AD) → 1% (2nd) → 39% (3rd) → 80% (4th)** — the spread of the *ius liberorum* and the decline of *tutela mulierum*, unsupervised.
+- Women's **χωρὶς-κυρίου (unguardianed) share: zero before the 2nd c. AD (n=646, not one attestation) → ~39% in the 3rd (n=219) → a majority thereafter (n=35)** — the spread of the *ius liberorum* and the decline of *tutela mulierum*, unsupervised. Quote it in those tiers: the late-century *level* rests on small n, the *direction* does not.
 - Gold-validated: the gender rules are 100% deterministic (613/613 matched spans), and the over-count sits on the *with-guardian* side, so **the rise is conservative**. Denominators thin sharply after the 3rd century (n=35 in the 4th).
 
 #### 🤝 **F4: Women as principals, by deal type** *(novel, model-driven)*
-- **21,895 principals; women are 18.0% of mentions and 20.1% of distinct people.** The finding is the **gradient**, not the average: **sale 30.4% · loan 28.5% · contract 23.0%** versus **receipt 10.2% · delivery 5.1%** — property transactions versus fiscal paperwork.
+- **21,895 principals; women are 18.0% of mentions and 20.1% of distinct people** (**13.0%** if the female-only guardian rule is dropped — the conservative floor). The finding is the **gradient**, not the average: **sale 30.4% · loan 28.5% · contract 23.0%** versus **receipt 10.2% · delivery 5.1%** — property transactions versus fiscal paperwork. The gradient survives dropping that rule (Spearman ρ 0.856), and the 58% with no gender verdict are not damaged text (100% carry a parsed name).
 - End-to-end `PARTY_OF` F1 is 0.623, so the **ordering** is the result and the exact percentages are approximate; the ordering is stable for every bucket with n ≥ 40.
 
 #### 🌾 **F5: Commodity prices** *(real, but thin — the weakest)*

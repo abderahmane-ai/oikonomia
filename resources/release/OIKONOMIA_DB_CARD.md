@@ -151,7 +151,11 @@ print(df)
   and wrong. `principals` records *that* someone is a party to a deal, not which
   side of the payment they stand on.
 - **58% of principals have no attributable gender** and are excluded from the
-  gendered shares, never imputed.
+  gendered shares, never imputed. They are **not** damaged text — 100% carry a
+  parsed head name; exclusion reflects closed-vocabulary coverage of the gender
+  rules. One of those rules (the guardian formula) can only ever return *female*,
+  so women's share is **18.0% including it and 13.0% without it** — use 13.0% as
+  the conservative floor. The deal-type ordering is stable across both.
 - **Mentions are not people.** `persons` and `principals` count mentions;
   `persons_distinct` is the only head-count table.
 - **Survival bias is not correctable.** Everything here counts *surviving,

@@ -55,6 +55,25 @@ input whatsoever.
 
 Eleven centuries of near-zero gold, then a two-century flip, then saturation.
 
+**The pre-transition residue is gold *metal*, not gold *coin*.** The small non-zero
+readings before the 4th century (2c BC 0.006 = 38 facts, 1c BC 0.003, 1c AD 0.002)
+are worth naming, because they look like contamination and are not. Every one of
+those 38 is `chrysion` — χρυσίον, gold as a substance: bullion, dowry gold,
+jewellery — which is correctly typed as gold and is attested in every period.
+Coined gold is a different vocabulary: `nomisma` (the solidus) and `keration`.
+Splitting the two sharpens the finding rather than weakening it:
+
+| Century | gold (all) | gold **coin** only |
+|---|---|---|
+| 3c BC – 2c AD | 0.000–0.006 | **0.000** |
+| 3c AD | 0.001 | 0.001 |
+| **4c AD** | 0.155 | **0.127** |
+| **5c AD** | 0.931 | **0.917** |
+| 8c AD | 1.000 | **1.000** |
+
+Before the 4th century there are **22 coined-gold facts in 121,656**. The monetary
+transition is not a drift in how gold is mentioned; it is the arrival of a coin.
+
 **Mechanism.** Lexicon + rules over the whole corpus (`oik db build`), 195,906
 monetary facts across 12,592 distinct TM ids, **98.7% normalized to a canonical
 currency, 94.3% datable**. The `system` field comes from the currency id, the
@@ -121,18 +140,54 @@ Regional variation is real and large in the same direction the literature report
 because a tax payment is an amount attached to a named tax — there is no per-unit
 division to get wrong (contrast F5).
 
-**Limits.** Two entries in the 18-tax list (`drachma`, `year`, 24 facts combined)
-are lexicon contamination, not taxes — they are visible, small, and do not touch
-the six rows above. Counts track document survival, so compare *within* a tax
-across time, never *between* taxes.
+**The *merismos* row is a third periodization, not yet claimed as a finding.**
+348 dated facts, **305 of them in the 2nd century AD** — the Antonine-era
+apportionment of unpaid tax across a village's remaining taxpayers. It is in the
+table, it is correctly placed, and it is left as an observation rather than a
+finding because we have not checked it against the epigraphic literature the way
+F2's six rows were checked.
+
+**Limits — the full contamination audit.** The earlier draft of this document
+reported two bad entries; auditing all 18 ids found **eight**, so the honest figure
+is larger than first stated:
+
+| Contaminant | facts | what it actually is |
+|---|---|---|
+| `drachma` | 20 | currency unit |
+| `year` | 4 | date word |
+| `obol` | 3 | currency unit |
+| `hemiobelion` | 2 | currency unit |
+| `aroura`, `chalkous`, `time`, `chrysion` | 1 each | land measure, currency, "price", gold |
+
+**33 facts of 6,623 = 0.50%.** The failure mode is single and legible: a unit or
+measure token landing in the tax slot, never a real tax attributed to the wrong
+era. Every contaminant is ≤20 facts; the six rows that carry the periodization are
+all ≥252. Nothing in the table above moves if all eight are deleted.
+
+Counts track document survival, so compare *within* a tax across time, never
+*between* taxes.
 
 ---
 
 ## F3 — Women's autonomy: the χωρὶς-κυρίου curve (novel, model-driven)
 
 **Claim.** Among women who appear in transactions with a guardianship formula, the
-share acting **without** a guardian (χωρὶς κυρίου) rises from **0% before the 2nd
-century AD to 39% in the 3rd and 80% in the 4th.**
+share acting **without** a guardian (χωρὶς κυρίου) goes from **zero before the 2nd
+century AD, to about two-fifths in the 3rd, to a majority thereafter.**
+
+**State the claim at the resolution the sample supports.** The three tiers are not
+equally strong, and the headline should be the tier, not the decimal:
+
+| Tier | Period | n | Reading | Confidence |
+|---|---|---|---|---|
+| **Robust** | ≤ 1c AD | **646** | **0 autonomous — not one attestation** | The zero is the finding |
+| **Defensible** | 3c AD | **219** | **~39% autonomous** | Real point estimate |
+| **Directional** | 4c AD onward | **35** (13 in 6c) | **Majority autonomous** | Direction certain, level not |
+
+The 4th-century figure is 80%, and it should be quoted as "a majority" outside the
+table: 28 of 35. Five reclassifications move it to 66%. What is *not* fragile is
+the contrast with the 646 pre-2c attestations that contain **zero** autonomous
+women — that asymmetry does not depend on any single bucket.
 
 **The number** — `data/processed/db/autonomy.parquet`, by century:
 
@@ -171,10 +226,11 @@ gold. PERSON relaxed recall is 0.91. The guardian counting **over-counts on the
 pushes the autonomous share *down*. **The rise is conservative, not inflated.**
 
 **Limits.** Denominators shrink hard after the 3rd century (n=35 in the 4c, n=13 in
-the 6c) — the *direction* is solid and the *level* in late centuries is not. The
-regional cut is confounded by each nome's era composition and is not reported as a
-finding. Only women whose text carries an explicit formula are counted; silence is
-not evidence of autonomy.
+the 6c) — see the tier table: the *direction* is solid and the *level* in late
+centuries is not. The regional cut is confounded by each nome's era composition and
+is not reported as a finding. Only women whose text carries an explicit formula are
+counted; silence is not evidence of autonomy — the curve describes the population of
+women who transact *under a formula*, which is not the population of all women.
 
 ---
 
@@ -216,10 +272,8 @@ independently, so the relation model did not distort the gender/guardian layer.
 cross-document prosopography.
 
 Women's share by century (gender-attributable principals, n ≥ 100) is flat-to-
-declining — 1c AD 0.254, 2c 0.224, 3c 0.203, 4c 0.137, 6c 0.116 — which is *not*
-in tension with F3: F3 measures how women transact when they do, F4 measures how
-often they appear at all, and the late-period drop tracks a corpus that becomes
-dominated by fiscal and ecclesiastical paperwork.
+declining: 1c AD 0.254, 2c 0.224, 3c 0.203, 4c 0.137, 6c 0.116. See the callout at
+the end of this section — this does not contradict F3.
 
 **Mechanism.** Both models end to end.
 [Homologia](https://huggingface.co/ainouche-abderahmane/homologia) was run over the
@@ -229,12 +283,54 @@ and tagged by deal type. The honest accuracy figure for this chain is the
 **end-to-end PARTY_OF F1 of 0.623** on predicted entities (not the 0.705 oracle) —
 the entity cascade costs about 0.08.
 
-**Limits.** 0.623 is noisy, so treat the *ordering* of deal types as the result and
-the exact percentages as approximate; the ordering is stable for every bucket with
-n ≥ 40. 58% of principals are not gender-attributable and are excluded, not
-imputed. 35 dense registers were skipped by design (quadratic candidate cost, no
-party structure to find). Mentions are not people — the 18.0% and 20.1% figures
-answer different questions and both are reported for that reason.
+**What the 58% exclusion actually is — and why it does not break the gradient.**
+12,765 of 21,895 principals get no gender verdict. The natural worry is that these
+are damaged texts, which would make the surviving 42% a biased sample. They are
+not: **100% of the excluded have a parsed head name** and 45.3% carry a patronymic,
+with a median name length of 7 characters against 8 for the attributed. Exclusion
+is not driven by damage but by **closed-vocabulary coverage** — attribution fires
+on nomen (3,298), Egyptian `Τα-`/`Πα-` prefix (2,478), gazetteer (2,251), kinship
+(574), guardian formula (520). A well-preserved Greek name absent from all five
+channels simply gets no verdict.
+
+That matters because coverage, unlike damage, can be checked for the bias that
+would actually threaten the finding — a *differential* rate across deal types:
+
+| | attribution rate | women's share |
+|---|---|---|
+| sale | 0.461 | 0.304 |
+| receipt | 0.417 | 0.102 |
+| loan | 0.407 | 0.285 |
+| delivery | 0.343 | 0.051 |
+
+Sale and receipt sit at the two ends of the gradient with **near-identical
+attribution rates** (0.461 vs 0.417). The gradient is therefore not an artifact of
+who gets a verdict.
+
+**One channel is female-only, and it is worth five points.** The guardian rule
+(μετὰ/χωρὶς κυρίου ⇒ female) can never return "male", so it inflates women's share
+relative to the four symmetric channels. Dropping it entirely:
+
+- women's share **18.0% → 13.0%**;
+- the gradient **survives**: Spearman ρ = **0.856** between the two orderings, and
+  the sale+loan versus receipt+delivery ratio moves only from **3.8× to 3.1×**.
+
+So **13.0% is the conservative, symmetric-rules-only floor** and 18.0% is the
+figure including the female-only evidence. Both are reported; the gradient is what
+is stable across them.
+
+**Other limits.** 0.623 is noisy, so treat the *ordering* of deal types as the
+result and the exact percentages as approximate; the ordering is stable for every
+bucket with n ≥ 40. 35 dense registers were skipped by design (quadratic candidate
+cost, no party structure to find). Mentions are not people — the 18.0% and 20.1%
+figures answer different questions and both are reported for that reason.
+
+> **F3 and F4 do not contradict each other.** F4's women's share *declines* across
+> the centuries (1c AD 25.4% → 6c AD 11.6%) while F3's autonomy share *rises*.
+> These measure different things: **F3 is how women transact when they do; F4 is
+> how often they appear at all.** Fewer women appear in the late corpus because it
+> is increasingly fiscal and ecclesiastical paperwork — and the ones who do appear
+> are far more likely to be acting without a guardian.
 
 ---
 
@@ -339,6 +435,16 @@ Column dictionaries, join model, controlled vocabularies and the eight pitfalls:
 5. **No entity resolution across documents yet.** The same Aurelia in three
    receipts is three rows. The 64.8% patronymic coverage in F4 is the hook for
    fixing this, and it is the single highest-value next step.
+6. **Genre bias — who gets *named* is a scribal convention, not an economic fact.**
+   The corpus is dominated by the documentary-administrative register: contracts
+   (7,783 principals) and receipts (5,270) against 680 private letters. What counts
+   as "being a principal" is therefore filtered through what each document type
+   records. A tax receipt names the registered taxpayer; a private letter names
+   whoever the writer chose to mention. So F4's gradient should be read as
+   *women's share of the parties documents of that type name* — which is the
+   honest object — and not as women's share of economic activity. This is also why
+   the gradient (a within-corpus contrast between genres) is more defensible than
+   any absolute participation rate.
 
 ---
 

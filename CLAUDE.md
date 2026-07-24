@@ -212,19 +212,32 @@ strength, are written up with mechanism + control + limits each:**
 
 - **F1 monetization** (validation, strongest) — gold share of dated money facts:
   eleven centuries at ~0.00, then **4c AD 0.155 → 5c AD 0.931 → 8c 1.000**.
-  Recovers the *solidus* transition unsupervised. n = 195,906 facts.
-- **F2 fiscal-regime map** (validation) — 6,441 tax facts / 18 named taxes
+  Recovers the *solidus* transition unsupervised. n = 195,906 facts. **The
+  pre-4c residue is `chrysion` (gold as metal), not coin**: restricted to coined
+  gold (`nomisma`/`keration`) it is **22 facts in 121,656** and every pre-4c
+  century reads 0.000.
+- **F2 fiscal-regime map** (validation) — 6,441 dated tax facts / 18 named taxes
   periodize themselves: *laographia* **560/569 in 1c–3c AD, zero after, zero in
   3c/2c BC**; *prosdiagraphomena* 99.9% Roman; *phylakitikon* 73% in 3c BC;
   *demosia* 1,596/1,674 in 6c–8c AD. Poll-tax median ~4 dr (installment), p90
-  16–39 dr (= the known annual rate).
+  16–39 dr (= the known annual rate). **Contamination audited across all 18 ids:
+  8 bad ids / 33 facts = 0.50%**, all unit-or-measure tokens in the tax slot, each
+  ≤20 facts vs ≥252 for the six periodizing rows.
 - **F3 autonomy** (novel, models) — women's **χωρὶς-κυρίου share 0% (≤1c AD) → 1%
   (2c) → 39% (3c) → 80% (4c)**. Gold-validated; the over-count is on the μετὰ side,
-  so **the rise is conservative**. Denominators thin after the 3c (n=35 in 4c).
+  so **the rise is conservative**. **Quote it in tiers, not decimals:** ≤1c AD
+  n=646 with **zero** autonomous (robust) · 3c n=219 ~39% (defensible) · 4c+ n=35
+  "a majority" (directional — 5 reclassifications move 80%→66%).
 - **F4 principals** (novel, models) — **21,895 principals, women 18.0% of mentions
   / 20.1% of distinct people**; the finding is the **deal-type gradient**: sale
   0.304 · loan 0.285 · contract 0.230 vs receipt 0.102 · delivery 0.051. Ordering
-  is the result (e2e PARTY_OF 0.623), stable for every bucket n ≥ 40.
+  is the result (e2e PARTY_OF 0.623), stable for every bucket n ≥ 40. **Two
+  robustness facts (audited 2026-07-24):** the 58% with no gender verdict are
+  **not fragmentary** (100% have a parsed head name) — exclusion is
+  closed-vocabulary coverage, and sale/receipt sit at opposite ends of the gradient
+  with near-identical attribution rates (0.461/0.417). The guardian channel is
+  female-only and worth 5 pts: dropping it gives **13.0% (the conservative floor)**
+  and the gradient holds (**Spearman ρ 0.856**, top:bottom 3.8×→3.1×).
 - **F5 prices** (weakest, flagged as such) — 98 clean obs; only **2c AD wheat
   13.33 dr/artaba [IQR 6–27.5], n=37** is defensible. Per-unit over-division and
   wine unit errors are documented in the open, not suppressed.
