@@ -880,15 +880,21 @@ def infer_corpus(
                     attn[r, : len(seq)] = 1
                 hb, clsb = model.encode(input_ids.to(device), attn.to(device))
                 for r, (di, _ids, cands) in enumerate(chunk):
-                    logits = model.score_pairs(hb[r], clsb[r], cands)
-                    for k, c in enumerate(cands):
-                        masked = logits[k].masked_fill(~mask_for(c.hlab, c.tlab), float("-inf"))
-                        prob = torch.softmax(masked, dim=-1)
-                        lid = int(prob.argmax().item())
-                        if lid != no_rel_id:
-                            pending[di]["scored"].append(  # type: ignore[attr-defined]
-                                (c.h, c.t, rel_labels[lid], float(prob[lid].item()))
-                            )
+                    if cands:
+                        # Score + decode the WHOLE window at once: mask, softmax and
+                        # argmax over [P, R], then a single host sync — not a
+                        # per-candidate `.item()` (the corpus-scale bottleneck).
+                        logits = model.score_pairs(hb[r], clsb[r], cands)  # [P, R]
+                        mask_mat = torch.stack([mask_for(c.hlab, c.tlab) for c in cands])
+                        prob = torch.softmax(logits.masked_fill(~mask_mat, float("-inf")), dim=-1)
+                        maxp, lids = prob.max(dim=-1)  # values == prob at argmax; indices == argmax
+                        lids_cpu = lids.tolist()
+                        maxp_cpu = maxp.tolist()
+                        scored = pending[di]["scored"]  # type: ignore[index]
+                        for k, c in enumerate(cands):
+                            lid = lids_cpu[k]
+                            if lid != no_rel_id:
+                                scored.append((c.h, c.t, rel_labels[lid], maxp_cpu[k]))  # type: ignore[attr-defined]
                     rec = pending[di]
                     rec["remaining"] = int(rec["remaining"]) - 1  # type: ignore[arg-type]
                     if rec["remaining"] == 0:
