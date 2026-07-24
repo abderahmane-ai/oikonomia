@@ -73,11 +73,6 @@ and generation timestamp.
 Row counts are from the current build; re-running at the same `corpus_rev`
 reproduces them exactly (every stage is deterministic).
 
-> **Legacy:** `db/parties.parquet` (178 rows, written by `oik db women --source gold`)
-> is the **superseded** rule-based principals table, kept only because the Phase-9
-> write-up quotes it as a lower bound. Use `principals` — it runs the trained
-> relation model over the whole corpus. `parties` is not part of the export.
-
 ---
 
 ## How the tables join

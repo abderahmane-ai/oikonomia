@@ -118,7 +118,7 @@ def assemble_principals(
     A person in several roles (a party who is also the payer) collapses to one
     row carrying every role. Only PERSON principals are emitted — a ``PARTY_OF``
     headed by an unnamed ``PERSON_ROLE`` ("the lessor") has no name to gender, so
-    it is skipped, exactly as in :mod:`oikonomia.db.parties`. Gender/guardian/
+    it is skipped. Gender/guardian/
     father come from ``gender_by_span`` (the person table), keyed by the PERSON's
     exact ``(start, end)`` span — the same NER span both tables share.
     """

@@ -1,9 +1,9 @@
 """Attribute gender + guardian status to every model-extracted PERSON span.
 
-The relation-free half of the women finding. Where :mod:`oikonomia.db.parties`
+The relation-free half of the women finding. Where :mod:`oikonomia.db.principals`
 needs ``PARTY_OF`` edges (a relation model) to find *principals*, this layer runs
-over the raw NER PERSON spans — so it works today, on the corpus-scale reading
-(``ner_corpus.jsonl``), with no relation model. For each PERSON span it:
+over the raw NER PERSON spans — so it needs only the corpus-scale entity reading
+(``ner_corpus.jsonl``), no relation model. For each PERSON span it:
 
 1. **splits** the blob (:mod:`oikonomia.db.names`) to isolate the person's own
    name from the patronymic — gender must read the head, not the father;

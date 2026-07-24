@@ -158,6 +158,16 @@ nothing there. The models earn their keep on:
 
 ### The women-as-principals finding — logic validated on gold (`oik db women`)
 
+> **This rule-based path was REMOVED from the codebase on 2026-07-24**, once step 8
+> superseded it end-to-end with the trained RE model (`oik db principals`). Deleted:
+> `src/oikonomia/db/parties.py`, the `oik db women` command, `tests/test_db_parties.py`
+> and the `db/parties.parquet` artifact. **The results below are the permanent
+> record** — they were the gold validation that licensed the Modal spend, and they
+> are not re-runnable at HEAD. Recover the code from git history if ever needed
+> (last present at commit `b28f6c8`). The gender/guardian logic it validated
+> (`db/persons.py`) is unchanged and still live; only the party-assembly wrapper
+> went away.
+
 The third finding, and the first whose *people* are open-class (a name gazetteer
 can't be at ceiling the way the price/tax closed classes are). Built the
 gender+party layer and **validated it on gold first** (the free, laptop path)
@@ -208,8 +218,9 @@ PARTY_OF 0.28→0.65). The delivered finding runs the **trained NER model over t
 corpus** (a Modal inference run) for the people, plus the deterministic legal
 formulae — μετὰ / χωρὶς κυρίου (guardian; only women carry one → near-certain
 gender), χρηματίζουσα, γράμματα μὴ εἰδυίης (literacy proxy) — as first-class
-features. The rule-labeler `--source corpus` path stays only as a noisy lower-bound
-sanity check; it is not the deliverable.
+features. The rule-labeler `--source corpus` path served only as a noisy lower-bound
+sanity check, never as the deliverable — which is why it was deleted once step 8
+landed the model-driven version.
 
 ### Women as principals ACROSS DEAL TYPES — DONE (step 8, 2026-07-24, RE-driven)
 

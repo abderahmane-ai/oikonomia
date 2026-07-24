@@ -157,7 +157,6 @@ modal secret create huggingface HF_TOKEN=hf_xxx                # once
 .venv/bin/oik db principals                   # women as principals by DEAL TYPE (reads re_corpus.jsonl + persons.parquet) → db/principals.parquet
 .venv/bin/oik db export                        # package the queryable DB: documents spine + distinct persons + manifest → db/export/
 .venv/bin/oik db validate-women               # validate the women pipeline (steps 3-5) vs the 115-doc gold
-.venv/bin/oik db women --source gold          # OLD rule-based principals (superseded by `oik db principals`)
 ```
 
 **Querying the DB (DuckDB — not a project dep; `pip install duckdb`):**
@@ -444,9 +443,10 @@ over-count is on the μετὰ side so the rise is **conservative**. Gender logi
 θυγάτηρ/υἱός, Egyptian `Τα-`f/`Πα-`m, gazetteer; guards for metronymic `μητρὸς X`,
 the `καὶ ὁ υἱὸς` handoff, masc-inflection veto) is unchanged and each attribution
 labels its `basis`. **A bootstrapped name gazetteer was built then REMOVED as slop
-(2026-07-24)** (synthetic shortcut, §2). The relation-based `oik db women`/`parties.py`
-path (needs PARTY_OF) is the **step-8** fuller finding, still to come; `--source
-corpus` there is a rule-labeler lower bound only.
+(2026-07-24)** (synthetic shortcut, §2). The old rule-based party path
+(`oik db women`/`db/parties.py`) was **deleted 2026-07-24** once step 8 superseded
+it with the trained RE model (`oik db principals`); its gold validation result is
+preserved in the phase-9 doc and is not re-runnable at HEAD.
 
 **Triage (what is shelved/frozen — do not reopen without a finding that demands it):**
 
@@ -550,9 +550,6 @@ audits say it is not.
   with provenance). Regen: `oik db prices`. Gitignored, re-derivable.
 - `data/processed/db/taxes.parquet` — **592 clean tax payments** (poll + land tax,
   with provenance). Regen: `oik db taxes`. Gitignored, re-derivable.
-- `data/processed/db/parties.parquet` — party (principal) table w/ gender+guardian
-  +role+span. Regen: `oik db women --source gold` (178 rows) or `--source corpus`
-  (noisy lower bound). Gitignored, re-derivable.
 - `data/processed/db/persons.parquet` — **350,206 rows**, gender+guardian for every
   model PERSON span (step 4): head/father split, gender_basis, guardian with/without
   /none, provenance. Regen: `oik db persons` (reads `ner_corpus.jsonl`). Gitignored.
@@ -596,12 +593,13 @@ ids, `gender_basis`, `roles`, `deal_type`), a **verified** DuckDB query cookbook
 bootstraps one view per table. README + `docs/architecture.md` updated (Phase 9
 shipped → Phase 10 active; corpus→DB data flow). Cleanup: removed the empty
 `scratch/`, `.claude/`, `tests/fixtures/translations/`; `make lint` now covers
-`modal_app` like the documented gate. `db/parties.parquet` + `oik db women` are
-documented as **legacy** (superseded by `oik db principals`) — kept because the
-phase-9 write-up quotes the rule-based lower bound.
+`modal_app` like the documented gate. **The superseded rule-based party path was
+DELETED** (`db/parties.py`, `oik db women`, `tests/test_db_parties.py`,
+`db/parties.parquet`) — step 8's `oik db principals` covers it with the trained RE
+model; the gold-validation numbers it produced live on in the phase-9 doc.
 
-**Quality gate at last save:** ruff (src tests modal_app) · mypy (88 files) ·
-620 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
+**Quality gate at last save:** ruff (src tests modal_app) · mypy (87 files) ·
+612 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
 provenance-validated 0/1.37M mismatch. Women pipeline gold-validated (gender rules
 100% deterministic, autonomy trend robust). Step 8: corpus RE 61,249 docs /
 16,315 PARTY_OF; principals finding deal-type ordering stable at n≥40. DB packaged
