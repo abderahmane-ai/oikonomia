@@ -211,16 +211,55 @@ gender), χρηματίζουσα, γράμματα μὴ εἰδυίης (liter
 features. The rule-labeler `--source corpus` path stays only as a noisy lower-bound
 sanity check; it is not the deliverable.
 
+### Women as principals ACROSS DEAL TYPES — DONE (step 8, 2026-07-24, RE-driven)
+
+The fuller women finding, on the **trained NER+RE pair** end-to-end. The saved RE
+model (`modal_app/relations.py::infer` → `infer_corpus` on the A10) was run over
+all 61,249 docs' NER-predicted entities → **228,945 relations, 16,315 PARTY_OF**
+(`predictions/re_corpus.jsonl`). `oik db principals` keeps the people the deal
+turns on (PARTY_OF / PAID_* heads) and joins each to the validated gender +
+guardian + patronymic from `persons.parquet` (steps 3-4), tagged by deal type.
+
+**21,895 principals; women's share 18.0%** (1,641 of the 9,130 gender-attributable;
+42% coverage). The headline is the **deal-type gradient** (stable at n≥40):
+
+| deal type | women's share | | deal type | women's share |
+|---|---|---|---|---|
+| **sale** | **30%** (58/191) | | lease | 15% (21/140) |
+| **loan** | **28%** (41/144) | | letter (private) | 12% |
+| contract | 23% (853/3,708) | | receipt / order / list | 10% |
+| declaration | 23% | | account | 8% |
+| petition | 20% (51/250) | | delivery | 5% |
+
+**Women's economic agency concentrates in property transactions — sales and loans
+(28-30%) — and is thinnest in routine fiscal paperwork** (receipts, deliveries,
+accounts, 5-10%). This matches the historical picture: women acted as principals
+over property they owned (dowry, inheritance), i.e. sales and loans of their own
+assets, far more than in the tax-collection machinery. By century, women's share
+peaks 1c BC-2c AD (22-27%) and declines through late antiquity (7-12% by 5c-7c AD).
+
+Cross-checks that make it trustworthy: the guardian split among women principals
+is **92% μετὰ / 8% χωρὶς** — identical to the person-level step-4 number, so the
+RE layer did not distort the autonomy signal; and **65% (1,063/1,641) of women
+principals carry a recovered patronymic** (split-person `CHILD_OF`) for
+prosopography. Honest caveats: end-to-end PARTY_OF ≈ 0.62 (noisy), so the
+*relative* deal-type ordering is the robust claim, not the exact percentages; and
+35 giant tabular registers (>2000 entities) are RE-skipped by design — their cost
+is quadratic in density but they hold no party structure (removing them dropped
+~5k spurious edges while PARTY_OF fell only 761→754 on the first 2k docs). Code:
+`oikonomia/relations/infer.py` (windowed candidates), `oikonomia/db/principals.py`
+(assembler), `modal_app/relations.py::infer_corpus` (A10 entrypoint). Detail on
+the RE model + end-to-end number: [`phase_8_relation_model.md`](phase_8_relation_model.md).
+
 ### Next
 
 1. ✅ **Price finding** (wheat series) — done, validated.
 2. ✅ **Tax finding** (fiscal-regime map + poll tax by century/region) — done, validated.
-3. 🔶 **Women as economic principals** — gender+party logic built and **validated
-   on gold** (guardian/nomen/kin signals; sale 44% vs lease 0%). The bootstrapped
-   gazetteer was removed as slop. The deliverable runs the **trained NER model over
-   the corpus** (Modal) as the extraction engine + the legal formulae (κύριος,
-   χρηματίζουσα, γράμματα μὴ εἰδυίης) as first-class features; targeting the
-   guardianship-autonomy curve first. Splitting the PERSON blob for `CHILD_OF`
-   kinship is still open.
+3. ✅ **Women as economic principals** — DONE end-to-end on the trained models:
+   the **autonomy curve** (steps 1-6: model NER → gender+guardian → χωρὶς-κυρίου
+   0%→39%→80% over 3c→4c AD, gold-validated) **and** the **principals-by-deal-type**
+   finding (steps 7-8: saved RE model → PARTY_OF corpus-wide → women's share by deal
+   type, sale/loan 28-30% vs receipt/delivery 5-10%). `CHILD_OF` kinship recovered
+   (65% of women principals have a patronymic).
 4. Entity identity/coreference for cross-document prosopography.
 5. Release the frozen entity+relation models (deliverable #1).

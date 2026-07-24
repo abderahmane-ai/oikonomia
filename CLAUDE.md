@@ -179,16 +179,18 @@ rows existed and zero historical questions were answered**; the relation-F1 grin
 (esp. 8a direction) was polishing scaffolding. So: freeze the models, build the DB.
 Full rationale + first result: [`docs/phases/phase_9_database.md`](docs/phases/phase_9_database.md).
 
-**LATEST (2026-07-24) — the AUTONOMY finding is complete and gold-validated.** The
-women front (§7 steps 1–6) ran the **trained model's** NER over all 61,249 docs
-(1.37M entities), split person blobs (129k father links), attributed gender +
-typed the guardian formula, and drew the curve: **women's χωρὶς-κυρίου (autonomous)
-share rises 0% (≤1c AD) → 39% (3c) → 80% (4c AD)** — the *ius liberorum* spread /
-decline of tutela mulierum, recovered unsupervised. Three findings now exist
-(prices, taxes, autonomy). **Step 7 DONE (2026-07-24):** the RE model is revived,
-saved to `/vol/models/relation/final`, and end-to-end measured (PARTY_OF 0.623 on
-NER-predicted entities; held-out oracle 0.705). **Next: step 8** (women as
-principals across deal types). This is the live work; details in §7.
+**LATEST (2026-07-24) — the WOMEN FRONT IS COMPLETE (all 8 steps).** Two findings
+on the trained models. **(A) Autonomy** (steps 1–6): trained-model NER over all
+61,249 docs (1.37M entities), person-blob split (129k father links), gender +
+typed guardian → **women's χωρὶς-κυρίου (autonomous) share rises 0% (≤1c AD) → 39%
+(3c) → 80% (4c AD)** — *ius liberorum* / decline of tutela mulierum, unsupervised,
+gold-validated. **(B) Principals by deal type** (steps 7–8): saved the RE model
+(end-to-end PARTY_OF 0.623), ran it over the corpus (16,315 PARTY_OF), joined to
+the gendered persons → **21,895 principals, women's share 18.0%, deal-type gradient
+sale 30% / loan 28% (property) vs receipt/delivery 5–10% (fiscal paperwork)**;
+guardian split 92/8 matches step 4; 65% carry a patronymic. **Five findings now
+exist** (prices, taxes, autonomy, principals-by-deal-type, + the monetization
+transition). **Next: Phase 10 write-up** (details in §7).
 
 **The models are DONE, not abandoned (deliverable #1, publishable):**
 - Entity NER: DAPT **B1** (GreBerta full-FT) → silver-pretrain → gold-FT →
@@ -247,7 +249,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 7 Entity NER | ✅ | **DAPT beats no-DAPT control +9.5 strict F1** (PERSON +19, PLACE +11) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 7b Two-stage silver→gold | ✅ | gold-FT recipe → **strict 0.737 / relaxed 0.837**; GCE rejected (−5.7) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); saved + **end-to-end measured** (PARTY_OF oracle 0.705 → e2e 0.623); 8a data-bound; 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
-| 9 Corpus→DB | 🔶 ACTIVE | **195,906 facts**; **prices** (2c AD 13.3 vs lit ~7–12) + **taxes** validated; **AUTONOMY finding DONE** on the trained model — model NER over all 61,249 docs (1.37M entities) → gender+guardian → χωρὶς-κυρίου curve **0%→39%→80% (3c→4c AD)**, gold-validated | [phase_9](docs/phases/phase_9_database.md) |
+| 9 Corpus→DB | 🔶 ACTIVE | **195,906 facts**; **prices** + **taxes** validated; **AUTONOMY** χωρὶς-κυρίου curve **0%→39%→80% (3c→4c AD)** gold-validated; **PRINCIPALS by deal type** — corpus RE (16,315 PARTY_OF) → 21,895 principals, women 18.0%, **sale 30%/loan 28% vs receipt 10%** | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ⬜ | findings write-up (price series, women-as-principals) | — |
 | 11 Release | 🔶 PACKAGED | NER model **packaged for HF** (licence firewall + model card + `launch`/`push_to_hub`); 2 owner-run commands from live | [phase_11](docs/phases/phase_11_release.md) |
 
@@ -257,10 +259,13 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 
 _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 
-> ## ⚑⚑ ACTIVE DIRECTIVE — WOMEN ANALYSIS, done PROPERLY with the models (owner, 2026-07-24)
+> ## ✅✅ COMPLETED DIRECTIVE — WOMEN ANALYSIS, done PROPERLY with the models (owner, 2026-07-24)
 >
-> **This is THE front. It supersedes the model-release work (now parked).** Owner
-> stated the following ONCE and will not repeat it — treat every point as binding:
+> **DONE — all 8 steps complete + validated (2026-07-24).** Two findings on the
+> trained models: the **autonomy curve** (steps 1–6) and **principals by deal type**
+> (steps 7–8). Numbers in §5 LATEST + the phase-9 doc. The step record below is kept
+> as the build log. **The front is closed; next is Phase 10 (findings write-up).**
+> Original binding directive (every point delivered):
 >
 > - **FOCUS: the "autonomy" finding FIRST** — of women who transact, how many act
 >   **with** a guardian (`μετὰ κυρίου`) vs **without** (`χωρὶς κυρίου`) — the curve
@@ -330,10 +335,18 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 >    the entity cascade costs **≈0.08** on PARTY_OF, which survives at ~0.6 — usable
 >    (noisy) for step 8. (The same-model oracle on these docs reads 0.993 but that is
 >    train-on-test, not a generalization number.) Detail in the phase-8 doc.
-> 8. Fuller finding — women as principals across deal types: run the RE model over
->    the corpus PERSON/MONEY entities (reuse `evaluate_e2e_remote`'s inference
->    machinery), join PARTY_OF to the gendered persons (`db/persons.parquet`) +
->    split-person `CHILD_OF` kinship.
+> 8. ✅ **DONE (2026-07-24) — women as principals ACROSS DEAL TYPES.** Ran the saved
+>    RE model over all 61,249 docs' NER entities on the A10 (`relations.py::infer`
+>    → `infer_corpus`) → **228,945 relations, 16,315 PARTY_OF** (`re_corpus.jsonl`).
+>    `oik db principals` keeps PARTY_OF/PAID_* heads, joins gender+guardian+father
+>    from `persons.parquet`, tags by deal type → **21,895 principals, women's share
+>    18.0%** (9,130 gender-attributable). **Headline — the deal-type gradient: sale
+>    30% / loan 28% (property transactions) vs receipt/delivery/account 5-10%
+>    (fiscal paperwork).** Guardian split 92% μετὰ / 8% χωρὶς (= step-4 number, RE
+>    didn't distort it); 65% of women principals carry a patronymic (`CHILD_OF`).
+>    Pure windowing/candidate logic in `oikonomia/relations/infer.py` (laptop-tested);
+>    assembler `oikonomia/db/principals.py`. 35 giant registers RE-skipped by design
+>    (quadratic cost, no party structure). Detail: phase-9 doc.
 >
 > **What is on Modal (checked 2026-07-24, do not re-guess):** NER model SAVED at
 > `oikonomia-ner:/models/b1/final` (`RobertaForTokenClassification`, 15 labels / 31
@@ -342,15 +355,17 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 > now 8b-current with AGE/OCCUPATION). `predictions/ner_corpus.jsonl` (1.37M ents).
 > **RE MODEL: SAVED 2026-07-24** at `oikonomia-ner:/models/relation/final` (custom
 > `relation_head.pt` state_dict + `config.json`; written by `launch`, load-verified
-> by `eval_e2e`). This is what step 8's corpus RE inference loads.
+> by `eval_e2e`). **Corpus RE run DONE 2026-07-24:** `predictions/re_corpus.jsonl`
+> (61,249 docs, 228,945 relations, 16,315 PARTY_OF; 35 dense registers skipped).
 >
-> **Progress:** steps **1–7 DONE + validated.** Steps 1–6: autonomy finding complete
-> (χωρὶς-κυρίου curve 0%→39%→80% over 3c→4c AD, gold-validated). **Step 7 GPU-verified
-> 2026-07-24:** RE model saved to `/vol/models/relation/final`; end-to-end **PARTY_OF
-> 0.623** (held-out oracle 0.705, cascade cost ≈0.08, `docs_missing_pred=0`). ⇒ **the
-> new session's first job is STEP 8** — women as principals across deal types (reuse
-> `evaluate_e2e_remote`'s inference to run RE over the corpus PERSON/MONEY spans, join
-> PARTY_OF to the gendered persons in `db/persons.parquet` + split-person `CHILD_OF`).
+> **Progress:** steps **1–8 ALL DONE + validated — THE WOMEN FRONT IS COMPLETE.**
+> Steps 1–6: autonomy finding (χωρὶς-κυρίου curve 0%→39%→80% over 3c→4c AD,
+> gold-validated). Step 7: RE model saved + end-to-end **PARTY_OF 0.623**. **Step 8
+> (2026-07-24):** corpus RE → `oik db principals` → **women as principals 18.0%,
+> deal-type gradient sale 30%/loan 28% vs receipt/delivery 5-10%** (guardian split
+> 92/8 = step-4 number; 65% carry a patronymic). ⇒ **Next session: Phase 10 write-up**
+> of the findings (prices, taxes, autonomy curve, principals-by-deal-type), and/or
+> Phase 11 model release (deliverable #1, already packaged).
 
 **PARKED — model release (deliverable #1).** Superseded by the directive above.
 NER release is PACKAGED (licence firewall `oikonomia.models.licensing`; model card
@@ -434,35 +449,33 @@ corpus` there is a rule-labeler lower bound only.
 ```bash
 cd /Users/abdoumagico/Development/ACHATES
 
-# 1. Green before changing anything (587 tests, mypy 84 files, ruff clean at last save)
+# 1. Green before changing anything (604 tests, mypy 86 files, ruff clean at last save)
 .venv/bin/ruff check src tests modal_app && .venv/bin/python -m mypy src && .venv/bin/python -m pytest
 
-# 2. ⇒ STEP 8 — the FIRST thing to do this session: women as principals across deal
-#    types. Step 7 is DONE (RE model saved to /vol/models/relation/final; e2e PARTY_OF
-#    0.623). Reuse evaluate_e2e_remote's inference machinery (relations.py) to run the
-#    saved RE model over the corpus PERSON/MONEY spans (predictions/ner_corpus.jsonl),
-#    join PARTY_OF to the gendered persons (db/persons.parquet) + split-person CHILD_OF.
-#    The saved RE model + relation_labels (8b-current) + ner_corpus.jsonl are all on the volume.
+# 2. ⇒ The WOMEN FRONT IS COMPLETE (steps 1-8). Next is PHASE 10 — write up the five
+#    findings (prices, taxes, autonomy curve, principals-by-deal-type, monetization).
+#    All finding tables regenerate on the laptop (all gitignored, re-derivable):
+.venv/bin/oik db persons && .venv/bin/oik db autonomy      # autonomy curve (reads ner_corpus.jsonl)
+.venv/bin/oik db principals                                # principals-by-deal-type (reads re_corpus.jsonl + persons.parquet)
+#    (needs data/processed/ner/ner_corpus.jsonl AND data/processed/re/re_corpus.jsonl —
+#     pull from the oikonomia-ner volume if missing: /predictions/{ner,re}_corpus.jsonl)
 
-# 3. Laptop artifacts intact? (only if the women/db work needs rebuilding; all gitignored)
+# 3. Laptop artifacts intact? (only if rebuilding; all gitignored)
 .venv/bin/oik gold check            # 115 docs, all human_validated, 0 errors
-#    Women pipeline (steps 1-6, DONE): oik db persons → oik db autonomy → oik db validate-women
-#    (needs data/processed/ner/ner_corpus.jsonl — pull from volume if missing, see §7 artifacts)
 ```
 
-**Then, in priority order (Phase 9 → findings; full detail in the phase-9 doc):**
-**(1) harden the wheat price slice** — outlier filter, fix per-unit semantics
-(`unit_price = value/quantity` over-divides when the amount is already per-unit),
-full-corpus run → a defensible series with error bars vs Rathbone/Bagnall. **(2)
-women finding — the autonomy curve is DONE** (steps 1–6: model NER → gender+guardian
-→ χωρὶς-κυρίου curve, gold-validated; PERSON-blob split recovered 129k father links);
-**step 7 DONE** (RE model saved, end-to-end PARTY_OF 0.623). What remains: **step 8**
-the fuller "women as principals across deal types" (run the saved RE model over the
-corpus PERSON/MONEY spans, join e2e PARTY_OF + split-person `CHILD_OF` kinship).
-**(3) entity identity / coreference** for cross-document prosopography. **(4) release
-the frozen models** (deliverable #1, already at bar). **Do NOT** reopen relation-F1
-work, silver re-emission, or Modal xval unless a *specific finding* proves the frozen
-model is the binding constraint — the audits say it is not.
+**Then, in priority order (the women front is DONE — findings now exist):**
+**(1) Phase 10 — write up the five findings** (prices, taxes, autonomy curve,
+principals-by-deal-type, monetization transition): the venue paper. This is the
+natural next front now that the women analysis is complete. **(2) harden the wheat
+price slice** — outlier filter, fix per-unit semantics (`unit_price =
+value/quantity` over-divides when the amount is already per-unit), → a defensible
+series with error bars vs Rathbone/Bagnall. **(3) entity identity / coreference**
+for cross-document prosopography (the principals table now has 65% patronymic
+coverage — a real hook). **(4) release the frozen models** (deliverable #1, already
+packaged). **Do NOT** reopen relation-F1 work, silver re-emission, or Modal xval
+unless a *specific finding* proves the frozen model is the binding constraint — the
+audits say it is not.
 
 ### Operational gotchas (do not relearn these the hard way)
 
@@ -533,6 +546,15 @@ model is the binding constraint — the audits say it is not.
 - `data/processed/db/autonomy.parquet` — the **autonomy curve** (step 5): 32 buckets
   (century + region), n_with/n_without/autonomous_share. Regen: `oik db autonomy`
   (reads `persons.parquet`). Gitignored, re-derivable.
+- `data/processed/re/re_corpus.jsonl` — **corpus-scale RE (step 8): 61,249 docs,
+  228,945 relations / 16,315 PARTY_OF**, one record per doc `{stem, tm_id,
+  entities, relations[{head,tail,type,confidence}]}`. 35 dense registers RE-skipped.
+  Regen: `modal run modal_app/relations.py::infer` (A10) → `modal volume get
+  /predictions/re_corpus.jsonl data/processed/re/`. Gitignored, re-derivable.
+- `data/processed/db/principals.parquet` — **21,895 principals** (step 8): PARTY_OF/
+  PAID_* heads with gender+guardian+father+deal_type+span. Women 18.0%; deal-type
+  gradient sale 30%/loan 28% vs receipt 10%. Regen: `oik db principals` (reads
+  `re_corpus.jsonl` + `persons.parquet`). Gitignored, re-derivable.
 - **Modal Volume `oikonomia-dapt`:** `shards/{train,dev}.bin`,
   `checkpoints/full/final` (**B1** — load this for b1). Stale `checkpoints/b1-*`
   from the first sweep are safe to `modal volume rm -r`.
@@ -541,14 +563,17 @@ model is the binding constraint — the audits say it is not.
   + `data/corpus_text.jsonl` (the inference
   payload). `models/{b0,b1}/final` from Phase 7 — **`models/b1/final` is what the
   corpus NER run loaded** (`_resolve_ckpt`). `predictions/ner_corpus.jsonl` = the
-  61,249-doc / 1.37M-entity run output. `xval` measures and saves no persistent
+  61,249-doc / 1.37M-entity NER output; `predictions/re_corpus.jsonl` = the
+  61,249-doc / 16,315-PARTY_OF corpus RE output (step 8). `models/relation/final`
+  = the saved RE model (`launch`). `xval` measures and saves no persistent NER
   model — the shippable NER model is produced by **`launch`**
   (`train(save_final=True)` → `models/release/final`, all gold), then **`push_to_hub`**.
 
-**Quality gate at last save:** ruff (src tests modal_app) · mypy (84 files) ·
-587 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
+**Quality gate at last save:** ruff (src tests modal_app) · mypy (86 files) ·
+604 tests · caches cleared — all green. `oik gold check` 0 errors. Corpus NER run
 provenance-validated 0/1.37M mismatch. Women pipeline gold-validated (gender rules
-100% deterministic, autonomy trend robust).
+100% deterministic, autonomy trend robust). Step 8: corpus RE 61,249 docs /
+16,315 PARTY_OF; principals finding deal-type ordering stable at n≥40.
 
 ---
 
