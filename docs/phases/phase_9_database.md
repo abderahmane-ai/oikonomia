@@ -194,24 +194,40 @@ AD peak is partly a detection artifact (guardian formula + Aurelia nomina cluste
 there) but also the real Roman-era rise in women's documented activity. Writes
 `db/parties.parquet` with full provenance.
 
-**Honest limits (the trained model is the next lever, not a rewrite of this):**
-coverage is ~40% — the 60% unknown-gender principals are names with no nomen, no
-article prefix, and not in the gazetteer, and they are *not* missing at random
-(women are over-represented among the guardian/nomen-flagged). The share is
-therefore reported *only among attributable principals*, with that caveat. Two
-paths raise it: a Trismegistos name-gender gazetteer (deterministic, laptop) for
-coverage, and the **trained entity model over the corpus** (a Modal run) to lift
-PERSON recall + PARTY_OF precision (0.28→0.65) for a defensible full-corpus series.
+**The coverage lever — a corpus-bootstrapped name gazetteer (`oik db names`,
+free/laptop, done).** The rule classifier only genders a name that carries a local
+marker (~40%). But a name that appears once as a bare form here appears many times
+corpus-wide, and *somewhere* usually carries a decisive one. `db/name_gender.py`
+harvests that: it votes each name-form's gender from its high-precision
+attestations (guardian/nomen/kin/Egyptian-prefix) across all 61,249 docs and keeps
+the forms that vote ≥85%-consistently with ≥3 attestations → **2,807 names (964 F /
+1,843 M)**, each traceable to its attestations. No external data (a Trismegistos
+pull isn't freely/legally bulk-downloadable; this uses only the CC BY 3.0 corpus)
+and no learning — aggregation of the classifier's own signals, consulted for bare
+names but out-ranked by any in-clause marker.
+
+**Effect (A/B on gold):** attributable coverage **42% → 54%** (74→97 principals),
+women's share stable (13.5%→12.4% — the added coverage is not gender-biased), and
+**female precision holds** — the two new female entries are `Ἡραΐδι` (Herais) and
+`Σαραπιάδι` (Sarapias, the -ιάς female form), both correct. On corpus it lifts
+coverage 38%→48% at a stable 17.5% share.
+
+**Honest limits (the trained model is the next lever, not a rewrite of this):** even
+at 54% the unknown-gender principals are *not* missing at random (women are
+over-represented among the guardian/nomen-flagged), so the share is reported *only
+among attributable principals*, with that caveat. The remaining lift is the
+**trained entity model over the corpus** (a Modal run) to raise PERSON recall +
+PARTY_OF precision (0.28→0.65) for a defensible full-corpus series with error bars.
 
 ### Next
 
 1. ✅ **Price finding** (wheat series) — done, validated.
 2. ✅ **Tax finding** (fiscal-regime map + poll tax by century/region) — done, validated.
-3. 🔶 **Women as economic principals** — gender+party layer built and **validated
-   on gold** (10/10 female precision; 13.5% share; sale 44% vs lease 0%). Corpus
-   lower bound runs (17.7%, 2c AD peak). Remaining for a *publishable* series:
-   Trismegistos name gazetteer (coverage) + trained entity model over the corpus
-   (the Modal spend — an owner budget call, now de-risked). Splitting the PERSON
-   blob for `CHILD_OF` kinship is still open.
+3. 🔶 **Women as economic principals** — gender+party layer + corpus name
+   gazetteer built and **validated on gold** (female precision held; coverage
+   42%→54%; 12.4% share; sale 44% vs lease 0%). Corpus lower bound runs (17.5%,
+   coverage 48%, 2c AD peak). Remaining for a *publishable* series: the trained
+   entity model over the corpus (the Modal spend — an owner budget call, now
+   de-risked). Splitting the PERSON blob for `CHILD_OF` kinship is still open.
 4. Entity identity/coreference for cross-document prosopography.
 5. Release the frozen entity+relation models (deliverable #1).

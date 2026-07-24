@@ -140,7 +140,8 @@ uv run oik silver label                       # emit silver over train (~5 min);
 .venv/bin/oik db build --sample 0             # whole corpus (~minutes) → data/processed/db/monetary.parquet
 .venv/bin/oik db prices                       # clean price series (median [IQR] n) → db/prices.parquet
 .venv/bin/oik db taxes                        # fiscal-regime map + poll tax by century/region → db/taxes.parquet
-.venv/bin/oik db women --source gold          # women-as-principals: gender+party layer, validated on gold
+.venv/bin/oik db names --sample 0             # corpus-bootstrapped name→gender gazetteer (~3.5min) → db/name_gender.json
+.venv/bin/oik db women --source gold          # women-as-principals: gender+party layer (uses gazetteer if built)
 .venv/bin/oik db women --source corpus --sample 0   # noisy full-corpus lower bound (rule labeler) → db/parties.parquet
 ```
 
@@ -223,7 +224,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 7 Entity NER | ✅ | **DAPT beats no-DAPT control +9.5 strict F1** (PERSON +19, PLACE +11) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 7b Two-stage silver→gold | ✅ | gold-FT recipe → **strict 0.737 / relaxed 0.837**; GCE rejected (−5.7) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); 8a closed (data-bound); 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
-| 9 Corpus→DB | 🔶 ACTIVE | **195,906 facts**; **prices** (2c AD 13.3 vs lit ~7–12) + **taxes** (fiscal-regime map, poll tax by nome) + **women-as-principals** (gold: 13.5%, 10/10 precision, sale 44% vs lease 0%) validated | [phase_9](docs/phases/phase_9_database.md) |
+| 9 Corpus→DB | 🔶 ACTIVE | **195,906 facts**; **prices** (2c AD 13.3 vs lit ~7–12) + **taxes** (fiscal-regime map, poll tax by nome) + **women-as-principals** (gold: 12.4%, coverage 54% via corpus name gazetteer, sale 44% vs lease 0%) validated | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis · 11 Release | ⬜ | findings (price series, women-as-principals) + HF model release | — |
 
 ---
@@ -281,13 +282,17 @@ Egyptian article prefix `Τα-`f/`Πα-`m, small gazetteer — each call returns
 *rule that fired*) + `parties.py` (`assemble_parties`: one row per named principal
 with gender/guardian/role/tx/date/span). Guards for the metronymic (`μητρὸς X` =
 mother, not head), the `καὶ ὁ υἱὸς` handoff, and a masc-inflection veto
-(`Δίδυμον`↛female). **Gold: 178 principals, 42% attributable, women 13.5% (10/74),
-female precision 10/10; sale 44% vs lease 0% vs loan 6%** (textbook). Corpus lower
-bound (rule labeler, noisy): 17.7%, 2c AD peak 28%. The gender logic runs on
-rules; the **trained entity model is the next lever for a *publishable* full-corpus
-series** (PERSON recall + PARTY_OF 0.28→0.65) — a Modal spend, now de-risked, owner
-decides when. A Trismegistos name-gender gazetteer would raise the 40% coverage on
-the laptop first. Splitting the PERSON blob for CHILD_OF kinship is still open.
+(`Δίδυμον`↛female). **Coverage lever DONE (free/laptop): `db/name_gender.py` +
+`oik db names`** bootstraps a name→gender gazetteer by voting each name-form's
+decisive attestations across all 61k docs → **2,807 names (964 F/1,843 M)**, no
+external data (Trismegistos isn't freely bulk-downloadable; uses only the corpus),
+consulted for bare names but out-ranked by any in-clause marker. **A/B on gold:
+coverage 42%→54%, women 12.4% (share stable, added coverage not gender-biased),
+female precision held** (new entries `Ἡραΐδι`/`Σαραπιάδι` both correct); the
+finding: **sale 44% vs lease 0% vs loan 6%** (textbook). Corpus lower bound (rule
+labeler): 17.5%, coverage 48%, 2c AD peak. **Next lever = the trained entity model
+over the corpus** (PERSON recall + PARTY_OF 0.28→0.65) — a Modal spend, de-risked,
+owner decides when. Splitting the PERSON blob for CHILD_OF kinship is still open.
 
 **Triage (what is shelved/frozen — do not reopen without a finding that demands it):**
 
@@ -379,6 +384,8 @@ the binding constraint — the audits say it is not.
 - `data/processed/db/parties.parquet` — party (principal) table w/ gender+guardian
   +role+span. Regen: `oik db women --source gold` (178 rows) or `--source corpus`
   (noisy). Gitignored, re-derivable.
+- `data/processed/db/name_gender.json` — **2,807-name corpus gazetteer** (964 F/
+  1,843 M). Regen: `oik db names --sample 0` (~3.5 min). Gitignored, re-derivable.
 - **Modal Volume `oikonomia-dapt`:** `shards/{train,dev}.bin`,
   `checkpoints/full/final` (**B1** — load this for b1). Stale `checkpoints/b1-*`
   from the first sweep are safe to `modal volume rm -r`.
@@ -387,8 +394,8 @@ the binding constraint — the audits say it is not.
   `xval` measures and saves no persistent model — the shippable NER model is a
   later `launch`-style full train once the recipe is frozen (it now is).
 
-**Quality gate at last save:** ruff (src tests modal_app) · mypy (78 files) ·
-532 tests · caches cleared — all green. `oik gold check` 0 errors.
+**Quality gate at last save:** ruff (src tests modal_app) · mypy (79 files) ·
+539 tests · caches cleared — all green. `oik gold check` 0 errors.
 
 ---
 

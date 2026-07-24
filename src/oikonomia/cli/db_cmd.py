@@ -27,6 +27,7 @@ from oikonomia.corpus.io import corpus_path, iter_batches
 from oikonomia.db.dates import century as signed_century
 from oikonomia.db.dates import date_mid, half_century_start
 from oikonomia.db.facts import DocMeta, Ent, Rel, assemble_monetary
+from oikonomia.db.name_gender import Votes, build_gazetteer, load_gazetteer, save_gazetteer
 from oikonomia.db.parties import PartyMeta, PartyObservation, assemble_parties
 from oikonomia.db.places import load_place_names
 from oikonomia.db.prices import SPECS, clean_prices, price_series
@@ -46,6 +47,7 @@ FACTS_NAME = "db/monetary.parquet"
 PRICES_NAME = "db/prices.parquet"
 TAXES_NAME = "db/taxes.parquet"
 PARTIES_NAME = "db/parties.parquet"
+NAMES_NAME = "db/name_gender.json"
 
 # Published anchors for the validation view (dr/artaba), so the series is judged
 # against scholarship, not eyeballed. Rough consensus ranges, not point claims.
@@ -287,7 +289,7 @@ def taxes(
 # --- women as economic principals (deliverable #3) ---------------------------
 
 
-def _gold_parties(gold_path: Path) -> Iterator[PartyObservation]:
+def _gold_parties(gold_path: Path, gazetteer: dict[str, str]) -> Iterator[PartyObservation]:
     """Party rows from the human gold: trustworthy PERSON spans + PARTY_OF edges.
 
     The prototype path — it isolates the gender/party logic from labeler noise, so
@@ -313,10 +315,10 @@ def _gold_parties(gold_path: Path) -> Iterator[PartyObservation]:
             place_pleiades=None,
             genres=str(meta_in.get("genre") or ""),
         )
-        yield from assemble_parties(ents, rels, doc.get("text", ""), meta)
+        yield from assemble_parties(ents, rels, doc.get("text", ""), meta, gazetteer)
 
 
-def _corpus_parties(settings: Any, sample: int) -> Iterator[PartyObservation]:
+def _corpus_parties(settings: Any, sample: int, gazetteer: dict[str, str]) -> Iterator[PartyObservation]:
     """Party rows from the rule labeler over the corpus — a noisy *lower bound*.
 
     Uses the deterministic labeler (PERSON 71.6% precise, PARTY_OF conf 0.28), so
@@ -351,7 +353,7 @@ def _corpus_parties(settings: Any, sample: int) -> Iterator[PartyObservation]:
                 place_pleiades=int(place_i) if place_i is not None else None,
                 genres=_genres_str(genres),
             )
-            yield from assemble_parties(ents, rels, text, meta)
+            yield from assemble_parties(ents, rels, text, meta, gazetteer)
 
 
 @db_app.command("women")
@@ -360,6 +362,7 @@ def women(
     set_: SetOpt = None,
     source: Annotated[str, typer.Option("--source", help="gold (validated logic) | corpus (rule labeler, noisy).")] = "gold",
     sample: Annotated[int, typer.Option("--sample", help="corpus only: max docs (0 = whole corpus).")] = 0,
+    gazetteer: Annotated[bool, typer.Option("--gazetteer/--no-gazetteer", help="Use the corpus-learned name→gender map (if built).")] = True,
     out: Annotated[Path | None, typer.Option("--out", help="Party observations (default: processed/db/parties.parquet).")] = None,
 ) -> None:
     """Women as economic principals — gender of the parties to transactions.
@@ -374,17 +377,24 @@ def women(
     noisy lower bound (the trained model is the higher-quality path, spent later).
     """
     s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    gaz: dict[str, str] = {}
+    if gazetteer:
+        gaz = load_gazetteer(Path(s.paths.processed) / NAMES_NAME)
+        if gaz:
+            typer.echo(f"using corpus name gazetteer: {len(gaz)} names")
+        else:
+            typer.secho("no name gazetteer found — run `oik db names` first for higher coverage.", fg="yellow")
     if source == "gold":
         gold_path = Path(s.paths.gold) / "annotated.jsonl"
         if not gold_path.is_file():
             typer.secho(f"{gold_path} missing.", fg="red")
             raise typer.Exit(1)
-        rows = list(_gold_parties(gold_path))
+        rows = list(_gold_parties(gold_path, gaz))
     elif source == "corpus":
         if not corpus_path(s.paths.processed).is_file():
             typer.secho("corpus.parquet missing — run `oik ingest build` first.", fg="red")
             raise typer.Exit(1)
-        rows = list(_corpus_parties(s, sample))
+        rows = list(_corpus_parties(s, sample, gaz))
     else:
         typer.secho(f"unknown --source {source!r} (expected gold | corpus)", fg="red")
         raise typer.Exit(1)
@@ -445,3 +455,52 @@ def _summarize_women(df: pd.DataFrame, source: str, out_path: Path) -> None:
     for _, r in fem.head(12).iterrows():
         guard = "κύριος" if r["guardian_present"] else "-"
         typer.echo(f"    {r['person_text'][:26]:28} {r['gender_basis']:12} {guard:7} {r['roles']:12} {r['transaction_term'] or ''}")
+
+
+@db_app.command("names")
+def names(
+    env: EnvOpt = "local",
+    set_: SetOpt = None,
+    sample: Annotated[int, typer.Option("--sample", help="Max docs to scan (0 = whole corpus).")] = 0,
+    min_attest: Annotated[int, typer.Option("--min-attest", help="Min decisive attestations to keep a name.")] = 3,
+    min_agree: Annotated[float, typer.Option("--min-agree", help="Min majority-gender share to keep a name.")] = 0.85,
+    out: Annotated[Path | None, typer.Option("--out", help="Gazetteer JSON (default: processed/db/name_gender.json).")] = None,
+) -> None:
+    """Build the corpus name→gender gazetteer — the coverage lever (no external data).
+
+    Scans the corpus with the rule labeler, votes each name-form's gender from its
+    *decisive* attestations (guardian / nomen / kin / Egyptian prefix), and keeps
+    the forms that vote consistently (:mod:`oikonomia.db.name_gender`). The map
+    propagates that evidence to bare-name occurrences, lifting `oik db women`
+    coverage. Deterministic, laptop, auditable.
+    """
+    s = load_settings(env=env, overrides=set_ or [])  # type: ignore[arg-type]
+    if not corpus_path(s.paths.processed).is_file():
+        typer.secho("corpus.parquet missing — run `oik ingest build` first.", fg="red")
+        raise typer.Exit(1)
+
+    labeler = SilverLabeler(Matcher(load_lexicon(s.paths.resources)), load_patterns(s.paths.resources))
+    votes = Votes()
+    n_docs = 0
+    for frame in _iter_docs(s.paths.processed, sample):
+        for blob in frame["document_json"]:
+            doc = json.loads(blob)
+            text = doc.get("edited_text") or ""
+            if not text.strip():
+                continue
+            n_docs += 1
+            nums = [CharSpan(start=int(n["edited"]["start"]), end=int(n["edited"]["end"]))
+                    for n in doc.get("numerals", []) if n.get("edited")]
+            lines = [CharSpan(start=int(ln["edited"]["start"]), end=int(ln["edited"]["end"]))
+                     for ln in doc.get("lines", []) if ln.get("edited")]
+            pred = labeler.label(text, nums, lines)
+            for e in pred.entities:
+                if e.label == "PERSON":
+                    votes.add(e.text, text[e.span.end : e.span.end + 44])
+
+    gaz = build_gazetteer(votes, min_attest=min_attest, min_agree=min_agree)
+    out_path = out or (Path(s.paths.processed) / NAMES_NAME)
+    save_gazetteer(gaz, out_path)
+    nfem = sum(v == "female" for v in gaz.values())
+    typer.echo(f"\nWrote {out_path}: {len(gaz)} names ({nfem} female / {len(gaz) - nfem} male) from {n_docs} docs")
+    typer.echo(f"  thresholds: ≥{min_attest} decisive attestations, ≥{min_agree:.0%} agreement")
