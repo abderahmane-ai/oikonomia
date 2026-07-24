@@ -193,13 +193,18 @@ says so plainly. Revisit only if a concrete user is blocked by the install.
 
 ### Remaining / next
 
-- **Owner-run, and required for any of the above to reach users:**
+**✅ Re-pushed 2026-07-24, and verified against the Hub rather than assumed:**
 
-  ```bash
-  .venv/bin/oik release push grammateus
-  .venv/bin/oik release push homologia
-  .venv/bin/oik release push db          # re-pushes with person_id + viewer configs
-  ```
+- Both model cards fetched back: **0** remaining `oikonomia/*-grc` dead links;
+  Grammateus carries the per-fold sample-size caveat; Homologia documents
+  `load_homologia`.
+- Dataset card: `configs:` block and Limitations section live.
+- `export/persons_distinct.parquet` **downloaded back and read**: 17,362 rows ×
+  9 columns, `person_id` present and unique.
+- All 10 dataset files present including `export/`; **no junk** (`__pycache__`,
+  `.pyc`, `.DS_Store`) — the new shared `IGNORE_PATTERNS` covers listing and upload.
+
+Nothing is outstanding. What remains is optional:
 
 - Optional: `training_args.bin` ships inside Grammateus. It is standard HF output,
   but it is a pickle, so the Hub flags it. Drop it if the warning matters more than

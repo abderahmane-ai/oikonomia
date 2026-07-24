@@ -304,36 +304,45 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); saved + **end-to-end measured** (PARTY_OF oracle 0.705 → e2e 0.623); 8a data-bound; 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
 | 9 Corpus→DB | ✅ (opt. hardening left) | **195,906 facts**; 5 findings — **prices**, **taxes**, **AUTONOMY** χωρὶς curve **0%→39%→80% (3c→4c AD)**, **PRINCIPALS by deal type** (21,895; women 18.0% mentions / 20.1% distinct; **sale 30%/loan 28% vs receipt 10%**), monetization; **DB packaged + queryable** (`oik db export`, `docs/database.md`) | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ✅ | **the five findings recorded**, every number recomputed from the shipped tables, each with mechanism + control + limits | [phase_10](docs/phases/phase_10_findings.md) |
-| 11 Release | ✅ PUBLISHED | all three artifacts live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; cards verified. One post-publication card fix pending a re-push | [phase_11](docs/phases/phase_11_release.md) |
+| 11 Release | ✅ PUBLISHED | all three live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; post-publication audit (7 fixes) re-pushed and **verified against the Hub** | [phase_11](docs/phases/phase_11_release.md) |
 
 ---
 
 ## 7. Current machine state — READ THIS FIRST in a new session
 
-_Last updated: 2026-07-24. Branch **`main`**._
+_Last updated: 2026-07-24. Branch **`main`**, synced with origin; working tree clean._
 
-> ## ⚠️ ONE ACTION OUTSTANDING — re-push all three artifacts
+> ## ✅ ALL THREE DELIVERABLES SHIPPED AND RE-PUSHED — no action outstanding
 >
-> A post-publication audit fixed **seven defects** that are still live on the Hub.
-> Nothing reaches users until the owner runs (needs `hf auth login`):
+> The post-publication audit's seven fixes are **live and verified against the Hub**
+> (2026-07-24), not merely pushed:
 >
-> ```bash
-> .venv/bin/oik release push grammateus   # corrected card (dead repo links, stats caveats)
-> .venv/bin/oik release push homologia    # corrected card + the new one-call loader
-> .venv/bin/oik release push db           # adds person_id + the viewer configs
-> ```
+> - both model cards: **0** remaining `oikonomia/*-grc` dead links; Grammateus
+>   carries the per-fold sample-size caveat; Homologia documents `load_homologia`.
+> - dataset: `configs:` block live (viewer + `load_dataset(..., "prices")`),
+>   Limitations section live, and `export/persons_distinct.parquet` **downloaded
+>   back and checked — 17,362 rows × 9 cols, `person_id` present and unique**.
+> - all 10 dataset files present including `export/`; **no junk** (`__pycache__`,
+>   `.pyc`, `.DS_Store`) in the repo.
 >
-> The headline fixes, in case they need re-deciding: **Homologia's architecture was
-> living in `modal_app/`** (a §3 violation — the published model could not load
-> without the layer that boundary says must be deletable); it now lives in
+> What the audit fixed, for the record: **Homologia's architecture was living in
+> `modal_app/`** (a §3 violation — the published model could not load without the
+> layer that boundary says must be deletable); it now lives in
 > `oikonomia/relations/model.py` with a one-call `load_homologia()`. **The dataset
-> documented a `person_id` that did not exist** — it now ships one. **The dataset
-> viewer was dead** (malformed frontmatter) — now a proper `configs:` block.
-> **`check_ready` listed only top-level files** while the upload recurses, so it
-> could ship a dataset missing two of its eight tables. **`docs/project_summary.md`
-> wrote up a unit artifact as a 4th-century hyperinflation finding** — there is no
-> 4c wheat data at all; that section is rewritten. Plus CI
-> (`.github/workflows/ci.yml`). Full table: the phase-11 doc.
+> documented a `person_id` that did not exist** — it ships one now. **The dataset
+> viewer was dead** (malformed frontmatter). **`check_ready` listed only top-level
+> files** while the upload recurses, so it could ship the dataset missing two of
+> its eight tables; it also now excludes interpreter/editor junk via shared
+> `IGNORE_PATTERNS`. **`docs/project_summary.md` wrote up a unit artifact as a
+> 4th-century hyperinflation finding** — there is no 4c wheat data at all; that
+> section is rewritten. Plus CI (`.github/workflows/ci.yml`). Full table + the
+> `trust_remote_code` decision: the phase-11 doc.
+>
+> **Next front is open, not forced.** The highest-value item is **cross-document
+> entity resolution** (§ "Then, in priority order" below) — it turns 21,895
+> principal *mentions* into a prosopography and lets F3/F4 be measured per person.
+> `person_id` is already shipped as the join key and 64.8% of women principals
+> carry a patronymic.
 
 **WOMEN ANALYSIS — COMPLETE (2026-07-24).** Ran end to end on the trained models,
 not rules, as directed. Corpus-scale NER on an A10 over all 61,249 docs (1,368,079
@@ -457,11 +466,11 @@ preserved in the phase-9 doc and is not re-runnable at HEAD.
 ```bash
 cd /Users/abdoumagico/Development/ACHATES
 
-# 1. Green before changing anything (651 tests, mypy 90 files, ruff clean at last save)
+# 1. Green before changing anything (653 tests, mypy 90 files, ruff clean at last save)
 .venv/bin/ruff check src tests modal_app && .venv/bin/python -m mypy src && .venv/bin/python -m pytest
 
-# 2. ⇒ ALL THREE DELIVERABLES ARE SHIPPED. The one outstanding action is the
-#    re-push of the three corrected artifacts (see the box at the top of §7):
+# 2. ⇒ ALL THREE DELIVERABLES ARE SHIPPED AND RE-PUSHED. Nothing is outstanding.
+#    Re-run these only after changing a card or a shipped table:
 .venv/bin/oik release check grammateus && .venv/bin/oik release check homologia && .venv/bin/oik release check db
 
 # 3. Finding tables regenerate on the laptop (all gitignored, re-derivable):
@@ -475,9 +484,11 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/oik gold check            # 115 docs, all human_validated, 0 errors
 ```
 
-**Then, in priority order (all three deliverables are out):**
-**(1) Re-push the three corrected artifacts** — everything below is downstream of
-users actually getting the fixes. **(2) harden the wheat
+**Then, in priority order (all three deliverables are out and re-pushed):**
+**(1) entity identity / coreference across documents** — the highest-value item:
+it turns 21,895 principal *mentions* into a prosopography and lets F3/F4 be
+measured per person rather than per mention. `person_id` ships as the join key and
+64.8% of women principals carry a patronymic. **(2) harden the wheat
 price slice** — outlier filter, fix per-unit semantics (`unit_price =
 value/quantity` over-divides when the amount is already per-unit), → a defensible
 series with error bars vs Rathbone/Bagnall. This is also the weakest published
@@ -607,7 +618,7 @@ DELETED** (`db/parties.py`, `oik db women`, `tests/test_db_parties.py`,
 model; the gold-validation numbers it produced live on in the phase-9 doc.
 
 **Quality gate at last save:** ruff (src tests modal_app) · mypy (90 files) ·
-**651 tests** · caches cleared — all green. Also green in a **clean venv with no ML
+**653 tests** · caches cleared — all green. Also green in a **clean venv with no ML
 stack** (644 + 2 skipped): mypy overrides now make the answer independent of whether
 torch happens to be installed, so CI and the laptop agree. `oik gold check` 0 errors.
 Corpus NER run provenance-validated 0/1.37M mismatch. Women pipeline gold-validated
