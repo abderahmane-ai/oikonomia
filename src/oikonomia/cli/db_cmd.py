@@ -24,9 +24,9 @@ import typer
 
 from oikonomia.config import load_settings
 from oikonomia.corpus.io import corpus_path, iter_batches
+from oikonomia.db.autonomy import guardian_curve
 from oikonomia.db.dates import century as signed_century
 from oikonomia.db.dates import date_mid, half_century_start
-from oikonomia.db.autonomy import guardian_curve
 from oikonomia.db.facts import DocMeta, Ent, Rel, assemble_monetary
 from oikonomia.db.parties import PartyMeta, PartyObservation, assemble_parties
 from oikonomia.db.personscan import PersonMeta, PersonObservation, assemble_persons
@@ -34,8 +34,8 @@ from oikonomia.db.places import load_place_names
 from oikonomia.db.prices import SPECS, clean_prices, price_series
 from oikonomia.db.taxes import clean_tax_payments, fiscal_regime, payments_by_century
 from oikonomia.labeling.lexicon import load_lexicon
-from oikonomia.labeling.score import build_report
 from oikonomia.labeling.matcher import Matcher
+from oikonomia.labeling.score import build_report
 from oikonomia.labeling.silver import SilverLabeler, load_patterns
 from oikonomia.schemas.spans import CharSpan
 

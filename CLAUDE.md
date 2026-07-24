@@ -317,9 +317,13 @@ _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
 >    deterministic** (613/613 matched spans agree); PERSON relaxed recall 0.91;
 >    guardian-women over-counted on the μετὰ (with) side, but **χωρὶς matches gold
 >    exactly** — so the autonomy rise is **conservative**, not inflated. Trend robust.
-> 7. **← NEXT.** Revive the RE model — (a) `RelationHead` into a module; (b)
->    all-gold train + save; (c) standalone RE inference on NER-predicted entities;
->    (d) measure the end-to-end drop vs the 0.65 oracle PARTY_OF.
+> 7. **IN PROGRESS.** Revive the RE model — **(a) DONE**: `RelationHead` extracted
+>    to a module-level `build_relation_head` factory in `modal_app/relations.py`
+>    (lazy torch); re-verified via `xval` → **F1 0.729, PARTY_OF 0.678** (matches
+>    the frozen profile). **(b) DONE (code)**: `save_final` + `launch` save a custom
+>    `state_dict`+`config.json` to `/vol/models/relation/final` — run `launch` to
+>    produce it. **(c) NEXT**: standalone RE inference on NER-predicted entities;
+>    **(d)** measure the end-to-end drop vs the 0.678 oracle PARTY_OF.
 > 8. Fuller finding — women as principals across deal types (PARTY_OF + split-person
 >    kinship).
 >
@@ -465,6 +469,13 @@ model is the binding constraint — the audits say it is not.
 - **Warm-container stale-data trap.** `push` and `train` each print a silver
   fingerprint (`sha docs age`); they **must match**, or the run trained on
   pre-push data. Current silver: **`sha=96428892f944 docs=48891 age=4888`**.
+- **Relation schema on the volume goes stale.** `relation_labels.json` embeds
+  `entity_labels`/`relation_labels` from `RELATION_SIGNATURES`. When 8b added
+  `HAS_AGE`/`HAS_OCCUPATION` (→ AGE/OCCUPATION endpoints), the volume copy was NOT
+  re-pushed, so `relations.py::train` hit `KeyError: 'AGE'` at `ent2id`. **Always
+  `oik relation prepare` → `relations.py::push` before a relation run** if the
+  signatures changed. Current schema: 12 rel labels / 13 entity labels, recall
+  guard 0 uncovered.
 - **8 dense gold docs are held** (too fragmentary to auto-draft; need careful
   human work): `23914 25467 27734 28329 31975 33510 37263`.
 
@@ -511,7 +522,8 @@ model is the binding constraint — the audits say it is not.
   `checkpoints/full/final` (**B1** — load this for b1). Stale `checkpoints/b1-*`
   from the first sweep are safe to `modal volume rm -r`.
 - **Modal Volume `oikonomia-ner`:** `data/{silver,gold,labels}.json*` +
-  `relation_labels.json` (all current) + `data/corpus_text.jsonl` (the inference
+  `relation_labels.json` (re-pushed 2026-07-24 — now 8b-current w/ AGE/OCCUPATION)
+  + `data/corpus_text.jsonl` (the inference
   payload). `models/{b0,b1}/final` from Phase 7 — **`models/b1/final` is what the
   corpus NER run loaded** (`_resolve_ckpt`). `predictions/ner_corpus.jsonl` = the
   61,249-doc / 1.37M-entity run output. `xval` measures and saves no persistent

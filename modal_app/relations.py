@@ -124,6 +124,90 @@ def reset_models(names: list[str]) -> list[str]:
     return names  # xval saves no persistent model; nothing to clear (parity with ner.py).
 
 
+# Where the shippable relation model lands on the (ner) Volume. It is NOT a
+# standard HF model — a custom head over the encoder — so it is saved as a torch
+# state_dict plus a JSON config that `build_relation_head` reads back.
+RELATION_MODEL_DIR = f"{VOL_ROOT}/models/relation/final"
+
+
+def build_relation_head(
+    *,
+    backbone: str,
+    n_entity_labels: int,
+    n_rel_labels: int,
+    type_dim: int = 64,
+    feat_dim: int = 16,
+    dropout: float = 0.2,
+):
+    """Construct the span-pair relation head, reusable by training and inference.
+
+    Extracted from the ``train`` closure so the *same* architecture builds the
+    model for the k-fold CV, the all-gold save, and standalone inference on
+    NER-predicted entities. Torch is imported lazily (module-level torch would
+    break the local Modal dispatch, which has no ML stack).
+
+    Per candidate pair the classifier sees: head/tail max-pooled reps, the
+    between-span context, a WIDE context reaching before the payer (the direction
+    verb), CLS, entity-type embeddings, and the 3 symbolic direction features.
+    """
+    import torch
+    from torch import nn
+    from transformers import AutoModel
+
+    from oikonomia.relations.features import FEATURE_CARDINALITIES
+
+    class RelationHead(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.encoder = AutoModel.from_pretrained(backbone)
+            hsz = self.encoder.config.hidden_size
+            self.type_emb = nn.Embedding(n_entity_labels, type_dim)
+            self.feat_emb = nn.ModuleList(
+                nn.Embedding(card, feat_dim) for card in FEATURE_CARDINALITIES
+            )
+            self.no_ctx = nn.Parameter(torch.zeros(hsz))
+            self.mlp = nn.Sequential(
+                nn.Dropout(dropout),
+                nn.Linear(5 * hsz + 2 * type_dim + 3 * feat_dim, hsz),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(hsz, n_rel_labels),
+            )
+
+        def encode(self, input_ids, attention_mask):
+            h = self.encoder(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
+            return h, h[:, 0, :]  # token states, CLS
+
+        def score_pairs(self, hb, cls_b, cands):
+            """Logits [P, n_rel_labels] for one document's candidate pairs."""
+            dev = hb.device
+            reps_h, reps_t, ctxs, wides = [], [], [], []
+            for c in cands:
+                reps_h.append(hb[c.h0:c.h1].amax(0))
+                reps_t.append(hb[c.t0:c.t1].amax(0))
+                if c.h1 <= c.t0:  # head entirely left of tail
+                    c0, c1 = c.h1, c.t0
+                elif c.t1 <= c.h0:  # tail entirely left of head
+                    c0, c1 = c.t1, c.h0
+                else:  # overlapping token spans
+                    c0, c1 = 0, 0
+                ctxs.append(hb[c0:c1].amax(0) if c1 > c0 else self.no_ctx)
+                wides.append(hb[c.w0:c.w1].amax(0) if c.w1 > c.w0 else self.no_ctx)
+            rh, rt = torch.stack(reps_h), torch.stack(reps_t)
+            cx, wx = torch.stack(ctxs), torch.stack(wides)
+            th = self.type_emb(torch.tensor([c.htid for c in cands], device=dev))
+            tt = self.type_emb(torch.tensor([c.ttid for c in cands], device=dev))
+            fv = [
+                self.feat_emb[0](torch.tensor([c.vc for c in cands], device=dev)),
+                self.feat_emb[1](torch.tensor([c.vp for c in cands], device=dev)),
+                self.feat_emb[2](torch.tensor([c.pm for c in cands], device=dev)),
+            ]
+            cls = cls_b.unsqueeze(0).expand(rh.size(0), -1)
+            return self.mlp(torch.cat([rh, rt, cx, wx, cls, th, tt, *fv], dim=-1))
+
+    return RelationHead()
+
+
 @app.function(
     gpu=GPU,
     volumes={VOL_ROOT: ner_volume, DAPT_ROOT: dapt_volume},
@@ -151,8 +235,16 @@ def train(
     gce_q: float = 0.7,
     warmup_ratio: float = 0.06,
     seed: int = 17,
+    save_final: bool = False,
 ) -> dict[str, object]:
-    """Silver-pretrain the span-pair head (+ direction features), then k-fold gold FT."""
+    """Silver-pretrain the span-pair head (+ direction features), then k-fold gold FT.
+
+    With ``save_final=True`` a model is additionally trained on **all** gold (no
+    held-out fold), same recipe, and saved to ``RELATION_MODEL_DIR`` as a torch
+    ``state_dict`` + a JSON config — the shippable RE model for standalone
+    inference (``launch`` / ``infer``). The CV numbers above are the honest eval;
+    this is the model those numbers describe, trained on everything.
+    """
     import os
     from collections import namedtuple
 
@@ -160,8 +252,7 @@ def train(
 
     import torch
     import torch.nn.functional as F  # noqa: N812
-    from torch import nn
-    from transformers import AutoModel, AutoTokenizer, get_linear_schedule_with_warmup
+    from transformers import AutoTokenizer, get_linear_schedule_with_warmup
 
     from oikonomia.labeling.score import build_report
     from oikonomia.relations.data import entities_of, read_ner_jsonl, relations_of
@@ -174,7 +265,6 @@ def train(
         window_entities,
     )
     from oikonomia.relations.features import (
-        FEATURE_CARDINALITIES,
         PaymentLexicon,
         context_window,
         direction_features_from_folded,
@@ -254,62 +344,14 @@ def train(
           f"rel_labels={len(rel_labels)} ent_labels={len(entity_labels)} "
           f"silver_docs={len(silver_docs)} gold_docs={len(gold_docs)} k={k_folds}", flush=True)
 
-    class RelationHead(nn.Module):
-        """Single-encode span-pair classifier (SpERT-style) + neuro-symbolic direction.
-
-        Per pair the classifier sees: head/tail max-pooled reps, the between-span
-        context (local relations), a WIDE context reaching before the payer (the
-        direction verb, which precedes the payer 25% of the time), CLS, entity-type
-        embeddings, and the 3 symbolic direction-feature embeddings.
-        """
-
-        def __init__(self) -> None:
-            super().__init__()
-            self.encoder = AutoModel.from_pretrained(backbone)
-            hsz = self.encoder.config.hidden_size
-            self.type_emb = nn.Embedding(len(entity_labels), type_dim)
-            self.feat_emb = nn.ModuleList(nn.Embedding(card, feat_dim) for card in FEATURE_CARDINALITIES)
-            self.no_ctx = nn.Parameter(torch.zeros(hsz))
-            self.mlp = nn.Sequential(
-                nn.Dropout(dropout),
-                nn.Linear(5 * hsz + 2 * type_dim + 3 * feat_dim, hsz),
-                nn.GELU(),
-                nn.Dropout(dropout),
-                nn.Linear(hsz, len(rel_labels)),
-            )
-
-        def encode(self, input_ids, attention_mask):
-            h = self.encoder(input_ids=input_ids, attention_mask=attention_mask).last_hidden_state
-            return h, h[:, 0, :]  # token states, CLS
-
-        def score_pairs(self, hb, cls_b, cands):
-            """Logits [P, n_rel_labels] for one document's candidate pairs."""
-            dev = hb.device
-            reps_h, reps_t, ctxs, wides = [], [], [], []
-            for c in cands:
-                reps_h.append(hb[c.h0:c.h1].amax(0))
-                reps_t.append(hb[c.t0:c.t1].amax(0))
-                if c.h1 <= c.t0:  # head entirely left of tail
-                    c0, c1 = c.h1, c.t0
-                elif c.t1 <= c.h0:  # tail entirely left of head
-                    c0, c1 = c.t1, c.h0
-                else:  # overlapping token spans
-                    c0, c1 = 0, 0
-                ctxs.append(hb[c0:c1].amax(0) if c1 > c0 else self.no_ctx)
-                wides.append(hb[c.w0:c.w1].amax(0) if c.w1 > c.w0 else self.no_ctx)
-            rh, rt = torch.stack(reps_h), torch.stack(reps_t)
-            cx, wx = torch.stack(ctxs), torch.stack(wides)
-            th = self.type_emb(torch.tensor([c.htid for c in cands], device=dev))
-            tt = self.type_emb(torch.tensor([c.ttid for c in cands], device=dev))
-            fv = [
-                self.feat_emb[0](torch.tensor([c.vc for c in cands], device=dev)),
-                self.feat_emb[1](torch.tensor([c.vp for c in cands], device=dev)),
-                self.feat_emb[2](torch.tensor([c.pm for c in cands], device=dev)),
-            ]
-            cls = cls_b.unsqueeze(0).expand(rh.size(0), -1)
-            return self.mlp(torch.cat([rh, rt, cx, wx, cls, th, tt, *fv], dim=-1))
-
-    model = RelationHead().to(device)
+    model = build_relation_head(
+        backbone=backbone,
+        n_entity_labels=len(entity_labels),
+        n_rel_labels=len(rel_labels),
+        type_dim=type_dim,
+        feat_dim=feat_dim,
+        dropout=dropout,
+    ).to(device)
     pad_id = tokenizer.pad_token_id or 0
 
     def batched(exs, size, shuffle, generator=None):
@@ -456,6 +498,32 @@ def train(
     for ty in sorted(set(so_by) | set(sg_by)):
         print(f"[{run_name}]   {ty:14} {so_by.get(ty, 0.0):.3f} → {sg_by.get(ty, 0.0):.3f}")
     print(f"[{run_name}] RESULT {json.dumps(result, ensure_ascii=False)}", flush=True)
+
+    if save_final:
+        # Retrain silver→ALL gold (no held-out fold), identical recipe, and persist
+        # the custom model. The encoder weights live in the state_dict, so inference
+        # rebuilds the architecture from the BASE backbone and loads these over it —
+        # no DAPT volume needed at inference time.
+        model.load_state_dict(silver_state)
+        run(gold_docs, lr=gold_lr, epochs=gold_epochs, tag="final")
+        out = Path(RELATION_MODEL_DIR)
+        out.mkdir(parents=True, exist_ok=True)
+        torch.save(model.state_dict(), out / "relation_head.pt")
+        cfg = {
+            "reconstruct_backbone": BACKBONES["b0"],  # base arch; trained weights are in the state_dict
+            "entity_labels": entity_labels,
+            "relation_labels": rel_labels,
+            "relation_label2id": rel_label2id,
+            "type_dim": type_dim,
+            "feat_dim": feat_dim,
+            "dropout": dropout,
+            "seq_len": seq_len,
+        }
+        (out / "config.json").write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+        ner_volume.commit()
+        result["saved_model"] = RELATION_MODEL_DIR
+        print(f"[{run_name}] saved shippable RE model (all-gold) → {RELATION_MODEL_DIR}", flush=True)
+
     return result
 
 
@@ -491,6 +559,31 @@ def xval(
             min_confidence=min_confidence,
             constrain_decode=constrain_decode,
             payment_lex=payment_lex,
+        ),
+        indent=2, ensure_ascii=False,
+    ))
+
+
+@app.local_entrypoint()
+def launch(backbone: str = "b1", loss: str = "ce") -> None:
+    """Train the single shippable RE model on all gold and save it to the volume.
+
+    Runs the same paired CV (the honest number) and then, with ``save_final``,
+    trains silver→all-gold and persists the custom model to ``RELATION_MODEL_DIR``.
+    That saved model is what ``infer`` loads to run RE on NER-predicted entities.
+    """
+    from oikonomia.relations.features import load_payment_lexicon
+
+    if backbone not in BACKBONES:
+        raise SystemExit(f"backbone must be one of {sorted(BACKBONES)}, got {backbone!r}")
+    payment_lex = load_payment_lexicon(REPO / "resources").model_dump()
+    print(json.dumps(
+        train.remote(
+            run_name=f"{backbone}-{loss}-release",
+            backbone=BACKBONES[backbone],
+            loss=loss,
+            payment_lex=payment_lex,
+            save_final=True,
         ),
         indent=2, ensure_ascii=False,
     ))
