@@ -132,6 +132,11 @@ uv run oik silver label                       # emit silver over train (~5 min);
 .venv/bin/modal run --detach modal_app/ner.py::push               # upload silver/gold/labels (prints a fingerprint)
 .venv/bin/modal run --detach modal_app/ner.py::xval --backbone b1 --loss ce   # paired 5-fold CV
 
+# --- Model release (Phase 11) — deliverable #1; OWNER-RUN (needs HF write token) ---
+.venv/bin/modal run --detach modal_app/ner.py::launch          # all-gold train + save → models/release/final
+modal secret create huggingface HF_TOKEN=hf_xxx                # once
+.venv/bin/modal run modal_app/ner.py::push_to_hub --repo-id <org>/oikonomia-ner  # push (starts private)
+
 # --- Relations (Phase 8) — FROZEN; GPU runs owner-triggered, not the default path ---
 .venv/bin/oik relation prepare                # freeze relation_labels.json; recall guard MUST be 0 uncovered
 .venv/bin/oik relation score                  # nearest-pair baseline (the bar): rel micro F1 0.443
@@ -225,13 +230,27 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 7b Two-stage silver→gold | ✅ | gold-FT recipe → **strict 0.737 / relaxed 0.837**; GCE rejected (−5.7) | [phase_7](docs/phases/phase_7_entity_ner.md) |
 | 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); 8a closed (data-bound); 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
 | 9 Corpus→DB | 🔶 ACTIVE | **195,906 facts**; **prices** (2c AD 13.3 vs lit ~7–12) + **taxes** (fiscal-regime map, poll tax by nome) + **women-as-principals** (gold: 12.4%, coverage 54% via corpus name gazetteer, sale 44% vs lease 0%) validated | [phase_9](docs/phases/phase_9_database.md) |
-| 10 Analysis · 11 Release | ⬜ | findings (price series, women-as-principals) + HF model release | — |
+| 10 Analysis | ⬜ | findings write-up (price series, women-as-principals) | — |
+| 11 Release | 🔶 PACKAGED | NER model **packaged for HF** (licence firewall + model card + `launch`/`push_to_hub`); 2 owner-run commands from live | [phase_11](docs/phases/phase_11_release.md) |
 
 ---
 
 ## 7. Current machine state — READ THIS FIRST in a new session
 
 _Last updated: 2026-07-24. Branch **`main`**; working tree clean._
+
+**CURRENT FRONT — SHIP, don't build (2026-07-24).** An honest audit put the project
+at **0/3 shipped deliverables** despite heavy validated substance (models at bar,
+196k-row fact table, 3 findings). Decision: stop accumulating substance, take one
+deliverable out. **Deliverable #1 (NER on HF) is now PACKAGED** — licence firewall
+(`oikonomia.models.licensing`, fail-closed, tested), model card
+(`resources/release/MODEL_CARD.md`), and owner-run `launch`+`push_to_hub` in
+`modal_app/ner.py`. GreBerta apache-2.0 verified against the live HF page;
+`MODEL_LICENSES.md` corrected (it described a stale GreTa plan). **It ships with 2
+owner-run commands** (`launch` → `push_to_hub`, needs an HF write token + a Modal
+secret `huggingface`) — Claude cannot authenticate/publish. Detail:
+[`docs/phases/phase_11_release.md`](docs/phases/phase_11_release.md). The RE model is
+NOT yet shippable (only xval'd, never saved — needs a `launch`-style save first).
 
 **THE PIVOT — read before doing anything.** The deliverable is a **queryable,
 auditable economic database + findings** (§1). The models are frozen at a
@@ -391,11 +410,12 @@ the binding constraint — the audits say it is not.
   from the first sweep are safe to `modal volume rm -r`.
 - **Modal Volume `oikonomia-ner`:** `data/{silver,gold,labels}.json*` +
   `relation_labels.json` (all current). `models/{b0,b1}/final` from Phase 7.
-  `xval` measures and saves no persistent model — the shippable NER model is a
-  later `launch`-style full train once the recipe is frozen (it now is).
+  `xval` measures and saves no persistent model — the shippable NER model is
+  produced by **`launch`** (`train(save_final=True)` → `models/release/final`,
+  trained on ALL gold), then published by **`push_to_hub`** (Phase 11).
 
-**Quality gate at last save:** ruff (src tests modal_app) · mypy (79 files) ·
-539 tests · caches cleared — all green. `oik gold check` 0 errors.
+**Quality gate at last save:** ruff (src tests modal_app) · mypy (81 files) ·
+549 tests · caches cleared — all green. `oik gold check` 0 errors.
 
 ---
 

@@ -151,8 +151,14 @@ def train(
     gce_q: float = 0.7,
     warmup_ratio: float = 0.06,
     seed: int = 17,
+    save_final: bool = False,
 ) -> dict[str, object]:
-    """Silver-pretrain (with `loss`), then paired k-fold gold fine-tuning."""
+    """Silver-pretrain (with `loss`), then paired k-fold gold fine-tuning.
+
+    With ``save_final=True`` a final model is trained on **all** gold (not a held-out
+    fold), same recipe, and saved to ``{MODEL_ROOT}/{run_name}/final`` — the single
+    shippable checkpoint for the Hub release (see ``launch`` / ``push_to_hub``).
+    """
     import os
 
     os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
@@ -358,6 +364,32 @@ def train(
     print(f"[{run_name}] per-label strict Δ: "
           + "  ".join(f"{w} {sg_by.get(w, 0) - so_by.get(w, 0):+.3f}" for w in WATCH))
     print(f"[{run_name}] RESULT {json.dumps(result, ensure_ascii=False)}", flush=True)
+
+    if save_final:
+        # The shippable artifact: retrain on ALL gold (no held-out fold), identical
+        # recipe as the folds, and persist it. The CV numbers above are the honest
+        # eval; this is the model those numbers describe, trained on everything.
+        model.load_state_dict(silver_state)
+        final = NoisyTrainer(
+            model=model,
+            args=quiet_args(
+                output_dir="/tmp/final", num_train_epochs=gold_epochs,
+                learning_rate=gold_lr, per_device_train_batch_size=gold_batch,
+            ),
+            train_dataset=Rows(gold_rows),
+            data_collator=collator,
+            loss_type="ce",
+        )
+        final.remove_callback(PrinterCallback)
+        final.remove_callback(ProgressCallback)
+        final.train()
+        save_dir = f"{MODEL_ROOT}/{run_name}/final"
+        model.save_pretrained(save_dir)
+        tokenizer.save_pretrained(save_dir)
+        ner_volume.commit()
+        result["saved_model"] = save_dir
+        print(f"[{run_name}] saved shippable model (all-gold) → {save_dir}", flush=True)
+
     return result
 
 
@@ -428,5 +460,73 @@ def predict(text: str = "Παχὼν κα τέτακται ἐπὶ τὴν ἐ�
         print("  (No entities found)")
     for s in spans:
         print(f"  [{s['type']:<14}] \"{s['text']}\" (char {s['start']}:{s['end']})")
+
+
+# --- Hub release (deliverable #1): owner-run, needs auth ----------------------
+#
+# Two owner-run steps produce the public model (Claude cannot authenticate or
+# publish). The eval numbers are the CV run's; `launch` trains the shipped weights
+# on all gold; `push_to_hub` uploads them behind the licence firewall.
+#
+#   1. .venv/bin/modal run --detach modal_app/ner.py::launch           # → models/release/final
+#   2. modal secret create huggingface HF_TOKEN=hf_xxx                 # once (a write token)
+#   3. .venv/bin/modal run modal_app/ner.py::push_to_hub --repo-id <org>/oikonomia-ner
+#
+RELEASE_RUN = "release"
+RELEASE_CKPT = f"{MODEL_ROOT}/{RELEASE_RUN}/final"
+# The model's verified lineage — checked by the firewall before any upload.
+RELEASE_LINEAGE = ["bowphs/GreBerta", "DDbDP", "oikonomia-gold"]
+
+
+@app.local_entrypoint()
+def launch(backbone: str = "b1") -> None:
+    """Train the single shippable NER model on all gold and save it to the volume."""
+    reset_models.remote([RELEASE_RUN])
+    result = train.remote(
+        run_name=RELEASE_RUN, backbone=BACKBONES[backbone], loss="ce", save_final=True
+    )
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+
+
+@app.function(volumes={VOL_ROOT: ner_volume}, secrets=[modal.Secret.from_name("huggingface")], timeout=1800)
+def push_to_hub_remote(repo_id: str, checkpoint: str, model_card: str, labels_json: str, private: bool) -> str:
+    """Upload a saved checkpoint to the Hub — gated by the licence firewall."""
+    import os
+
+    from huggingface_hub import HfApi
+
+    from oikonomia.models.licensing import assert_releasable
+
+    assert_releasable(RELEASE_LINEAGE)  # refuses NonCommercial / unverified lineage
+
+    ckpt = Path(checkpoint)
+    if not (ckpt / "config.json").exists():
+        raise SystemExit(f"no saved model at {checkpoint} — run `launch` first.")
+    (ckpt / "README.md").write_text(model_card, encoding="utf-8")
+    (ckpt / "labels.json").write_text(labels_json, encoding="utf-8")
+
+    token = os.environ["HF_TOKEN"]
+    api = HfApi(token=token)
+    api.create_repo(repo_id=repo_id, repo_type="model", private=private, exist_ok=True)
+    api.upload_folder(repo_id=repo_id, folder_path=str(ckpt), repo_type="model")
+    url = f"https://huggingface.co/{repo_id}"
+    print(f"[{APP_NAME}] pushed {checkpoint} → {url} (private={private})", flush=True)
+    return url
+
+
+@app.local_entrypoint()
+def push_to_hub(repo_id: str, checkpoint: str = RELEASE_CKPT, private: bool = True) -> None:
+    """Publish the shipped NER model to the Hub (starts PRIVATE — flip to public on HF).
+
+    Requires a Modal secret ``huggingface`` carrying an HF **write** token, and a
+    checkpoint produced by ``launch``. Attaches the model card + labels; the licence
+    firewall runs before any bytes leave.
+    """
+    card = (REPO / "resources" / "release" / "MODEL_CARD.md").read_text(encoding="utf-8")
+    labels_json = LOCAL["labels.json"].read_text(encoding="utf-8")
+    url = push_to_hub_remote.remote(
+        repo_id=repo_id, checkpoint=checkpoint, model_card=card, labels_json=labels_json, private=private
+    )
+    print(f"\n✅ pushed → {url}\n   (private — make it public in the HF repo settings when ready)")
 
 
