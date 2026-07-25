@@ -59,6 +59,12 @@ blended); and the released artifacts.
 - **`statistics` and `spatial analysis` deliberately NOT ticked** — they drive
   reviewer assignment, and the paper reports medians/IQRs/tiers rather than CIs,
   and explicitly declines the regional cut.
+- **Presentation format: "short oral presentation" — correct, and not a
+  mis-click.** EasyChair forces a binary (poster vs oral) on every submission
+  type, but the CFP gives the choice only to *short* papers and says "the final
+  decision on the format will be taken by the program committee". **Long papers
+  are presented orally as full presentations**, so the field binds nothing here.
+  Do not re-flag it.
 - **Anonymity period runs to 23 Oct 2026** (notification). Do not promote the
   paper publicly before then. Preprinting is permitted (CHR names arXiv/Zenodo/
   HAL) — **use Zenodo, not ResearchGate**, and preferably only once the
