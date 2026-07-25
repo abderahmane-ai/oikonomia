@@ -305,7 +305,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 9 Corpus→DB | ✅ (opt. hardening left) | **195,906 facts**; 5 findings — **prices**, **taxes**, **AUTONOMY** χωρὶς curve **0%→39%→80% (3c→4c AD)**, **PRINCIPALS by deal type** (21,895; women 18.0% mentions / 20.1% distinct; **sale 30%/loan 28% vs receipt 10%**), monetization; **DB packaged + queryable** (`oik db export`, `docs/database.md`) | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ✅ | **the five findings recorded**, every number recomputed from the shipped tables, each with mechanism + control + limits | [phase_10](docs/phases/phase_10_findings.md) |
 | 11 Release | ✅ PUBLISHED | all three live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; post-publication audit (7 fixes) re-pushed and **verified against the Hub**; **cards rebuilt to HF template structure 2026-07-25 (13 defects) — NOT YET PUSHED** | [phase_11](docs/phases/phase_11_release.md) |
-| 12 Publication | 🔶 DRAFTED | **CHR 2027 long paper drafted, compiles clean, 4,876/6,000 words** — venue picked after a live scan (§7); figures regenerate from the shipped tables | `paper/chr2027/` (**gitignored, local-only**) |
+| 12 Publication | 🔶 DRAFTED | **CHR 2027 long paper drafted, compiles clean, 5,189/6,000 words** — venue picked after a live scan (§7); figures regenerate from the shipped tables | `paper/chr2027/` (**gitignored, local-only**) |
 
 ---
 
@@ -339,7 +339,11 @@ _Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree c
 > `data/processed/db/`) — but **the prose is not**.
 >
 > **State: `paper/chr2027/` compiles clean** — 0 LaTeX errors, 0
-> missing glyphs, 0 undefined citations/refs, 12 pp, **4,876 of 6,000 words**.
+> missing glyphs, 0 undefined citations/refs, 13 pp, **5,189 of 6,000 words**.
+> Title: *How Often, and How Freely: Women in Greco-Roman Egypt, and an Auditable
+> Economic Database of 61,249 Documentary Papyri* — the hook names the two novel
+> findings (F3 how freely, F4 how often); F1/F2 are deliberately NOT in it, they
+> are validation, not contributions.
 > Anonymisation is automatic (the class prints "Under Review / Anonymous
 > Submission" unless `[final]`); a grep guard confirms no repo/model/author
 > strings leak. All 20 bib entries were checked against a live source.
@@ -349,13 +353,17 @@ _Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree c
 > table has 16 rows, incl. `letter_official` 0.218 and `letter` 0.071, which
 > phase_10's table omitted). Build/checklist: `paper/chr2027/README.md` (local-only).
 >
-> **Before submitting (in the README too, this is the real list):**
-> 1. **A second annotator** on some of the 115 gold docs + an agreement number.
->    The paper declares the single-annotator limit in Threats to Validity; this is
->    the highest-value fix and the thing a reviewer will hit first.
+> **Before submitting (the README has the same list, with commands):**
+> 1. **A second annotator — the subset is already picked.** 16 of the 115 gold
+>    docs carry `double_annotate: true`, genre-stratified, 504 entities. The plan
+>    was scoped and never executed; there is exactly one annotator field
+>    (`claude-opus-4-8` drafts, one human reviewer). Re-annotate those 16
+>    independently and report agreement. Highest-value fix, and the thing a
+>    reviewer hits first. Ids are in the paper README.
 > 2. **A papyrologist's read of the autonomy finding** (§7.1) before it goes out.
-> 3. **An anonymous artifact mirror** (`anonymous.4open.science`); the data
->    availability section currently withholds links entirely.
+> 3. **Register the anonymous mirror.** `make_anon_bundle.py` builds and
+>    self-audits `anon/` (17 files, 0.6 MB, data+docs only, no library); upload it
+>    to `anonymous.4open.science` and paste the URL over `ANON-ID` in paper.tex.
 >
 > Toolchain notes so a new session doesn't re-derive them: BasicTeX has no
 > biblatex/biber — `tlmgr --usermode install biblatex …` works, but **biber is not
