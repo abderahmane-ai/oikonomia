@@ -212,3 +212,65 @@ Nothing is outstanding. What remains is optional:
 - Optional: the all-gold `ner.py::launch` Grammateus retrain, if the released
   Phase-7 checkpoint is to be swapped for the all-gold one.
 - Deliverable #3 is recorded: [`phase_10_findings.md`](phase_10_findings.md).
+
+---
+
+## Card rewrite — 2026-07-25 (all three cards rebuilt to HF template structure)
+
+Triggered by an audit of what the three live cards actually contained. The model
+cards were strong on metrics; the **dataset card documented tables but not a single
+column** — the whole 579-line reference in [`docs/database.md`](../database.md)
+(column dictionary, controlled vocabularies, 8 pitfalls) had never reached the Hub.
+
+All three now follow the official HF card templates (`modelcard_template.md` /
+`datasetcard_template.md`) adapted to the artifact.
+
+### What was wrong, and what it is now
+
+| # | Defect (live cards, pre-2026-07-25) | Fix |
+|---|---|---|
+| 1 | Dataset card defined **no columns** for any of the 8 tables | Full per-table column reference: type, measured non-null coverage, meaning |
+| 2 | No controlled vocabularies — `gender`, `guardian`, `deal_type`, `roles`, `gender_basis`, currency/commodity/unit/tax ids all undocumented | All 9 vocabularies with counts. (The cost of this gap is concrete: a `gender in ('F','M')` guess returns zero rows — the values are `male`/`female`/`unknown`.) |
+| 3 | Pitfalls section never shipped; **`tm_id` is not unique** (231 ids span >1 doc) was nowhere on the Hub | All 8 pitfalls carried over |
+| 4 | Provenance claim named columns that do not exist (`stem`, `start_char`, `end_char` in the money tables) | Corrected: `amount_start`/`amount_end` keyed on `tm_id`, `person_start`/`person_end` keyed on `stem`; 0-based end-exclusive stated |
+| 5 | No findings section — the evidence base for five results described none of them | "What has been found with it", five findings, every number recomputed from the shipped tables |
+| 6 | Grammateus published **12 of 15** per-label F1s, omitting exactly the three the Limitations call weakest | All 15 listed; `COMMODITY`/`PERSON_ROLE`/`TAX_TERM` marked ***not recorded*** with the reason (never logged; re-deriving needs a fresh 5-fold CV, since the shipped all-gold checkpoint scored on gold is train-on-test) |
+| 7 | Neither model card had a **single training hyperparameter** | Both carry the two-stage table (LR, schedule, steps/epochs, batch, seq len, loss, optimizer, precision, seed) from `modal_app/{ner,relations}.py` defaults — which is what `launch` runs |
+| 8 | Homologia gave end-to-end for `PARTY_OF` only, the rest in prose | Full e2e table (overall 0.609 P 0.771 / R 0.503; PAID_TO 0.507, PAID_BY 0.231, HAS_PRICE/CHARGED_UNDER 0.000), with the 4 unrecorded per-relation e2e figures named as a gap |
+| 9 | **`HAS_AGE`/`HAS_OCCUPATION` listed as supported relations with zero gold edges** — silver-only, scored nowhere | Disclosed, with a gold-edge count column (they read 0) beside all 11 relations |
+| 10 | `datasets: papyri/DDbDP` in both model frontmatters — **dead link** (HF 401; DDbDP is a git repo, not a Hub dataset) | Removed from frontmatter, cited in prose |
+| 11 | Grammateus reported F1 only, no P/R | Stated as not recorded (only micro F1 at both strictness levels was logged); Homologia's P/R added to its `model-index` |
+| 12 | No cross-links: dataset ↔ models | All three link the other two; guarded by a test |
+| 13 | Homologia had no `library_name` → Hub rendered a broken inference widget for a custom-head model | `inference: false`; both models get `base_model_relation: finetune`; dataset gets `pretty_name` + `tabular` modality tag |
+
+### Guards added (`tests/test_release_cards.py`, 22 → 32 tests)
+
+The card is the public face of the work and ships verbatim, so each fix above is
+now locked:
+
+- frontmatter names no Hub repo that does not exist (defect 10);
+- both model cards publish hyperparameters (7);
+- all three cards link the other two artifacts (12);
+- Grammateus discloses the unrecorded per-label scores (6);
+- Homologia leads with end-to-end and labels the 0.993 as train-on-test (8);
+- Homologia flags the two unsupervised relations (9);
+- the dataset card has a column-reference section per shipped table (1),
+  the vocabularies and the pitfalls (2, 3);
+- **`@pytest.mark.corpus`: every column of every shipped parquet file appears in
+  the dataset card** — schema drift between the files and the card now fails the
+  suite instead of surfacing as a query that returns nothing.
+
+Both quickstart queries in the dataset card were executed verbatim against the
+shipped parquet files; output matches the card.
+
+### Still not measured (honest gaps, each needs a GPU run)
+
+These are stated as gaps *on the cards* rather than quietly omitted:
+
+- per-label F1 for `COMMODITY` / `PERSON_ROLE` / `TAX_TERM` → `ner.py::xval`
+- entity-model precision/recall (only micro F1 was logged) → same run
+- per-fold variance for every entity figure → same run
+- per-relation end-to-end F1 for `HAS_CURRENCY`/`HAS_UNIT`/`HAS_QUANTITY`/`DATED_TO`
+  → `relations.py::eval_e2e`
+- any score at all for `HAS_AGE`/`HAS_OCCUPATION` → needs gold edges first
+  (`data/gold/attribute_draft.jsonl`, still parked for owner review)

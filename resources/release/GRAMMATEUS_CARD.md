@@ -5,6 +5,7 @@ language:
 library_name: transformers
 pipeline_tag: token-classification
 base_model: bowphs/GreBerta
+base_model_relation: finetune
 tags:
 - token-classification
 - named-entity-recognition
@@ -19,12 +20,10 @@ tags:
 - digital-humanities
 - economic-history
 - greberta
-datasets:
-- papyri/DDbDP
-widget:
-- text: "Αὐρηλία Θεοδώρα θυγάτηρ τοῦ μακαρίου Ἀλεξάνδρου χωρὶς κυρίου χρηματιζούσης τέκνων δικαίῳ ἐν Ἑρμουπόλει. σίτου ἀρτάβας ἑκατόν γίνονται (ἀρτάβαι) ρ, καὶ ἀργυρίου δραχμὰς πεντακισχιλίας."
 metrics:
 - f1
+widget:
+- text: "Αὐρηλία Θεοδώρα θυγάτηρ τοῦ μακαρίου Ἀλεξάνδρου χωρὶς κυρίου χρηματιζούσης τέκνων δικαίῳ ἐν Ἑρμουπόλει. σίτου ἀρτάβας ἑκατόν γίνονται (ἀρτάβαι) ρ, καὶ ἀργυρίου δραχμὰς πεντακισχιλίας."
 model-index:
 - name: OIKONOMIA-Grammateus
   results:
@@ -50,81 +49,70 @@ documentary papyri of Greco-Roman Egypt — tax receipts, leases, loans, wages,
 sales, census returns — and tags the entities an economic historian extracts by
 hand: people, places, money, commodities, units, taxes, dates, ages, occupations.
 
-It is the entity-extraction arm of **OIKONOMIA**, a project turning the ~68,000
-Duke Databank (DDbDP) papyri into a structured, auditable database of ancient
-economic life. This is deliverable #1: an open model for a low-resource language
-with essentially no prior NER supervision.
+It is the entity arm of **OIKONOMIA**, a project turning the ~68,000 Duke Databank
+(DDbDP) papyri into a structured, auditable database of ancient economic life. Run
+over the whole corpus it produced **1,368,079 entities across 61,249 documents**,
+which became the published [OIKONOMIA-DB](https://huggingface.co/datasets/ainouche-abderahmane/oikonomia-db).
 
-- **Base model:** [`bowphs/GreBerta`](https://huggingface.co/bowphs/GreBerta)
-  (RoBERTa-base, Ancient Greek, apache-2.0) + **domain-adaptive pretraining
-  (DAPT)** on the papyri corpus (full fine-tune).
-- **Architecture:** RoBERTa-base encoder + token-classification head, 512 context,
-  case-preserving 52k-token vocabulary.
-- **Task:** BIO tagging over 15 economic entity types.
+---
 
-## Entity labels (15)
+## Model Details
 
-| Label | What it marks |
-|---|---|
-| `PERSON` | personal names (name + patronymic as written) |
-| `PLACE` | toponyms (villages, nomes, cities) |
-| `MONEY_AMOUNT` | a monetary quantity |
-| `CURRENCY` | denomination (drachma, obol, talent, nomisma, …) |
-| `COMMODITY` | traded goods (wheat, wine, oil, barley, …) |
-| `QUANTITY` | a counted/measured amount |
-| `UNIT` | measure (artaba, aroura, …) |
-| `FRACTION` | fractional numerals |
-| `PRICE_TERM` | pricing vocabulary (τιμή, …) |
-| `TAX_TERM` | named taxes (laographia, demosia, …) |
-| `TRANSACTION` | the act (sale, lease, loan, receipt) |
-| `OCCUPATION` | professions / trades |
-| `PERSON_ROLE` | a party by role (lessor, creditor, …) |
-| `DATE_REF` | dating expressions (regnal year, month) |
-| `AGE` | stated ages |
+### Model Description
 
-## Evaluation
+- **Developed by:** Abderahmane Ainouche (OIKONOMIA project)
+- **Model type:** RoBERTa-base encoder + token-classification head (BIO tagging)
+- **Language:** Ancient Greek (`grc`) — documentary, not literary
+- **Licence:** apache-2.0, inherited from the backbone
+- **Base model:** [`bowphs/GreBerta`](https://huggingface.co/bowphs/GreBerta) + domain-adaptive pretraining (DAPT) on the papyri corpus
+- **Parameters:** 125.4M · **Context:** 512 tokens · **Vocabulary:** 52k, case-preserving
+- **Labels:** 15 entity types → 31 BIO tags
 
-5-fold cross-validation on **115 fully human-validated gold documents** (2,995
-entities), cross-entropy loss. "Strict" requires an exact span+label match;
-"relaxed" credits an overlapping span of the right label.
+Case preservation matters here and drove the backbone choice: capitalisation is the
+strongest single cue for `PERSON` and `PLACE` in this corpus, and keeping it costs
+only ~0.6% more tokens.
 
-| | Strict micro F1 | Relaxed micro F1 |
-|---|---|---|
-| Silver only (no gold fine-tune) | 0.654 | 0.753 |
-| **Silver → gold fine-tune (this model)** | **0.737** | **0.837** |
+### Model Sources
 
-**Per-label strict F1** (selected):
+- **Repository:** https://github.com/abderahmane-ai/oikonomia
+- **Sibling model:** [OIKONOMIA-Homologia](https://huggingface.co/ainouche-abderahmane/homologia) (relations)
+- **Dataset produced with it:** [OIKONOMIA-DB](https://huggingface.co/datasets/ainouche-abderahmane/oikonomia-db)
 
-| Label | F1 | | Label | F1 |
-|---|---|---|---|---|
-| `AGE` | 0.974 | | `MONEY_AMOUNT` | 0.758 |
-| `PRICE_TERM` | 0.929 | | `OCCUPATION` | 0.746 |
-| `FRACTION` | 0.863 | | `QUANTITY` | 0.744 |
-| `UNIT` | 0.841 | | `DATE_REF` | 0.690 |
-| `CURRENCY` | 0.822 | | `PLACE` | 0.650 |
-| `PERSON` | 0.775 | | `TRANSACTION` | 0.602 |
+---
 
-**Domain-adaptive pretraining pays off.** Against an identical fine-tune on the raw
-backbone (no papyri DAPT), DAPT adds **+9.5 strict F1** overall, concentrated in the
-open-class onomastic labels the adaptation was meant to help: **PERSON +19.0**,
-**PLACE +11.4** — with no label regressing.
+## Uses
 
-**How much to trust these numbers.** 115 documents over 5 folds is roughly **23
-documents per fold**, so every figure above is a point estimate on a small sample.
-The micro-averaged totals rest on 2,995 entities and are the sturdiest; the
-**per-label** figures for rare labels rest on far fewer instances and should be
-read as indicative of rank, not as precise values — ten more annotated documents
-could move them. Per-fold variance was not recorded and is a known gap. The
-headline comparisons (DAPT vs no-DAPT, silver-only vs silver→gold) are paired runs
-on identical folds, which is what makes their *direction* reliable even at this n.
+### Direct Use
 
-## Intended use
+Information extraction over **documentary** Ancient Greek: tagging the entities in
+a papyrus so they can be normalized, linked and counted. Suited to papyrology,
+digital humanities, and ancient economic history.
+
+### Downstream Use
+
+Designed to feed [OIKONOMIA-Homologia](https://huggingface.co/ainouche-abderahmane/homologia),
+which links the tagged spans into transactions. Run Grammateus first, pass its
+spans to Homologia. Also a reasonable starting point for fine-tuning on other
+documentary Greek annotation schemes.
+
+### Out-of-Scope Use
+
+- **Literary Greek, epigraphy, or Modern Greek.** The domain adaptation is
+  specifically to documentary papyri; performance elsewhere is unmeasured.
+- **As a normalizer.** It finds spans. Mapping surface forms to canonical
+  currency/commodity/unit ids is a separate lexicon step.
+- **As a person disambiguator.** A `PERSON` span is the name as written, often
+  name + patronymic together; it does not resolve who that individual is.
+
+---
+
+## How to Get Started
 
 ```python
 from transformers import AutoTokenizer, AutoModelForTokenClassification
 import torch
 
-repo = "ainouche-abderahmane/grammateus"  # the published repo id
+repo = "ainouche-abderahmane/grammateus"
 tok = AutoTokenizer.from_pretrained(repo)
 model = AutoModelForTokenClassification.from_pretrained(repo).eval()
 
@@ -133,64 +121,219 @@ enc = tok(text, return_tensors="pt", return_offsets_mapping=True)
 offsets = enc.pop("offset_mapping")[0]
 with torch.no_grad():
     pred = model(**enc).logits[0].argmax(-1)
+
 for (s, e), p in zip(offsets.tolist(), pred.tolist()):
     if e > s:
         print(text[s:e], model.config.id2label[p])
 ```
 
-Built for **information extraction over documentary (not literary) Ancient Greek**,
-to populate a structured economic database. Well suited to research in papyrology,
-digital humanities, and ancient economic history.
+Documents longer than 512 tokens must be windowed; the corpus run used a strided
+window with span-offset remapping (`oikonomia.ner.inference`).
 
-## The OIKONOMIA model pair
+### Entity labels (15)
 
-Grammateus finds the *entities*. Its sibling
-[**OIKONOMIA-Homologia**](https://huggingface.co/ainouche-abderahmane/homologia) links them
-into *transactions* — who is a party to a deal, who paid whom, which amount prices
-which commodity. Run Grammateus first; feed its spans to Homologia.
+| Label | What it marks |
+|---|---|
+| `PERSON` | personal names (name + patronymic as written) |
+| `PLACE` | toponyms (villages, nomes, cities) |
+| `MONEY_AMOUNT` | a monetary quantity |
+| `CURRENCY` | denomination (drachma, obol, talent, nomisma, …) |
+| `COMMODITY` | traded goods (wheat, wine, oil, barley, …) |
+| `QUANTITY` | a counted / measured amount |
+| `UNIT` | measure (artaba, aroura, metretes, …) |
+| `FRACTION` | fractional numerals |
+| `PRICE_TERM` | pricing vocabulary (τιμή, …) |
+| `TAX_TERM` | named taxes (laographia, demosia, …) |
+| `TRANSACTION` | the act (sale, lease, loan, receipt) |
+| `OCCUPATION` | professions / trades |
+| `PERSON_ROLE` | a party named by role (lessor, creditor, …) |
+| `DATE_REF` | dating expressions (regnal year, month) |
+| `AGE` | stated ages |
 
-## Limitations
+---
 
-- **Domain-specific.** Trained on documentary papyri; not intended for literary
-  Greek, epigraphy, or Modern Greek.
-- **Label ceilings are consistency-bound.** `TRANSACTION`, `PERSON_ROLE` and
-  `TAX_TERM` are open, formulaic classes whose ceiling is annotation *consistency*,
-  not data volume.
-- **Collapsed persons.** A `PERSON` span is the name as written — often name +
-  patronymic together; it does not split the individuals for kinship.
-- **Fragmentary text.** Papyri carry lacunae and editorial marks; very broken
-  passages degrade accuracy.
-- **Not a normalizer.** It finds spans; mapping surface forms to canonical
-  currency/commodity/unit ids is done downstream by the OIKONOMIA lexicon.
+## Training Details
 
-## Training data & provenance
+### Training Data
 
-- **Corpus:** the Duke Databank of Documentary Papyri (DDbDP) via
-  [`papyri/idp.data`](https://github.com/papyri/idp.data), **CC BY 3.0** — pinned
-  to a specific corpus revision.
-- **Supervision:** the papyri carry **no entity markup upstream**. All labels were
-  built for this project: a deterministic lexicon+rules labeler produced *silver*
-  over ~49k training documents, and **115 documents were fully human-annotated and
-  validated** as gold. The model is silver-pretrained then gold fine-tuned.
+- **Corpus:** the Duke Databank of Documentary Papyri via
+  [`papyri/idp.data`](https://github.com/papyri/idp.data), **CC BY 3.0**, pinned to
+  revision `d7a34f302d1e44e271256092c2b780733187b478`. Not available as a Hub
+  dataset; it is EpiDoc XML in a git repository.
+- **The papyri carry no entity markup upstream** (0% over a 200-document audit).
+  All supervision was built for this project:
+  - **Silver:** a deterministic lexicon + rules labeler over **48,891 training
+    documents** (measured against gold at micro F1 0.667).
+  - **Gold:** **115 documents, every one human-annotated and validated** — 2,995
+    entities.
+- Splits are leak-free: near-duplicate clusters (2.89% of the corpus) and
+  TM-sibling documents are grouped before assignment, so no document's near-twin
+  sits across the split boundary.
+
+### Training Procedure
+
+Three stages: DAPT, then silver pretraining, then gold fine-tuning.
+
+**Stage 0 — domain-adaptive pretraining.** Full fine-tune of GreBerta on the
+papyri corpus (8.25M train / 1.10M dev tokens), masked-LM objective. Full-FT beat
+head-only and adapter variants (dev perplexity 4.54). This checkpoint is the
+backbone for everything below.
+
+**Stage 1 — silver pretraining.** Token classification over the 48,891
+silver-labelled documents.
+
+**Stage 2 — gold fine-tuning.** The same model fine-tuned on the 115 gold
+documents.
+
+#### Training Hyperparameters
+
+| | Stage 1 (silver) | Stage 2 (gold) |
+|---|---|---|
+| Learning rate | 5e-5 | 3e-5 |
+| Schedule | linear, warmup ratio 0.06 | linear, warmup ratio 0.06 |
+| Steps / epochs | 2,000 steps | 15 epochs |
+| Batch size | 32 | 8 |
+| Max sequence length | 512 | 512 |
+| Loss | cross-entropy | cross-entropy |
+| Optimizer | AdamW | AdamW |
+| Precision | bf16 | bf16 |
+| Seed | 17 | 17 |
+
+A generalized-cross-entropy loss (GCE, q=0.7) was tried on the silver stage to
+absorb label noise and **rejected — it cost 5.7 strict F1.**
+
+#### Compute
+
+Single NVIDIA A10 (24 GB) on [Modal](https://modal.com). Emissions were not
+tracked; a run of this size is on the order of GPU-hours, not GPU-days.
+
+---
+
+## Evaluation
+
+### Testing Data, Factors & Metrics
+
+**Testing data.** 5-fold cross-validation over the **115 fully human-validated
+gold documents** (2,995 entities). No separate held-out test set exists — the gold
+set is small enough that spending part of it on a test split would make every
+number noisier than cross-validation does.
+
+**Metrics.** Micro-averaged span F1, in two regimes: **strict** requires an exact
+span *and* label match; **relaxed** credits an overlapping span of the right label.
+Relaxed is the fairer read for a downstream normalizer that only needs to find the
+right token region.
+
+### Results
+
+| | Strict micro F1 | Relaxed micro F1 |
+|---|---|---|
+| Silver only (no gold fine-tune) | 0.654 | 0.753 |
+| **Silver → gold fine-tune (this model)** | **0.737** | **0.837** |
+
+**Per-label strict F1:**
+
+| Label | F1 | | Label | F1 |
+|---|---|---|---|---|
+| `AGE` | 0.974 | | `OCCUPATION` | 0.746 |
+| `PRICE_TERM` | 0.929 | | `QUANTITY` | 0.744 |
+| `FRACTION` | 0.863 | | `DATE_REF` | 0.690 |
+| `UNIT` | 0.841 | | `PLACE` | 0.650 |
+| `CURRENCY` | 0.822 | | `TRANSACTION` | 0.602 |
+| `PERSON` | 0.775 | | `COMMODITY` | *not recorded* |
+| `MONEY_AMOUNT` | 0.758 | | `PERSON_ROLE`, `TAX_TERM` | *not recorded* |
+
+> **Three labels are missing, and that is a gap in the record, not a suppression.**
+> The cross-validation run logged per-label F1 for 12 of the 15 labels;
+> `COMMODITY`, `PERSON_ROLE` and `TAX_TERM` were not captured, and re-deriving them
+> honestly requires re-running the 5-fold CV rather than scoring the shipped
+> checkpoint (which was trained on all 115 gold documents, so scoring it on them
+> would be train-on-test). Expect them to sit at the low end: `PERSON_ROLE` and
+> `TAX_TERM` are the two labels named below as consistency-bound.
+
+**Precision and recall were not recorded separately** for the entity model; only
+micro F1 at both strictness levels was logged. The sibling relation model reports
+full P/R.
+
+#### Domain-adaptive pretraining is what pays
+
+Against an identical fine-tune on the raw backbone with no papyri DAPT (a paired
+run on the same folds):
+
+| | No DAPT (control) | **DAPT (this model's backbone)** | Δ |
+|---|---|---|---|
+| Strict micro F1 | 0.495 | **0.589** | **+9.5** |
+| Relaxed micro F1 | 0.663 | 0.719 | +5.6 |
+| `PERSON` | 0.458 | **0.648** | **+19.0** |
+| `PLACE` | 0.503 | **0.617** | **+11.4** |
+| `MONEY_AMOUNT` | 0.575 | 0.634 | +5.8 |
+
+*(This comparison was run at an earlier stage on a 65-document gold set, so the
+absolute values are lower than the headline 0.737; the paired contrast is the
+result.)* Gains concentrate exactly where predicted — the open-class onomastic
+labels — and **no label regressed**. Lexicon-reachable labels barely move
+(`CURRENCY` 0.78 → 0.79), which is the expected shape: DAPT buys you the words a
+gazetteer cannot enumerate.
+
+#### How much to trust these numbers
+
+115 documents over 5 folds is roughly **23 documents per fold**, so every figure
+above is a point estimate on a small sample. The micro totals rest on 2,995
+entities and are the sturdiest. **Per-label figures for rare labels rest on far
+fewer instances and should be read as indicative of rank, not as precise values** —
+ten more annotated documents could move them. **Per-fold variance was not recorded
+and is a known gap.** The headline comparisons (DAPT vs no-DAPT, silver-only vs
+silver→gold) are paired runs on identical folds, which is what makes their
+*direction* reliable at this n.
+
+---
+
+## Bias, Risks, and Limitations
+
+- **Label ceilings are annotation-consistency-bound, not data-bound.**
+  `TRANSACTION`, `PERSON_ROLE` and `TAX_TERM` are open, formulaic classes where
+  the limit is how consistently a human can draw the span, not how much data the
+  model sees. More annotation of the same kind will not lift them much.
+- **Fragmentary text degrades accuracy.** Papyri carry lacunae, editorial
+  brackets and supplied readings; heavily broken passages are harder for the model
+  in the same way they are for a reader.
+- **Onomastic bias.** `PERSON` recognition leans on Greek and Egyptian name shapes
+  attested in the corpus. Rare, foreign or heavily abbreviated names are recognised
+  less reliably, which means the entities this model finds are not a uniform sample
+  of the people in the documents.
+- **Downstream gender inference is not the model's output.** OIKONOMIA-DB infers
+  gender from names and formulae *after* this model tags a span. Those inferences
+  are aggregate-level and rule-based, not a claim by this model about an
+  individual — see the dataset card.
+- **Collapsed persons.** A `PERSON` span is the name as written, frequently name +
+  patronymic in one span; splitting individuals for kinship is a downstream step.
+- **Corpus bias is inherited.** The training corpus is *surviving, published,
+  digitized* papyri — skewed toward the Arsinoite nome and dry sites.
+
+### Recommendations
+
+Report relaxed F1 alongside strict when your downstream step only needs the right
+token region. For quantitative history, prefer relative contrasts (across periods,
+regions, document types) to absolute totals, since extraction error is roughly
+common-mode across buckets but does not cancel in a total.
+
+---
 
 ## Licence & lineage
 
-Released under **apache-2.0**, inherited from the `bowphs/GreBerta` backbone
-(apache-2.0). The training corpus (DDbDP) is **CC BY 3.0** and must be attributed
-(see below); no ancestor carries a NonCommercial term. Release is gated in code by
-a licence firewall that refuses any artifact of NonCommercial or unverified lineage
+Released under **apache-2.0**, inherited from `bowphs/GreBerta` (apache-2.0). The
+training corpus (DDbDP) is **CC BY 3.0** and must be attributed. No ancestor
+carries a NonCommercial term — deliberately: the release is gated in code by a
+licence firewall that refuses any artifact of NonCommercial or unverified lineage
 (`oikonomia.models.licensing`; audit trail in `MODEL_LICENSES.md`).
 
 ## Citation
 
-If you use this model, please cite the OIKONOMIA project, the GreBerta backbone,
-and the DDbDP corpus:
-
 ```bibtex
-@misc{oikonomia_grammateus,
-  title  = {OIKONOMIA-Grammateus: Entity Recognition for Greek Documentary Papyri},
-  author = {OIKONOMIA project},
+@misc{oikonomia_grammateus_2026,
+  title  = {{OIKONOMIA-Grammateus}: Entity Recognition for Greek Documentary Papyri},
+  author = {Ainouche, Abderahmane},
   year   = {2026},
+  url    = {https://huggingface.co/ainouche-abderahmane/grammateus},
   note   = {Base model bowphs/GreBerta; trained on the Duke Databank (DDbDP, CC BY 3.0)}
 }
 
@@ -205,3 +348,7 @@ and the DDbDP corpus:
 
 Duke Databank of Documentary Papyri (DDbDP), Duke Collaboratory for Classics
 Computing (DC3) and papyri.info, CC BY 3.0.
+
+## Model Card Contact
+
+Issues and corrections: https://github.com/abderahmane-ai/oikonomia/issues
