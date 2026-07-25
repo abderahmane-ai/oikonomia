@@ -305,7 +305,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 9 Corpus→DB | ✅ (opt. hardening left) | **195,906 facts**; 5 findings — **prices**, **taxes**, **AUTONOMY** χωρὶς curve **0%→39%→80% (3c→4c AD)**, **PRINCIPALS by deal type** (21,895; women 18.0% mentions / 20.1% distinct; **sale 30%/loan 28% vs receipt 10%**), monetization; **DB packaged + queryable** (`oik db export`, `docs/database.md`) | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ✅ | **the five findings recorded**, every number recomputed from the shipped tables, each with mechanism + control + limits | [phase_10](docs/phases/phase_10_findings.md) |
 | 11 Release | ✅ PUBLISHED | all three live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; post-publication audit (7 fixes) re-pushed and **verified against the Hub**; **cards rebuilt to HF template structure 2026-07-25 (13 defects) — NOT YET PUSHED** | [phase_11](docs/phases/phase_11_release.md) |
-| 12 Publication | 🔶 DRAFTED | **CHR 2027 long paper drafted, compiles clean, 5,189/6,000 words** — venue picked after a live scan (§7); figures regenerate from the shipped tables | `paper/chr2027/` (**gitignored, local-only**) |
+| 12 Publication | ✅ READY | **CHR 2027 long paper SUBMISSION-READY, 16/16 checks, 5,414/6,000 words** — venue picked after a live scan (§7); figures regenerate from the shipped tables | `paper/chr2027/` (**gitignored, local-only**) |
 
 ---
 
@@ -339,7 +339,7 @@ _Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree c
 > `data/processed/db/`) — but **the prose is not**.
 >
 > **State: `paper/chr2027/` compiles clean** — 0 LaTeX errors, 0
-> missing glyphs, 0 undefined citations/refs, 13 pp, **5,189 of 6,000 words**.
+> missing glyphs, 0 undefined citations/refs, 14 pp, **5,414 of 6,000 words**.
 > Title: *How Often, and How Freely: Women in Greco-Roman Egypt, and an Auditable
 > Economic Database of 61,249 Documentary Papyri* — the hook names the two novel
 > findings (F3 how freely, F4 how often); F1/F2 are deliberately NOT in it, they
@@ -353,17 +353,28 @@ _Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree c
 > table has 16 rows, incl. `letter_official` 0.218 and `letter` 0.071, which
 > phase_10's table omitted). Build/checklist: `paper/chr2027/README.md` (local-only).
 >
-> **Before submitting (the README has the same list, with commands):**
-> 1. **A second annotator — the subset is already picked.** 16 of the 115 gold
->    docs carry `double_annotate: true`, genre-stratified, 504 entities. The plan
->    was scoped and never executed; there is exactly one annotator field
->    (`claude-opus-4-8` drafts, one human reviewer). Re-annotate those 16
->    independently and report agreement. Highest-value fix, and the thing a
->    reviewer hits first. Ids are in the paper README.
-> 2. **A papyrologist's read of the autonomy finding** (§7.1) before it goes out.
-> 3. **Register the anonymous mirror.** `make_anon_bundle.py` builds and
->    self-audits `anon/` (17 files, 0.6 MB, data+docs only, no library); upload it
->    to `anonymous.4open.science` and paste the URL over `ANON-ID` in paper.tex.
+> **SUBMISSION-READY as of 2026-07-25.** `check_submission.py` runs 16 checks —
+> build clean, word count, anonymity across four surfaces (source, rendered text,
+> PDF metadata, embedded paths incl. the figure PDFs), no placeholders, all refs
+> cited, all floats referenced, reviewer bundle clean — and reports
+> **16/16 READY, 5,414 words, 14 pp**. Upload `paper.pdf` plus
+> `anon-artifact.zip` (supplementary, if EasyChair takes it). The availability
+> section says the bundle is available "through the programme chairs", so there
+> is **no dead link and nothing to register**.
+>
+> **On the annotation-reliability gap: partly closed, honestly.** There is still
+> one annotator, so there is still no IAA. What §4.1 now reports instead is what
+> the *verification pass changed*, measured from two git revisions with no schema
+> commit between them (`review_delta.py`): the reviewer **added 68 spans, removed
+> 3, relabelled none** against 1,127 drafted (F1 0.969). The paper states both
+> readings and says the unflattering one is the one to hold us to — the drafts may
+> have been accurate on labels, or labels may not have been scrutinised as hard as
+> boundaries. §Threats now names the concrete fix: **16 gold docs already carry
+> `double_annotate: true`**, genre-stratified over 504 entities, and that is the
+> subset a second annotator should be given.
+>
+> **The one thing tooling cannot do:** get a papyrologist to read §7.1 (the
+> autonomy finding) before it goes out. That remains open.
 >
 > Toolchain notes so a new session doesn't re-derive them: BasicTeX has no
 > biblatex/biber — `tlmgr --usermode install biblatex …` works, but **biber is not
@@ -549,7 +560,7 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/ruff check src tests modal_app && .venv/bin/python -m mypy src && .venv/bin/python -m pytest
 
 # 1b. The paper — LOCAL-ONLY, gitignored (see the §7 callout; the active work):
-cd paper/chr2027 && make && python3 wordcount.py   # 0 errors; <= 6000 words
+cd paper/chr2027 && make && ../../.venv/bin/python check_submission.py  # expect 16/16 READY
 
 # 2. ⇒ ALL THREE DELIVERABLES ARE SHIPPED AND RE-PUSHED. Nothing is outstanding.
 #    Re-run these only after changing a card or a shipped table:
