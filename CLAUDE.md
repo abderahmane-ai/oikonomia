@@ -340,9 +340,23 @@ repeat now live only in `docs/phases/`, and the paper's history moved to
 > cd paper/chr2027 && make && ../../.venv/bin/python check_submission.py
 > ```
 >
-> **PDF replacement stays open until 14 Aug 2026 (23:59:59 UTC-12)** — so a real
-> defect can still be fixed, but nothing is outstanding. **Notification 23 Oct
-> 2026.**
+> **Dates (live CFP, verified 2026-07-25 — full table + camera-ready checklist in
+> [`phase_12` §1b](docs/phases/phase_12_publication.md)):** PDF replacement open
+> until **14 Aug 2026** (AoE) · notification and end of anonymity **23 Oct 2026**
+> · **camera-ready 13 Nov 2026** · conference **6–8 Jan 2027**, Manchester.
+>
+> **⏳ The camera-ready window is 21 days and is where the paper de-anonymises:**
+> `\documentclass[final]`, real author/affiliation/ORCID, real HF+GitHub links
+> replacing "withheld for review", and **two separate Zenodo jobs** — edit the
+> metadata to swap creators `Anonymous` → real name (DOI unchanged), and publish a
+> **new version** carrying the un-neutralised bundle, since its README currently
+> promises its identifiers will *not* match the public release.
+>
+> **The 14 Aug → 23 Oct gap has nothing due. That is the window for the
+> papyrologist** — expert annotation of the 16 `double_annotate` docs landing
+> before 13 Nov would let the version of record say *validated against expert
+> annotation* instead of *agreement with a machine reference*. After camera-ready
+> that door is shut.
 >
 > **Four traps for whoever reads this next:**
 > - **Spearman ρ 0.861 is CORRECT** — over the 15 deal-type buckets the figure

@@ -52,6 +52,43 @@ the DAPT ablation) goes to the **ARR October** cycle → ACL 2027. Do not rush i
 into an August ARR deadline. The declared per-label / per-fold gaps
 (`ner.py::xval`) are a prerequisite for the ACL paper only — CHR needs no GPU run.
 
+## 1b. Key dates (from the live CFP, 2026-07-25 — do not re-derive)
+
+| Date | What |
+|---|---|
+| **14 Aug 2026**, 23:59:59 UTC-12 (AoE) | Submission deadline = last PDF replacement |
+| ~25 Aug 2026 | Zenodo's 30-day owner-deletion window closes (record published 26 Jul) |
+| 12 Oct 2026 | ARR October cycle → ACL 2027, the *model* paper ⚠️ **from an earlier scan, verify** |
+| **23 Oct 2026** | **Notification. The anonymity period ends here.** |
+| **13 Nov 2026** | **Camera-ready — only 21 days after notification** |
+| 12 Dec 2026 | Conference registration deadline |
+| 5 Jan 2027 | Pre-conference workshops |
+| **6–8 Jan 2027** | Conference, University of Manchester |
+
+**The camera-ready window is the tight one, and it is where the paper stops being
+anonymous.** What has to happen between 23 Oct and 13 Nov:
+
+1. `\documentclass[final]{anthology-ch}` — the comment at the top of `paper.tex`
+   already flags this. Without `[final]` the class prints "Under Review /
+   Anonymous Submission".
+2. Real author name, affiliation and ORCID in the `\author` block.
+3. Replace "links withheld here for review" in *Data and code availability* with
+   the real Hugging Face and GitHub URLs.
+4. **Zenodo, two separate jobs:** edit the *metadata* to swap creators
+   `Anonymous` → the real name (no new version, DOI unchanged); and publish a
+   **new version** of the *files* with the un-neutralised bundle, because the
+   bundle's README currently promises that "identifiers here will not match the
+   eventual public release" — at camera-ready they should match.
+5. Re-run `check_submission.py` knowing the anonymity checks will now *fail by
+   design*. Do not "fix" them by reverting `[final]`.
+
+**The two-month gap between 14 Aug and 23 Oct has nothing due — that is the
+window for the papyrologist.** If independent expert annotation of the 16
+`double_annotate` documents lands before 13 Nov, the version of record can say
+*validated against expert annotation* instead of *agreement with a
+machine-produced reference*, which is the single largest upgrade available to
+this paper. After 13 Nov that door is shut.
+
 ## 2. What the paper claims
 
 Title: *How Often, and How Freely: Women in Greco-Roman Egypt, and an Auditable
