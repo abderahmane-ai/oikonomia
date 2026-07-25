@@ -137,6 +137,52 @@ Grep cannot catch these; they were found by reading the figure against the table
   name, not a father. Still a usable matching key; not filiation. The paper now
   says so.
 
+### Round 4 — the annotation rules the findings rest on (2026-07-25)
+
+**What the CFP actually says** (checked live at
+`2027.computational-humanities-research.org/cfp/`, do not re-derive):
+
+- Appendices **are allowed** ("to improve reproducibility … pre-processing
+  decisions, model parameters, prompts, pseudocode"), but **only references,
+  abstract and tables/illustrations are excluded from the 6,000 words** —
+  appendices are not, so an appendix costs the same as body text.
+- *"Reviewers are not required to read the appendices and supplementary materials
+  during review. The main text of each paper must be stand-alone."*
+- **No artifact upload slot is documented.** Submission is "PDF documents via
+  EasyChair". The CFP's own mechanism for artifacts is an **anonymised link**,
+  and it names the two services: `anonymous.4open.science` and
+  `zenodo.org/record/xxxxx`.
+
+So anything a reviewer must believe goes in the body, paid for by cuts. Three
+additions, all lifted from `resources/schema/annotation_guidelines.md` §5:
+
+1. **The guardian rule** (§6.1) — the modality lives *inside* the span,
+   `χωρὶς κυρίου` and never bare `κυρίου`, because dropping the negation makes
+   the two cases indistinguishable and the question unanswerable. **The autonomy
+   finding rests entirely on this decision and the paper had never stated it.**
+2. **A definition of "principal"** (§6.2) — the head of a party or payment edge.
+   The schema annotates *every party, named or not*, so an unnamed
+   `καὶ τῆς γυναικὸς` enters through its role phrase.
+3. **The concession that goes with it** — the guidelines contain **no rule
+   excluding witnesses or scribes** from `PARTY_OF`, and the data cannot settle
+   it: the `roles` column is structural (party 13,738 · payee 3,605 · payer
+   3,176), with no witness marker to filter on. The paper now says it counts
+   parties as the schema defines them, not principals in the legal sense.
+
+Paid for by trimming the DoRA paragraph and the parser paragraph — both are
+material for the ACL model paper rather than this one. **5,954/6,000 words.**
+
+**The reviewer bundle's README was wrong and is fixed.** It called the reference
+set "the 115 **human-validated** gold documents" — the false claim retracted
+everywhere else on 2026-07-25, and one that flatly contradicts the paper it
+accompanies — and quoted the lexicon as 88 entries / 336 forms. Both corrected in
+`paper/chr2027/make_anon_bundle.py` (the generator, so it cannot regress) and the
+archive regenerated. The gold JSONL itself was already correct
+(`provenance: model_drafted_model_checked`), as was the bundled `database.md`;
+only the generated README was stale. **Audit the bundle's own prose, not just its
+filenames** — `check_submission.py` verifies anonymity and file inventory, not
+whether the README tells the truth.
+
 ## 5. Annotation reliability — the position the paper takes
 
 There is one annotator, so there is **no IAA**. What §4.1 reports instead is what
@@ -152,7 +198,35 @@ subset a second annotator should be given.
 **The one thing tooling cannot do: get a papyrologist to read the autonomy
 finding before it goes out.** That remains open and is the project's top item.
 
-## 6. Submission mechanics
+## 6. Sending the artifact bundle — the decision procedure
+
+`paper/chr2027/anon-artifact.zip`, 17 files, **0.1 MB zipped**. Verified
+name-neutral: 0 hits for the author, institution, project, model, dataset, repo
+and Hub strings across every file *and* every path.
+
+1. **Look at the EasyChair page for submission #7 first.** Chairs can enable an
+   optional attachment field; the CFP does not document one, but the form is the
+   authority. If there is an upload box, use it — no anonymity risk, nothing to
+   host, no link to maintain.
+2. **If there is no upload box, deposit on Zenodo** — one of the two services the
+   CFP names. Creators field: **`Anonymous`** (Zenodo shows the creators you type,
+   not the account holder). Title something neutral, e.g. *"Anonymised artifact
+   for a CHR 2027 submission"*. Licence **CC BY 3.0** (matches DDbDP). Then put
+   the record URL in the paper's availability section.
+   **Zenodo deposits are permanent — a published record cannot be deleted, only
+   superseded.** Check the zip before publishing, not after.
+3. **Do not** point `anonymous.4open.science` at the project's GitHub repo. That
+   repo carries the author's name, handle and Hub identifiers throughout; the
+   service filters content, and this is not a risk worth taking during a blind
+   review.
+
+**Either way, one sentence in the paper changes.** The availability section
+currently says the bundle is "available to reviewers through the programme
+chairs" — a channel the CFP describes nowhere. It should say either that the
+bundle is attached to the submission (route 1) or give the anonymised link
+(route 2).
+
+## 7. Submission mechanics
 
 `check_submission.py` runs 16 checks — build clean, word count, anonymity across
 four surfaces (source, rendered text, PDF metadata, embedded paths including the
