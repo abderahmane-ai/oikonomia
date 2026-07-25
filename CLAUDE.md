@@ -305,7 +305,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 9 Corpus→DB | ✅ (opt. hardening left) | **195,906 facts**; 5 findings — **prices**, **taxes**, **AUTONOMY** χωρὶς curve **0%→39%→80% (3c→4c AD)**, **PRINCIPALS by deal type** (21,895; women 18.0% mentions / 20.1% distinct; **sale 30%/loan 28% vs receipt 10%**), monetization; **DB packaged + queryable** (`oik db export`, `docs/database.md`) | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ✅ | **the five findings recorded**, every number recomputed from the shipped tables, each with mechanism + control + limits | [phase_10](docs/phases/phase_10_findings.md) |
 | 11 Release | ✅ PUBLISHED | all three live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; post-publication audit (7 fixes) re-pushed and **verified against the Hub**; **cards rebuilt to HF template structure 2026-07-25 (13 defects) — NOT YET PUSHED** | [phase_11](docs/phases/phase_11_release.md) |
-| 12 Publication | ✅ READY | **CHR 2027 long paper SUBMISSION-READY, 16/16 checks, 5,774/6,000 words** — venue picked after a live scan (§7); figures regenerate from the shipped tables | `paper/chr2027/` (**gitignored, local-only**) |
+| 12 Publication | ✅ READY | **CHR 2027 long paper SUBMITTED (#7) + re-upload pending, 16/16, 5,865/6,000 words** — venue picked after a live scan (§7); figures regenerate from the shipped tables | `paper/chr2027/` (**gitignored, local-only**) |
 
 ---
 
@@ -339,7 +339,7 @@ _Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree c
 > `data/processed/db/`) — but **the prose is not**.
 >
 > **State: `paper/chr2027/` compiles clean** — 0 LaTeX errors, 0
-> missing glyphs, 0 undefined citations/refs, 14 pp, **5,774 of 6,000 words**.
+> missing glyphs, 0 undefined citations/refs, 14 pp, **5,865 of 6,000 words**.
 > Title: *How Often, and How Freely: Women in Greco-Roman Egypt, and an Auditable
 > Economic Database of 61,249 Documentary Papyri* — the hook names the two novel
 > findings (F3 how freely, F4 how often); F1/F2 are deliberately NOT in it, they
@@ -353,11 +353,38 @@ _Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree c
 > table has 16 rows, incl. `letter_official` 0.218 and `letter` 0.071, which
 > phase_10's table omitted). Build/checklist: `paper/chr2027/README.md` (local-only).
 >
+> **SUBMITTED to CHR 2027 on 2026-07-25 — EasyChair submission #7.**
+> Author: Abderahmane Ainouche, ENSIA, Algeria (corresponding, early-career=yes).
+> Long paper; topics: text analysis · LLMs · knowledge representation ·
+> infrastructure and tools · open science · history · linguistics · social
+> sciences. (`statistics` and `spatial analysis` deliberately NOT ticked — they
+> drive reviewer assignment, and the paper reports medians/IQRs/tiers rather than
+> CIs, and explicitly declines the regional cut.)
+>
+> **⚠️ RE-UPLOAD PENDING.** After submitting, a 5th contribution bullet was added
+> claiming the released artifacts (schema, reference set, lexicons, the two models,
+> the database) — they had been missing from the contributions list entirely while
+> "open science" was a submitted topic. Now **5,865/6,000 words, 16/16**.
+> **EasyChair accepts PDF replacement until 14 Aug 2026 (23:59:59 UTC-12)** —
+> upload `paper/chr2027/paper.pdf` again to supersede the submitted version.
+>
+> **Also do:** add the gmail as a secondary EasyChair email. The submission used
+> `@ensia.edu.dz` and the author is a 5th-year student; notification is 23 Oct 2026
+> and the conference is Jan 2027, so a lapsing student address is a real way to
+> miss an acceptance.
+>
+> **Anonymity period runs to 23 Oct 2026** — do not promote the paper publicly
+> before then. Preprinting is permitted (CHR names arXiv/Zenodo/HAL) but **use
+> Zenodo, not ResearchGate**, and preferably only once the expert-validation
+> question is settled. arXiv needs an endorser since its 2026-01-21 policy change
+> (institutional email alone no longer qualifies); an ENSIA supervisor with cs.CL
+> papers could endorse.
+>
 > **SUBMISSION-READY as of 2026-07-25.** `check_submission.py` runs 16 checks —
 > build clean, word count, anonymity across four surfaces (source, rendered text,
 > PDF metadata, embedded paths incl. the figure PDFs), no placeholders, all refs
 > cited, all floats referenced, reviewer bundle clean — and reports
-> **16/16 READY, 5,774 words, 14 pp**. Upload `paper.pdf` plus
+> **16/16 READY, 5,865 words, 14 pp**. Upload `paper.pdf` plus
 > `anon-artifact.zip` (supplementary, if EasyChair takes it). The availability
 > section says the bundle is available "through the programme chairs", so there
 > is **no dead link and nothing to register**.
