@@ -304,76 +304,75 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); saved + **end-to-end measured** (PARTY_OF oracle 0.705 → e2e 0.623); 8a data-bound; 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
 | 9 Corpus→DB | ✅ (opt. hardening left) | **195,906 facts**; 5 findings — **prices**, **taxes**, **AUTONOMY** χωρὶς curve **0%→39%→80% (3c→4c AD)**, **PRINCIPALS by deal type** (21,895; women 18.0% mentions / 20.1% distinct; **sale 30%/loan 28% vs receipt 10%**), monetization; **DB packaged + queryable** (`oik db export`, `docs/database.md`) | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ✅ | **the five findings recorded**, every number recomputed from the shipped tables, each with mechanism + control + limits | [phase_10](docs/phases/phase_10_findings.md) |
-| 11 Release | ✅ PUBLISHED | all three live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; post-publication audit (7 fixes) re-pushed; **rebuilt cards pushed 2026-07-25 and verified byte-identical against the Hub** (one stale lexicon number left on the dataset card → §7) | [phase_11](docs/phases/phase_11_release.md) |
-| 12 Publication | ✅ SUBMITTED | **CHR 2027 long paper, EasyChair #7; re-upload pending** (16/16, 5,941/6,000 words, 15 pp); three audit rounds recorded | [phase_12](docs/phases/phase_12_publication.md) · prose in `paper/chr2027/` (**gitignored**) |
+| 11 Release | ✅ PUBLISHED | all three live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; post-publication audit (7 fixes) + rebuilt cards pushed and **verified byte-identical against the Hub**; nothing pending | [phase_11](docs/phases/phase_11_release.md) |
+| 12 Publication | ✅ SUBMITTED | **CHR 2027 long paper, EasyChair #7 — complete**: corrected abstract, final PDF, artifact at **`10.5281/zenodo.21576045`**; 16/16, 5,984/6,000 words, 15 pp, 5 figures; five audit rounds recorded | [phase_12](docs/phases/phase_12_publication.md) · prose in `paper/chr2027/` (**gitignored**) |
 
 ---
 
 ## 7. Current machine state — READ THIS FIRST in a new session
 
-_Last updated: 2026-07-25. Branch **`main`**, pushed to origin; working tree
-clean. §7 was compressed on 2026-07-25 — the finished-phase narratives it used to
+_Last updated: 2026-07-26. Branch **`main`**, pushed to origin; working tree
+clean. **All three deliverables shipped, the CHR paper submitted and complete, the
+artifact deposited — nothing is outstanding.** The next move is a choice, not a
+queue: see the priority list at the end of this section. §7 was compressed on 2026-07-25 — the finished-phase narratives it used to
 repeat now live only in `docs/phases/`, and the paper's history moved to
 [`phase_12`](docs/phases/phase_12_publication.md). Keep it that way._
 
-> ## 📄 THE ACTIVE WORK: CHR 2027 paper — SUBMITTED, re-upload pending
+> ## ✅ CHR 2027 paper — SUBMITTED AND COMPLETE (nothing pending)
 >
 > **Full record → [`phase_12`](docs/phases/phase_12_publication.md)**: venue scan,
-> submission details, three audit rounds and what each found, the
-> annotation-reliability position, toolchain notes. Read it before touching the
-> paper — it is the only part that survives a fresh clone.
+> submission details, five audit rounds and what each found, the
+> annotation-reliability position, the artifact deposit, toolchain notes. Read it
+> before touching the paper — it is the only part that survives a fresh clone.
 >
 > **⚠️ `paper/` IS GITIGNORED — the prose exists only on this machine.** A
 > `git clean -xdf` destroys it. The figures regenerate from `data/processed/db/`
-> and the template re-fetches; the prose does not.
+> and the template re-fetches; the prose does not. **Back it up.**
 >
-> **State:** submitted 2026-07-25 (EasyChair **#7**), **16/16 READY, 5,941 of
-> 6,000 words, 15 pp**, 0 LaTeX errors, anonymity clean on four surfaces.
-> **EasyChair accepts PDF replacement until 14 Aug 2026 (23:59:59 UTC-12)** — the
-> local PDF is ahead of the submitted one, so **upload `paper/chr2027/paper.pdf`
-> again**. Deadline outranks everything else below until it passes.
+> **Final state (2026-07-26):** EasyChair **#7** — corrected abstract stored, final
+> PDF uploaded, artifact deposited. **16/16 READY, 5,984 of 6,000 words, 15 pp, 5
+> figures**, anonymity clean on four surfaces. Artifact bundle at
+> **`10.5281/zenodo.21576045`** (CC BY 3.0, creators `Anonymous`, 145,404 bytes,
+> API-verified byte-for-byte against the local zip, zero identity leaks in the
+> public metadata); the availability section cites that DOI.
 >
 > ```bash
 > cd paper/chr2027 && make && ../../.venv/bin/python check_submission.py
 > ```
 >
-> **Every number in it was recomputed from the parquet tables** (three audit
-> rounds; see phase_12). Two traps for whoever reads it next:
-> - **Spearman ρ 0.861 is CORRECT** — it is over the 15 deal-type buckets the
->   figure plots; 0.856 includes the unclassified bucket. A review already tried
->   to "fix" this. Do not.
-> - **the deal-type ratio 3.8× → 3.1×** is the unweighted mean of the four bucket
->   shares; pooled it is 2.9× → 2.6×. Both are in phase_10 now.
+> **PDF replacement stays open until 14 Aug 2026 (23:59:59 UTC-12)** — so a real
+> defect can still be fixed, but nothing is outstanding. **Notification 23 Oct
+> 2026.**
 >
-> **Artifact bundle: DEPOSITED** — `10.5281/zenodo.21576045`, CC BY 3.0, creators
-> `Anonymous`, verified live against the Zenodo API (145,404 bytes, byte-for-byte
-> the local `anon-artifact.zip`, zero identity leaks in the public metadata). The
-> paper's availability section cites it. EasyChair has **no attachment slot** —
-> only Update information/topics/authors/file/Withdraw — so this was the route,
-> and it is the one the CFP names.
+> **Four traps for whoever reads this next:**
+> - **Spearman ρ 0.861 is CORRECT** — over the 15 deal-type buckets the figure
+>   plots; 0.856 includes the unclassified bucket. A review already tried to
+>   "fix" this. Do not.
+> - **The deal-type ratio 3.8× → 3.1×** is the unweighted mean of the four bucket
+>   shares; pooled it is 2.9× → 2.6×. Both are in phase_10.
+> - **Gender coverage and women's share DO correlate** (ρ 0.59 over 15 buckets,
+>   0.50 without the female-only channel). The paper says so, and answers it with
+>   a matched-coverage control (within a 10-point band the share still spans
+>   3.0×, ρ falls to 0.14). Do not replace this with the old sale-vs-receipt pair.
+> - **EasyChair displays UTC; this machine is UTC+1.** An hour's difference once
+>   made an already-current upload look stale.
 >
-> **⚠️ STILL STALE ON EASYCHAIR: the stored abstract.** It is a separate metadata
-> field that no PDF upload touches, and the submitted copy still says
-> **"eighteen named taxes"** (the round-1 error) and reads "We report / our
-> models". Fix via **Update information**; the current text is in the paper's
-> abstract. EasyChair timestamps are **UTC while the machine is UTC+1** — do not
-> conclude the uploaded PDF is stale from the displayed time without adding an
-> hour.
+> **Still open (not blocking):** add the gmail as a secondary EasyChair email —
+> the submission used a lapsing `@ensia.edu.dz` address and notification is 23 Oct
+> 2026. **Anonymity period runs to 23 Oct 2026** — no public promotion before
+> then; after acceptance, edit the Zenodo record to swap `Anonymous` for the real
+> name (metadata edits keep the DOI).
 >
-> **Still open:** add the gmail as a secondary EasyChair email (the submission
-> used a lapsing student address; notification is 23 Oct 2026). **Anonymity period
-> runs to 23 Oct 2026** — no public promotion before then; prefer Zenodo over
-> ResearchGate if preprinting.
+> ## ✅ RELEASE: all three live, Hub-verified, nothing pending
 >
-> ## ✅ RELEASE: all three live and Hub-verified — one re-push pending
->
-> **Verified, not assumed** (2026-07-25): the live `README.md` of `grammateus`,
-> `homologia` and `datasets/oikonomia-db` was fetched from
-> `huggingface.co/.../raw/main/` and is **byte-identical** to
-> `resources/release/*_CARD.md`. The false "human-validated / human-annotated /
-> human gold" claim is **0 hits in all three**, and each carries the provenance
-> note (model-drafted, model-re-checked, no papyrologist has adjudicated it,
-> scores are *agreement* not accuracy).
+> **Verified, not assumed** (last checked 2026-07-26): the live `README.md` of
+> `grammateus`, `homologia` and `datasets/oikonomia-db` is **byte-identical** to
+> `resources/release/*_CARD.md` (fetched from `huggingface.co/.../raw/main/` and
+> diffed). The false "human-validated / human-annotated / human gold" claim is
+> **0 hits in all three**; each carries the provenance note (model-drafted,
+> model-re-checked, no papyrologist has adjudicated it, scores are *agreement*
+> not accuracy); and the dataset card's lexicon figure now reads the verified
+> **132 entries / 545 forms**.
 >
 > That push carried the card rewrite (13 defects; the dataset card had documented
 > tables but **not a single column**). The 2026-07-24 post-publication audit is
@@ -382,16 +381,6 @@ repeat now live only in `docs/phases/`, and the paper's history moved to
 > viewer, a non-recursing completeness gate, and a fabricated hyperinflation
 > finding in `project_summary.md`. Detail:
 > [`phase_11`](docs/phases/phase_11_release.md).
->
-> **⚠️ ONE STALE NUMBER IS STILL LIVE ON THE DATASET CARD** — the verification
-> caught it. Its provenance section says the lexicon holds `88 entries / 336
-> forms` (the phase-2 snapshot); `oik lexicon verify` says **132 / 545**, 0
-> unattested. Fixed in `resources/release/OIKONOMIA_DB_CARD.md`; **needs one
-> re-push** (owner-run, HF write token). Models are unaffected — 0 hits there.
->
-> ```bash
-> .venv/bin/oik release push db
-> ```
 >
 > Gaps the cards *declare* rather than hide (each needs a GPU run): per-label F1
 > for COMMODITY/PERSON_ROLE/TAX_TERM, entity P/R, per-fold variance
@@ -450,9 +439,9 @@ cd /Users/abdoumagico/Development/ACHATES
 # 1b. The paper — LOCAL-ONLY, gitignored (see the §7 callout; the active work):
 cd paper/chr2027 && make && ../../.venv/bin/python check_submission.py  # expect 16/16 READY
 
-# 2. ⚠️ OUTSTANDING: the dataset card's lexicon number was fixed locally and needs
-#    one re-push (owner-run, HF write token). The two model cards are current.
-.venv/bin/oik release check db && .venv/bin/oik release push db
+# 2. All three HF cards are live and byte-identical to resources/release/*_CARD.md.
+#    Re-run these only after changing a card or a shipped table:
+.venv/bin/oik release check grammateus && .venv/bin/oik release check homologia && .venv/bin/oik release check db
 
 # 3. Finding tables regenerate on the laptop (all gitignored, re-derivable):
 .venv/bin/oik db persons && .venv/bin/oik db autonomy      # autonomy curve (reads ner_corpus.jsonl)
@@ -465,8 +454,10 @@ cd paper/chr2027 && make && ../../.venv/bin/python check_submission.py  # expect
 .venv/bin/oik gold check            # 115 docs, 0 errors
 ```
 
-**Then, in priority order — but the CHR deadline (14 Aug 2026) outranks all of
-them until it passes, and the dataset-card re-push above is a one-minute job.**
+**Then, in priority order. Nothing is outstanding** — the paper is submitted and
+complete, all three HF artifacts are live and verified, and the artifact bundle
+is deposited. PDF replacement stays open until 14 Aug 2026 if a real defect turns
+up, but no task is blocked on it.
 
 **(1) Expert validation of the 16 `double_annotate` docs.** The project's top
 item, named as such in the paper: one papyrologist, 504 entities, converts every

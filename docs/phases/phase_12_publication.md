@@ -1,7 +1,23 @@
 # Phase 12 — Publication (CHR 2027)
 
-**Status: SUBMITTED 2026-07-25 (EasyChair #7), re-upload pending.**
-Deadline for PDF replacement: **14 Aug 2026, 23:59:59 UTC-12 (AoE).**
+**Status: SUBMITTED AND COMPLETE (EasyChair #7).** Corrected abstract stored,
+final PDF uploaded, artifact deposited at `10.5281/zenodo.21576045`. Final state:
+16/16 checks, **5,984 of 6,000 words, 15 pp, 5 figures**, anonymity clean on four
+surfaces. Nothing outstanding.
+
+PDF replacement stays open until **14 Aug 2026, 23:59:59 UTC-12 (AoE)** if a real
+defect turns up. **Notification: 23 Oct 2026.**
+
+> **A trap that cost a round trip: EasyChair displays timestamps in UTC while the
+> machine is UTC+1.** An already-current upload looked 53 minutes stale until the
+> version history was lined up against local `git log` times. Add an hour before
+> concluding anything from an EasyChair timestamp.
+>
+> **And the stored abstract is a separate metadata field.** Replacing the PDF does
+> not touch it. The submitted abstract carried the round-1 "eighteen named taxes"
+> error for hours after the PDF was fixed, because nobody thought to check a field
+> that no upload updates. If the paper's abstract changes, change it in both
+> places.
 
 > **The paper itself lives in `paper/chr2027/`, which is GITIGNORED.** The prose
 > exists only on the owner's machine. This file is the part of it that survives a
