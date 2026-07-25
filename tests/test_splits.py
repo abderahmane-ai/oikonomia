@@ -104,7 +104,7 @@ def _rec(doc_id: str, tm: int, genre: str = "receipt", date: float | None = 150.
 
 
 def test_shared_tm_id_forms_one_group() -> None:
-    """1,706 real documents share a TM id — the same papyrus, edited twice."""
+    """618 real documents share a TM id — the same papyrus, edited twice."""
     records = [_rec("a", 1), _rec("b", 1), _rec("c", 2)]
     groups = build_groups(records)
     assert groups["a"] == groups["b"] != groups["c"]

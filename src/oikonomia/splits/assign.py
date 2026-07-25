@@ -21,7 +21,7 @@ diverge, that gap is the finding, and the honest headline is the lower number.
 **Grouping.** A "group" is the unit that moves atomically between splits. Two
 signals define it, unioned:
 
-1. shared TM id — 1,706 documents in this corpus share one with another, i.e.
+1. shared TM id — 618 documents in the working set share one with another, i.e.
    they are the same papyrus edited or republished separately;
 2. near-duplicate cluster (see :mod:`oikonomia.splits.dedup`).
 

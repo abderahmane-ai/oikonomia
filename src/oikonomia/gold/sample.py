@@ -8,7 +8,7 @@ learn and what the evaluation can honestly claim. Four rules govern the choice.
 it belongs to, permanently and invisibly. The sampler refuses any other split.
 
 **2. One document per group.** Phase 3 found 399 near-duplicate clusters and
-1,706 documents sharing a TM id. Annotating two members of the same group
+618 documents sharing a TM id. Annotating two members of the same group
 spends the budget twice on the same text and, worse, inflates agreement.
 
 **3. Stratify by genre, spread over time.** The corpus is 25% receipts; a

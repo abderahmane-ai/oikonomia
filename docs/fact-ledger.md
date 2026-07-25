@@ -118,8 +118,13 @@
   in the edited view but not the diplomatic one (or vice versa), since each
   view's whitespace runs differ. Corpus-scale check: for every segment,
   `edited[e0:e1] == diplomatic[d0:d1]` — 0 mismatches over 1,500 documents.
-- **1,706 documents share a TM id with another** — the same papyrus edited or
-  republished separately. A real leakage group, and cheap to detect.
+- **618 documents share a TM id with another** in the 61,249-document working set
+  (231 groups) — the same papyrus edited or republished separately. A real leakage
+  group, and cheap to detect. Over all 67,980 rows it is 2,313 documents in 607
+  groups; the extra rows are the empty letter-suffixed stems below.
+  **This entry read "1,706 documents" until 2026-07-25 — that number matched
+  nothing recomputable** (`splits.parquet`: `tm_id.value_counts()` gives 618/231)
+  and it had already propagated into the CHR paper. Recompute, don't quote it.
 - **`stem` is the unique per-row key; `tm_id` is NOT** (verified 2026-07-24 on
   `corpus.parquet`: 67,980 distinct stems for 67,980 rows, zero collisions; but
   **607 tm_ids span >1 row and 231 span >1 *non-empty* row**). Letter-suffixed
@@ -131,6 +136,12 @@
   fact inline and never re-joins text by tm_id.
 - Publication volume is far too coarse to group on: 1,025 volumes, largest
   holding 2,023 documents.
+- **Lexicon size is 132 entries / 545 unique surface forms over 8 categories**
+  (OCCUPATION 52 · COMMODITY 20 · DATE_REF 16 · UNIT 16 · CURRENCY 13 · TAX_TERM
+  10 · FRACTION 4 · PRICE_TERM 1), **545/545 attested, 0 unattested**
+  (`oik lexicon verify`, 2026-07-25). Phase 2's "88 entries / 336 forms" is that
+  phase's snapshot and has been superseded — it grew with 8b's occupations. Quote
+  the verifier, not the phase doc.
 - Lexicon false friends share stems across categories: `χαλκεύς` (coppersmith)
   vs currency `χαλκοῦς`; `σιτολόγος` (grain officer) vs commodity `σῖτος`;
   `ἐλαιουργός` (oil-worker) vs `ἔλαιον`. These are OCCUPATION. Stem matching

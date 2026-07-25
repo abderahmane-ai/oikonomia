@@ -312,8 +312,13 @@ who gets a verdict.
 relative to the four symmetric channels. Dropping it entirely:
 
 - women's share **18.0% → 13.0%**;
-- the gradient **survives**: Spearman ρ = **0.856** between the two orderings, and
-  the sale+loan versus receipt+delivery ratio moves only from **3.8× to 3.1×**.
+- the gradient **survives**: Spearman ρ = **0.856** between the two orderings over
+  the **16** deal-type buckets with n ≥ 40, or **0.861** over the **15** that
+  remain once the unclassified (`?`) bucket is dropped. Both are correct; they
+  differ only in whether `?` is a bucket. The CHR paper's figure omits `?`, so it
+  quotes **0.861** — that is not a discrepancy, and do not "fix" it to 0.856;
+- the sale+loan versus receipt+delivery ratio moves only from **3.8× to 3.1×**
+  (unweighted mean of the four bucket shares, not pooled — pooled gives 2.9× → 2.6×).
 
 So **13.0% is the conservative, symmetric-rules-only floor** and 18.0% is the
 figure including the female-only evidence. Both are reported; the gradient is what
