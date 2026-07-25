@@ -304,7 +304,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 8 Relation model | ✅ FROZEN | span-pair RE **0.713** (oracle); saved + **end-to-end measured** (PARTY_OF oracle 0.705 → e2e 0.623); 8a data-bound; 8b apposition rules (+14 pts coverage) | [phase_8](docs/phases/phase_8_relation_model.md) |
 | 9 Corpus→DB | ✅ (opt. hardening left) | **195,906 facts**; 5 findings — **prices**, **taxes**, **AUTONOMY** χωρὶς curve **0%→39%→80% (3c→4c AD)**, **PRINCIPALS by deal type** (21,895; women 18.0% mentions / 20.1% distinct; **sale 30%/loan 28% vs receipt 10%**), monetization; **DB packaged + queryable** (`oik db export`, `docs/database.md`) | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ✅ | **the five findings recorded**, every number recomputed from the shipped tables, each with mechanism + control + limits | [phase_10](docs/phases/phase_10_findings.md) |
-| 11 Release | ✅ PUBLISHED | all three live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; post-publication audit (7 fixes) re-pushed and **verified against the Hub**; **cards rebuilt to HF template structure 2026-07-25 (13 defects) — NOT YET PUSHED** | [phase_11](docs/phases/phase_11_release.md) |
+| 11 Release | ✅ PUBLISHED | all three live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; post-publication audit (7 fixes) re-pushed; **rebuilt cards pushed 2026-07-25 and verified byte-identical against the Hub** (one stale lexicon number left on the dataset card → §7) | [phase_11](docs/phases/phase_11_release.md) |
 | 12 Publication | ✅ READY | **CHR 2027 long paper SUBMITTED (#7) + re-upload pending, 16/16, 5,906/6,000 words** — venue picked after a live scan (§7); figures regenerate from the shipped tables | `paper/chr2027/` (**gitignored, local-only**) |
 
 ---
@@ -434,37 +434,35 @@ backlog is gone); working tree clean._
 > gitignored; re-fetch per the README. `matplotlib` was added to `.venv` for the
 > figures (not a project dep, same category as duckdb/torch — see §4).
 >
-> ## 🚨 URGENT: the LIVE cards carry a claim now known to be FALSE
+> ## ✅ CARDS PUSHED AND VERIFIED LIVE (2026-07-25)
 >
-> All three published cards said the 115-doc set was "fully human-annotated /
-> human-validated". **It is not** (see §8's provenance fact). Corrected locally on
-> 2026-07-25 in all three cards + `docs/database.md`; each card now carries a
-> provenance note saying the set is model-drafted, model-re-checked, not
-> expert-adjudicated, and that scores are agreement rather than accuracy.
-> **These corrections are NOT on the Hub yet — the live cards still make the false
-> claim.** Pushing is now a correctness fix, not a formatting one:
+> The owner pushed all three; **verified against the Hub, not assumed**: the live
+> `README.md` of `grammateus`, `homologia` and `datasets/oikonomia-db` is
+> **byte-identical** to `resources/release/*_CARD.md` (fetched from
+> `huggingface.co/.../raw/main/README.md` and diffed). The false claim is gone —
+> **0 hits for "human-validated" / "human-annotated" / "human gold" in all three**
+> — and each carries the provenance note (model-drafted, model-re-checked, no
+> papyrologist has adjudicated it, scores are *agreement* not accuracy).
 >
-> ```bash
-> .venv/bin/oik release push grammateus && .venv/bin/oik release push homologia && .venv/bin/oik release push db
-> ```
->
-> ## ⚠️ ALSO OUTSTANDING: the rebuilt cards are local, not on the Hub
->
-> **2026-07-25 — all three cards were rewritten** (HF template structure; 13
-> defects fixed, biggest: the dataset card documented tables but **not a single
-> column**, so `docs/database.md`'s column dictionary + vocabularies + pitfalls had
-> never reached the Hub). Gate green (**674 tests**, 32 of them card guards incl. a
-> `corpus`-marked schema-drift check). Both dataset-card quickstart queries were run
-> verbatim against the shipped parquet. Full defect table:
+> That push also carried the **card rewrite** (HF template structure; 13 defects,
+> biggest: the dataset card documented tables but **not a single column**, so
+> `docs/database.md`'s column dictionary + vocabularies + pitfalls had never
+> reached the Hub). Full defect table:
 > [`phase_11`](docs/phases/phase_11_release.md#card-rewrite--2026-07-25-all-three-cards-rebuilt-to-hf-template-structure).
 >
-> **To publish (owner-run, needs HF write token):**
-> ```bash
-> .venv/bin/oik release push grammateus && .venv/bin/oik release push homologia && .venv/bin/oik release push db
-> ```
-> Cards ship as `README.md` via `stage_card`; pushing re-uploads weights/tables too.
+> **⚠️ ONE STALE NUMBER IS STILL LIVE ON THE DATASET CARD.** The verification
+> caught it: the provenance section says the mined lexicon holds `88 entries /
+> 336 attested surface forms` — the phase-2 snapshot. `oik lexicon verify` says
+> **132 / 545**, 0 unattested (same fix as the paper's, commit `152e9ab`).
+> Corrected in `resources/release/OIKONOMIA_DB_CARD.md`; **needs one re-push**
+> (owner-run, needs the HF write token). Models are unaffected — 0 hits there.
 >
-> Gaps the cards now *declare* rather than hide (each needs a GPU run):
+> ```bash
+> .venv/bin/oik release push db
+> ```
+> Cards ship as `README.md` via `stage_card`; pushing re-uploads the tables too.
+>
+> Gaps the cards *declare* rather than hide (each needs a GPU run):
 > per-label F1 for COMMODITY/PERSON_ROLE/TAX_TERM, entity P/R, per-fold variance
 > (`ner.py::xval`); per-relation e2e for 4 relations (`relations.py::eval_e2e`).
 >

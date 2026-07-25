@@ -442,7 +442,7 @@ them.
 The papyri carry **no entity or relation markup upstream** (0% over a 200-document
 audit). All supervision was built for this project:
 
-1. A deterministic lexicon + rules labeler (mined lexicons: 88 entries / 336
+1. A deterministic lexicon + rules labeler (mined lexicons: 132 entries / 545
    attested surface forms, 0 unattested) produced *silver* labels over ~49k
    training documents.
 2. **115 documents form the reference set** — 2,995 entities, 710 relations —
