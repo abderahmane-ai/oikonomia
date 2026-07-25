@@ -1,0 +1,171 @@
+# Phase 12 — Publication (CHR 2027)
+
+**Status: SUBMITTED 2026-07-25 (EasyChair #7), re-upload pending.**
+Deadline for PDF replacement: **14 Aug 2026, 23:59:59 UTC-12 (AoE).**
+
+> **The paper itself lives in `paper/chr2027/`, which is GITIGNORED.** The prose
+> exists only on the owner's machine. This file is the part of it that survives a
+> fresh clone: the decisions, the audit history, and what is still open. The
+> figures regenerate from `data/processed/db/` via `figures/make_figures.py`; the
+> ACH template re-fetches from `anthology.ach.org`; the prose does not regenerate.
+
+---
+
+## 1. Venue: chosen after a live scan, not from memory (2026-07-25)
+
+What was actually open, checked against each venue's own site:
+
+| Venue | Verdict |
+|---|---|
+| LT4HALA 2026 | happened May 2026 @ LREC — missed; next likely 2028 |
+| NLP4DH 2026 | happened Jul 2026 @ ACL — missed |
+| ML4AL | ran once, ACL 2024 — dormant |
+| EMNLP 2026 main | closed; none of its 27 workshops fit |
+| ARR Aug → EACL 2027 | 3 Aug — too tight |
+| ARR Oct → ACL 2027 | 12 Oct — the *model* paper's slot |
+| **CHR 2027** | **winner** — Manchester, 6–8 Jan 2027, subs 14 Aug 2026 AoE |
+
+CHR's stated priorities (ML applications + hypothesis-driven modelling in the
+humanities) are exactly phases 9–10. Long paper: **6,000 words excluding
+abstract, references and tables/illustrations**; no page limit. EasyChair, ACH
+LaTeX template.
+
+**Plan of record: two papers, two audiences.** CHR 2027 is the *findings* paper.
+The *resource/model* paper (Grammateus + Homologia + the weak→reference recipe +
+the DAPT ablation) goes to the **ARR October** cycle → ACL 2027. Do not rush it
+into an August ARR deadline. The declared per-label / per-fold gaps
+(`ner.py::xval`) are a prerequisite for the ACL paper only — CHR needs no GPU run.
+
+## 2. What the paper claims
+
+Title: *How Often, and How Freely: Women in Greco-Roman Egypt, and an Auditable
+Economic Database of 61,249 Documentary Papyri.* The hook names the two novel
+findings (F3 "how freely", F4 "how often"). **F1/F2 are deliberately not in the
+title** — they are validation, not contributions. F5 (prices) is reported as a
+negative result.
+
+Five contributions: the auditable database; an evaluation protocol for extraction
+without ground truth (require the table to recover known history unsupervised
+before it may state a novel count); the two counts; the design argument (closed vs
+open lexical classes need different machinery and their error bars must never be
+blended); and the released artifacts.
+
+## 3. Submission record
+
+- **EasyChair submission #7**, 2026-07-25. Author: Abderahmane Ainouche, ENSIA,
+  Algeria (corresponding, early-career = yes). Long paper.
+- Topics ticked: text analysis · LLMs · knowledge representation · infrastructure
+  and tools · open science · history · linguistics · social sciences.
+- **`statistics` and `spatial analysis` deliberately NOT ticked** — they drive
+  reviewer assignment, and the paper reports medians/IQRs/tiers rather than CIs,
+  and explicitly declines the regional cut.
+- **Anonymity period runs to 23 Oct 2026** (notification). Do not promote the
+  paper publicly before then. Preprinting is permitted (CHR names arXiv/Zenodo/
+  HAL) — **use Zenodo, not ResearchGate**, and preferably only once the
+  expert-validation question is settled. arXiv needs an endorser since its
+  2026-01-21 policy change; an ENSIA supervisor with cs.CL papers could endorse.
+- **Add the gmail as a secondary EasyChair email.** The submission used
+  `@ensia.edu.dz` and the author is a 5th-year student; notification is 23 Oct
+  2026 and the conference is Jan 2027, so a lapsing student address is a real way
+  to miss an acceptance.
+
+## 4. Audit history — three rounds after submission
+
+Each round found real defects. Recorded so they are not re-found or re-argued.
+
+### Round 1 — full reread (2026-07-25)
+
+A 5th contribution bullet was added claiming the released artifacts; they had been
+missing from the contributions list entirely while "open science" was a submitted
+topic. Then seven more defects, three serious:
+
+- the threats section referred to findings as "F1/F2/F3/F4", labels the paper
+  never defines and which collide with the F-measure used 10+ times;
+- it claimed the validation findings "do not depend on the reference set being
+  right" when the labeler's rules were in fact calibrated against it — now stated
+  as a tuned threshold, not a learned representation;
+- abstract + conclusion said "eighteen named taxes sort themselves" when 18 were
+  *extracted* and only **six** carry the periodization.
+
+Plus a stray "silver" left from the terminology rename, "four quantitative
+results" above a five-item list, two tax denominators (6,441 dated vs 6,623 total)
+used without saying so, and an unhedged "first … models" priority claim.
+
+### Round 2 — numbers audit (2026-07-25, commit `152e9ab`)
+
+Every quantitative claim recomputed **from the artifacts**, not from the phase
+docs. Two stale numbers had reached the paper:
+
+- **`1,706 documents share a TM id`** — nothing produces that. `splits.parquet`
+  gives **618 in 231 groups** over the working set (2,313 in 607 groups over all
+  67,980 rows). The fact-ledger already carried the correct count in a later
+  entry, so it contradicted itself; the paper picked up the older line. Fixed at
+  the source: ledger, `splits/assign.py`, `gold/sample.py`, `tests/test_splits.py`.
+- **lexicon `88 entries / 336 forms`** — the phase-2 snapshot. `oik lexicon
+  verify` says **132 entries / 545 unique forms**, 545 attested, 0 unattested.
+
+Also: a duplicated "and" in the introduction, and §5.1 describing the plotted
+denominator as "system-attributed" when it includes the 1,095 unknown-system rows.
+
+**A review claiming the paper's Spearman ρ 0.861 should be 0.856 was WRONG.**
+0.861 is over the 15 deal-type buckets the figure plots; 0.856 includes the
+unclassified (`?`) bucket. Both are correct on their own basis and the figure
+states which it uses. **Do not "fix" it.** Same for the 3.8× → 3.1× ratio: that is
+the unweighted mean of the four bucket shares; pooled it is 2.9× → 2.6×.
+
+### Round 3 — reread of the worked examples (2026-07-25)
+
+Grep cannot catch these; they were found by reading the figure against the tables.
+**Figure 1 is the paper's auditability demo, so a mismatch there is expensive.**
+
+- **(a) "yields one row."** TM 76409 yields **seven** rows, one per amount. The
+  offsets shown are correct — 108–118 `λαογραφίας`, 127–134 `δραχμὰς`, 135–136
+  `δ`, value 4.0 drachma silver, `tax_id` laographia, AD 126 — but the document
+  does not produce a single row. Now says seven, one per amount, with the row
+  shown being one of them.
+- **(b) head/patronymic were idealised, not what the pipeline produces.** The
+  figure said head `Ἀλέκα`, patronymic `Ἀπολλωνίου`. `persons.parquet` says
+  **head `Αὐρηλία`, filiation `Ἀλέκα`**: `parse_person_name` takes the first real
+  token as head, so a Roman *nomen* occupies the head slot and pushes the personal
+  name into the filiation slot. **3.8% of the 350,206 person rows** are like this.
+- **(b) `basis` was wrong.** The figure said `basis=nomen`; the row for that span
+  says **`basis=guardian`** (a second, shorter mention of the same woman is
+  `basis=nomen`, which is probably where the figure's value came from).
+- **Consequence for §7's coreference hook.** 64.8% of women principals carry a
+  recovered filiation name — that number is right — but **34.8% of those (370 of
+  1,063) have a nomen in the head slot**, so their "patronymic" is the personal
+  name, not a father. Still a usable matching key; not filiation. The paper now
+  says so.
+
+## 5. Annotation reliability — the position the paper takes
+
+There is one annotator, so there is **no IAA**. What §4.1 reports instead is what
+the *verification pass changed*, measured from two git revisions with no schema
+commit between them (`review_delta.py`): the reviewer **added 68 spans, removed 3,
+relabelled none** against 1,127 drafted (span-level F1 0.969). The paper states
+both readings and says the unflattering one is the one to hold us to — the drafts
+may have been accurate on labels, or labels may not have been scrutinised as hard
+as boundaries. Threats names the concrete fix: **16 gold docs already carry
+`double_annotate: true`**, genre-stratified over 504 entities, and that is the
+subset a second annotator should be given.
+
+**The one thing tooling cannot do: get a papyrologist to read the autonomy
+finding before it goes out.** That remains open and is the project's top item.
+
+## 6. Submission mechanics
+
+`check_submission.py` runs 16 checks — build clean, word count, anonymity across
+four surfaces (source, rendered text, PDF metadata, embedded paths including the
+figure PDFs), no placeholders, all refs cited, all floats referenced, reviewer
+bundle clean. Anonymisation is automatic: the class prints "Under Review /
+Anonymous Submission" unless `[final]`.
+
+Upload `paper.pdf` plus `anon-artifact.zip` (supplementary, if EasyChair takes
+it). The availability section says the bundle is available "through the programme
+chairs", so there is **no dead link and nothing to register**.
+
+**Toolchain**, so a new session does not re-derive it: BasicTeX ships no
+biblatex/biber — `tlmgr --usermode install biblatex …` works, but **biber is not
+relocatable** (`brew install biber`). The template's 42 MB of fonts are gitignored;
+re-fetch per `paper/chr2027/README.md`. `matplotlib` was added to `.venv` for the
+figures (not a project dep — same category as duckdb/torch, see CLAUDE.md §4).

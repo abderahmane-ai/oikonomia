@@ -207,8 +207,8 @@ end: open models, a derived auditable database, and the historical findings.
 | 2 | **Derived database** | [oikonomia-db](https://huggingface.co/datasets/ainouche-abderahmane/oikonomia-db) — 8 parquet tables, CC BY 3.0, span-level provenance |
 | 3 | **Historical findings** | [`docs/phases/phase_10_findings.md`](docs/phases/phase_10_findings.md) — five findings, all numbers recomputed from the shipped tables |
 
-**LATEST (2026-07-24) — PHASE 10 RECORDED. The five findings, ranked by evidential
-strength, are written up with mechanism + control + limits each:**
+**The five findings, ranked by evidential strength, each written up with
+mechanism + control + limits ([`phase_10`](docs/phases/phase_10_findings.md)):**
 
 - **F1 monetization** (validation, strongest) — gold share of dated money facts:
   eleven centuries at ~0.00, then **4c AD 0.155 → 5c AD 0.931 → 8c 1.000**.
@@ -237,7 +237,9 @@ strength, are written up with mechanism + control + limits each:**
   closed-vocabulary coverage, and sale/receipt sit at opposite ends of the gradient
   with near-identical attribution rates (0.461/0.417). The guardian channel is
   female-only and worth 5 pts: dropping it gives **13.0% (the conservative floor)**
-  and the gradient holds (**Spearman ρ 0.856**, top:bottom 3.8×→3.1×).
+  and the gradient holds (**Spearman ρ 0.856** over the 16 n≥40 buckets, **0.861**
+  over the 15 without the unclassified one — the paper plots the latter; top:bottom
+  3.8×→3.1×, the unweighted mean of the four bucket shares, 2.9×→2.6× pooled).
 - **F5 prices** (weakest, flagged as such) — 98 clean obs; only **2c AD wheat
   13.33 dr/artaba [IQR 6–27.5], n=37** is defensible. Per-unit over-division and
   wine unit errors are documented in the open, not suppressed.
@@ -254,20 +256,18 @@ files when the write-up was made; every number in it matches.
   data-bound and parked (PAID_BY 0.15). **Freeze; revisit only if a finding needs
   more.** Diagnosis of the direction ceiling: [`docs/phases/phase_8_relation_model.md`].
 
-**Phase 9 — the full-corpus database exists and the numbers are real.** `oik db
-build --sample 0` over all 61,249 text docs → **195,906 monetary facts, 99%
-normalized, 100% provenance** (every row → tm_id + char span), silver 140k / gold
-54.8k kept separate. Two validation views recover known history: **2c AD wheat ≈
-12 dr/artaba** (lit. ~7–8) and the **silver→gold monetization transition**
-(textbook Egyptian coinage history, unsupervised). The profile surfaced **two
-ready findings in the same table**: **7,725 commodity prices** (wheat/wine/oil/
-barley span 8–9 centuries) and **6,623 tax payments** (named: demosia 9 centuries,
-laographia poll tax 574, phoros, prosdiagraphomena) — taxes are *cleaner* (no
-per-unit division). Bottleneck is extraction precision + the per-unit math, **not**
-entity F1.
+**The fact table.** `oik db build --sample 0` over all 61,249 text docs →
+`data/processed/db/monetary.parquet`: **195,906 facts, 98.7% normalized to a
+canonical currency, 94.3% datable, 100% provenance** (every row → tm_id + char
+span), silver 140k / gold 54.8k **never made convertible**. Code:
+`src/oikonomia/db/{money,dates,facts}.py` + `cli/db_cmd.py`. The derived tables
+(prices, taxes, persons, autonomy, principals, export) each have their own `oik
+db` subcommand — see §4. Build detail:
+[`phase_9`](docs/phases/phase_9_database.md).
 
 **The decisive enabler (audited, don't re-derive):** `corpus.parquet` already
-carries `tm_id` (100%), `date_lo/hi` (95–98%, HGV), `place_pleiades/tm` (74–76%,
+carries `tm_id` (100%), `date_lo/hi` (94–98% by definition: 94.3% have both
+bounds, 96.2% have `date_lo`, 98.3% join HGV at all), `place_pleiades/tm` (74–76%,
 authority-linked), `canonical_genres` (100%), and EpiDoc-**decoded `<num>` values**.
 So dates/places/numerals are *given* — the DB layer normalizes + assembles, it does
 not re-extract them, and the weak `DATED_TO`/PLACE relations are bypassed.
@@ -293,7 +293,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 |---|---|---|---|
 | 0 Foundation | ✅ | src-layout, layered config, deterministic pipeline, tooling | [phase_0](docs/phases/phase_0_foundation.md) |
 | 1 Ingestion | ✅ | dual-view EpiDoc parser; 67,980 docs, parse rate **1.000** | [phase_1](docs/phases/phase_1_ingestion.md) |
-| 2 Characterization & schema | ✅ | mined lexicons (88 entries/336 forms, 0 unattested); baseline 74.5% numeral link | [phase_2](docs/phases/phase_2_characterization_schema.md) |
+| 2 Characterization & schema | ✅ | mined lexicons (88/336 **at the time — now 132 entries / 545 forms**, §8); baseline 74.5% numeral link | [phase_2](docs/phases/phase_2_characterization_schema.md) |
 | 3 Splits | ✅ | leak-free stratified + chronological; 475 dup clusters (2.89%) removed | [phase_3](docs/phases/phase_3_splits.md) |
 | 4 DAPT | ✅ | **full-FT wins** (dev ppl 4.54); `checkpoints/full/final` = **B1** | [phase_4](docs/phases/phase_4_dapt.md) |
 | 5 Reference set | ✅ | **115 docs, model-drafted + model-re-checked (NOT expert-validated)**, 2,995 ent / 710 rel, 0 errors | [phase_5](docs/phases/phase_5_gold_annotation.md) |
@@ -305,305 +305,114 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 9 Corpus→DB | ✅ (opt. hardening left) | **195,906 facts**; 5 findings — **prices**, **taxes**, **AUTONOMY** χωρὶς curve **0%→39%→80% (3c→4c AD)**, **PRINCIPALS by deal type** (21,895; women 18.0% mentions / 20.1% distinct; **sale 30%/loan 28% vs receipt 10%**), monetization; **DB packaged + queryable** (`oik db export`, `docs/database.md`) | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ✅ | **the five findings recorded**, every number recomputed from the shipped tables, each with mechanism + control + limits | [phase_10](docs/phases/phase_10_findings.md) |
 | 11 Release | ✅ PUBLISHED | all three live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; post-publication audit (7 fixes) re-pushed; **rebuilt cards pushed 2026-07-25 and verified byte-identical against the Hub** (one stale lexicon number left on the dataset card → §7) | [phase_11](docs/phases/phase_11_release.md) |
-| 12 Publication | ✅ READY | **CHR 2027 long paper SUBMITTED (#7) + re-upload pending, 16/16, 5,906/6,000 words** — venue picked after a live scan (§7); figures regenerate from the shipped tables | `paper/chr2027/` (**gitignored, local-only**) |
+| 12 Publication | ✅ SUBMITTED | **CHR 2027 long paper, EasyChair #7; re-upload pending** (16/16, 5,941/6,000 words, 15 pp); three audit rounds recorded | [phase_12](docs/phases/phase_12_publication.md) · prose in `paper/chr2027/` (**gitignored**) |
 
 ---
 
 ## 7. Current machine state — READ THIS FIRST in a new session
 
-_Last updated: 2026-07-25. Branch **`main`**, pushed to origin (the 6-commit
-backlog is gone); working tree clean._
+_Last updated: 2026-07-25. Branch **`main`**, pushed to origin; working tree
+clean. §7 was compressed on 2026-07-25 — the finished-phase narratives it used to
+repeat now live only in `docs/phases/`, and the paper's history moved to
+[`phase_12`](docs/phases/phase_12_publication.md). Keep it that way._
 
-> ## 📄 THE ACTIVE WORK: CHR 2027 paper — DRAFTED, deadline **14 Aug 2026**
+> ## 📄 THE ACTIVE WORK: CHR 2027 paper — SUBMITTED, re-upload pending
 >
-> **Venue chosen after a live scan of what is actually open (2026-07-25).** The
-> field was: LT4HALA 2026 (happened May 2026 @ LREC — missed, next likely 2028),
-> NLP4DH 2026 (happened Jul 2026 @ ACL — missed), ML4AL (only ever ran once, ACL
-> 2024 — dormant), EMNLP 2026 main (closed; none of its 27 workshops fit), ARR Aug
-> cycle → EACL 2027 (3 Aug — too tight), ARR Oct cycle → ACL 2027 (12 Oct).
-> **Winner: CHR 2027** — Manchester, 6–8 Jan 2027, submissions **14 Aug 2026 AoE**,
-> EasyChair, ACH LaTeX template, 6,000 words excl. abstract/refs/tables/figures.
-> Its stated priorities (ML applications + hypothesis-driven modelling in the
-> humanities) are exactly Phases 9–10.
+> **Full record → [`phase_12`](docs/phases/phase_12_publication.md)**: venue scan,
+> submission details, three audit rounds and what each found, the
+> annotation-reliability position, toolchain notes. Read it before touching the
+> paper — it is the only part that survives a fresh clone.
 >
-> **Plan of record: two papers, two audiences.** CHR 2027 = the *findings* paper
-> (drafted, below). ARR **October** cycle → ACL 2027 = the *resource/model* paper
-> (Grammateus + Homologia + the silver→gold recipe + the DAPT ablation). Do NOT
-> rush the model paper into the 3 Aug ARR deadline. The declared per-label/
-> per-fold gaps (`ner.py::xval`) are a prerequisite for the ACL paper only — CHR
-> does not need a GPU run.
+> **⚠️ `paper/` IS GITIGNORED — the prose exists only on this machine.** A
+> `git clean -xdf` destroys it. The figures regenerate from `data/processed/db/`
+> and the template re-fetches; the prose does not.
 >
-> **⚠️ `paper/` IS GITIGNORED — it exists only on this machine.** It is not in the
-> repo and will not survive a fresh clone or a `git clean -xdf`. Back it up
-> separately if it matters. Everything in it is re-derivable in principle (the ACH
-> template re-fetches from `anthology.ach.org`, the figures regenerate from
-> `data/processed/db/`) — but **the prose is not**.
+> **State:** submitted 2026-07-25 (EasyChair **#7**), **16/16 READY, 5,941 of
+> 6,000 words, 15 pp**, 0 LaTeX errors, anonymity clean on four surfaces.
+> **EasyChair accepts PDF replacement until 14 Aug 2026 (23:59:59 UTC-12)** — the
+> local PDF is ahead of the submitted one, so **upload `paper/chr2027/paper.pdf`
+> again**. Deadline outranks everything else below until it passes.
 >
-> **State: `paper/chr2027/` compiles clean** — 0 LaTeX errors, 0
-> missing glyphs, 0 undefined citations/refs, 14 pp, **5,906 of 6,000 words**.
-> Title: *How Often, and How Freely: Women in Greco-Roman Egypt, and an Auditable
-> Economic Database of 61,249 Documentary Papyri* — the hook names the two novel
-> findings (F3 how freely, F4 how often); F1/F2 are deliberately NOT in it, they
-> are validation, not contributions.
-> Anonymisation is automatic (the class prints "Under Review / Anonymous
-> Submission" unless `[final]`); a grep guard confirms no repo/model/author
-> strings leak. All 20 bib entries were checked against a live source.
-> **Every number in it was recomputed from the parquet tables, not copied from
-> the phase docs** — two small deltas found and the recomputed values used
-> (Spearman ρ **0.861** over 15 deal-type buckets, not 0.856; the n≥40 deal-type
-> table has 16 rows, incl. `letter_official` 0.218 and `letter` 0.071, which
-> phase_10's table omitted). Build/checklist: `paper/chr2027/README.md` (local-only).
+> ```bash
+> cd paper/chr2027 && make && ../../.venv/bin/python check_submission.py
+> ```
 >
-> **SUBMITTED to CHR 2027 on 2026-07-25 — EasyChair submission #7.**
-> Author: Abderahmane Ainouche, ENSIA, Algeria (corresponding, early-career=yes).
-> Long paper; topics: text analysis · LLMs · knowledge representation ·
-> infrastructure and tools · open science · history · linguistics · social
-> sciences. (`statistics` and `spatial analysis` deliberately NOT ticked — they
-> drive reviewer assignment, and the paper reports medians/IQRs/tiers rather than
-> CIs, and explicitly declines the regional cut.)
+> **Every number in it was recomputed from the parquet tables** (three audit
+> rounds; see phase_12). Two traps for whoever reads it next:
+> - **Spearman ρ 0.861 is CORRECT** — it is over the 15 deal-type buckets the
+>   figure plots; 0.856 includes the unclassified bucket. A review already tried
+>   to "fix" this. Do not.
+> - **the deal-type ratio 3.8× → 3.1×** is the unweighted mean of the four bucket
+>   shares; pooled it is 2.9× → 2.6×. Both are in phase_10 now.
 >
-> **⚠️ RE-UPLOAD PENDING.** After submitting, a 5th contribution bullet was added
-> claiming the released artifacts (schema, reference set, lexicons, the two models,
-> the database) — they had been missing from the contributions list entirely while
-> "open science" was a submitted topic. Then a full reread found seven more defects, three serious: **the threats
-> section referred to findings as "F1/F2/F3/F4", labels the paper never defines
-> and which collide with the F-measure used 10+ times**; it claimed the validation
-> findings "do not depend on the reference set being right" when the labeler's
-> rules were in fact calibrated against it (now stated as a tuned threshold, not a
-> learned representation); and abstract + conclusion said **"eighteen named taxes
-> sort themselves"** when 18 were *extracted* and only **six** carry the
-> periodization. Plus: a stray "silver" left over from the terminology rename,
-> "four quantitative results" sitting above a five-item list, two different tax
-> denominators (6,441 dated vs 6,623 total) used without saying so, and an
-> unhedged "first ... models" priority claim. All fixed.
+> **Still open:** add the gmail as a secondary EasyChair email (the submission
+> used a lapsing student address; notification is 23 Oct 2026). **Anonymity period
+> runs to 23 Oct 2026** — no public promotion before then; prefer Zenodo over
+> ResearchGate if preprinting.
 >
-> **Then a full numbers audit (2026-07-25) recomputed every claim from the
-> artifacts rather than from the phase docs, and found two stale numbers that had
-> reached the paper** — `1,706 documents share a TM id` (the real figure is
-> **618** in 231 groups; `splits.parquet` is authoritative, and the ledger already
-> contradicted itself on this) and the lexicon's `88 entries / 336 forms` (the
-> phase-2 snapshot; `oik lexicon verify` says **132 / 545**, 0 unattested). Both
-> corrected in the paper and at their source (ledger, two docstrings, one test
-> docstring). Also fixed: a duplicated "and" in the intro, and §5.1 saying
-> "system-attributed" where the plotted denominator includes the 1,095
-> unknown-system rows. Everything else recomputes — see commit `152e9ab`.
-> **A review claiming the paper's Spearman ρ 0.861 should be 0.856 was WRONG**:
-> 0.861 is over the 15 deal-type buckets the figure plots, 0.856 includes the
-> unclassified bucket. Do not "fix" it. Now **5,906/6,000 words, 16/16**.
-> **EasyChair accepts PDF replacement until 14 Aug 2026 (23:59:59 UTC-12)** —
-> upload `paper/chr2027/paper.pdf` again to supersede the submitted version.
+> ## ✅ RELEASE: all three live and Hub-verified — one re-push pending
 >
-> **Also do:** add the gmail as a secondary EasyChair email. The submission used
-> `@ensia.edu.dz` and the author is a 5th-year student; notification is 23 Oct 2026
-> and the conference is Jan 2027, so a lapsing student address is a real way to
-> miss an acceptance.
+> **Verified, not assumed** (2026-07-25): the live `README.md` of `grammateus`,
+> `homologia` and `datasets/oikonomia-db` was fetched from
+> `huggingface.co/.../raw/main/` and is **byte-identical** to
+> `resources/release/*_CARD.md`. The false "human-validated / human-annotated /
+> human gold" claim is **0 hits in all three**, and each carries the provenance
+> note (model-drafted, model-re-checked, no papyrologist has adjudicated it,
+> scores are *agreement* not accuracy).
 >
-> **Anonymity period runs to 23 Oct 2026** — do not promote the paper publicly
-> before then. Preprinting is permitted (CHR names arXiv/Zenodo/HAL) but **use
-> Zenodo, not ResearchGate**, and preferably only once the expert-validation
-> question is settled. arXiv needs an endorser since its 2026-01-21 policy change
-> (institutional email alone no longer qualifies); an ENSIA supervisor with cs.CL
-> papers could endorse.
+> That push carried the card rewrite (13 defects; the dataset card had documented
+> tables but **not a single column**). The 2026-07-24 post-publication audit is
+> also live — 7 fixes, incl. the §3 violation that had Homologia's architecture
+> living in `modal_app/`, a documented-but-missing `person_id`, a dead dataset
+> viewer, a non-recursing completeness gate, and a fabricated hyperinflation
+> finding in `project_summary.md`. Detail:
+> [`phase_11`](docs/phases/phase_11_release.md).
 >
-> **SUBMISSION-READY as of 2026-07-25.** `check_submission.py` runs 16 checks —
-> build clean, word count, anonymity across four surfaces (source, rendered text,
-> PDF metadata, embedded paths incl. the figure PDFs), no placeholders, all refs
-> cited, all floats referenced, reviewer bundle clean — and reports
-> **16/16 READY, 5,906 words, 14 pp**. Upload `paper.pdf` plus
-> `anon-artifact.zip` (supplementary, if EasyChair takes it). The availability
-> section says the bundle is available "through the programme chairs", so there
-> is **no dead link and nothing to register**.
->
-> **On the annotation-reliability gap: partly closed, honestly.** There is still
-> one annotator, so there is still no IAA. What §4.1 now reports instead is what
-> the *verification pass changed*, measured from two git revisions with no schema
-> commit between them (`review_delta.py`): the reviewer **added 68 spans, removed
-> 3, relabelled none** against 1,127 drafted (F1 0.969). The paper states both
-> readings and says the unflattering one is the one to hold us to — the drafts may
-> have been accurate on labels, or labels may not have been scrutinised as hard as
-> boundaries. §Threats now names the concrete fix: **16 gold docs already carry
-> `double_annotate: true`**, genre-stratified over 504 entities, and that is the
-> subset a second annotator should be given.
->
-> **The one thing tooling cannot do:** get a papyrologist to read §7.1 (the
-> autonomy finding) before it goes out. That remains open.
->
-> Toolchain notes so a new session doesn't re-derive them: BasicTeX has no
-> biblatex/biber — `tlmgr --usermode install biblatex …` works, but **biber is not
-> relocatable** (`brew install biber`). The template's 42 MB of fonts are
-> gitignored; re-fetch per the README. `matplotlib` was added to `.venv` for the
-> figures (not a project dep, same category as duckdb/torch — see §4).
->
-> ## ✅ CARDS PUSHED AND VERIFIED LIVE (2026-07-25)
->
-> The owner pushed all three; **verified against the Hub, not assumed**: the live
-> `README.md` of `grammateus`, `homologia` and `datasets/oikonomia-db` is
-> **byte-identical** to `resources/release/*_CARD.md` (fetched from
-> `huggingface.co/.../raw/main/README.md` and diffed). The false claim is gone —
-> **0 hits for "human-validated" / "human-annotated" / "human gold" in all three**
-> — and each carries the provenance note (model-drafted, model-re-checked, no
-> papyrologist has adjudicated it, scores are *agreement* not accuracy).
->
-> That push also carried the **card rewrite** (HF template structure; 13 defects,
-> biggest: the dataset card documented tables but **not a single column**, so
-> `docs/database.md`'s column dictionary + vocabularies + pitfalls had never
-> reached the Hub). Full defect table:
-> [`phase_11`](docs/phases/phase_11_release.md#card-rewrite--2026-07-25-all-three-cards-rebuilt-to-hf-template-structure).
->
-> **⚠️ ONE STALE NUMBER IS STILL LIVE ON THE DATASET CARD.** The verification
-> caught it: the provenance section says the mined lexicon holds `88 entries /
-> 336 attested surface forms` — the phase-2 snapshot. `oik lexicon verify` says
-> **132 / 545**, 0 unattested (same fix as the paper's, commit `152e9ab`).
-> Corrected in `resources/release/OIKONOMIA_DB_CARD.md`; **needs one re-push**
-> (owner-run, needs the HF write token). Models are unaffected — 0 hits there.
+> **⚠️ ONE STALE NUMBER IS STILL LIVE ON THE DATASET CARD** — the verification
+> caught it. Its provenance section says the lexicon holds `88 entries / 336
+> forms` (the phase-2 snapshot); `oik lexicon verify` says **132 / 545**, 0
+> unattested. Fixed in `resources/release/OIKONOMIA_DB_CARD.md`; **needs one
+> re-push** (owner-run, HF write token). Models are unaffected — 0 hits there.
 >
 > ```bash
 > .venv/bin/oik release push db
 > ```
-> Cards ship as `README.md` via `stage_card`; pushing re-uploads the tables too.
 >
-> Gaps the cards *declare* rather than hide (each needs a GPU run):
-> per-label F1 for COMMODITY/PERSON_ROLE/TAX_TERM, entity P/R, per-fold variance
+> Gaps the cards *declare* rather than hide (each needs a GPU run): per-label F1
+> for COMMODITY/PERSON_ROLE/TAX_TERM, entity P/R, per-fold variance
 > (`ner.py::xval`); per-relation e2e for 4 relations (`relations.py::eval_e2e`).
->
-> ## ✅ ALL THREE DELIVERABLES SHIPPED AND RE-PUSHED
->
-> The post-publication audit's seven fixes are **live and verified against the Hub**
-> (2026-07-24), not merely pushed:
->
-> - both model cards: **0** remaining `oikonomia/*-grc` dead links; Grammateus
->   carries the per-fold sample-size caveat; Homologia documents `load_homologia`.
-> - dataset: `configs:` block live (viewer + `load_dataset(..., "prices")`),
->   Limitations section live, and `export/persons_distinct.parquet` **downloaded
->   back and checked — 17,362 rows × 9 cols, `person_id` present and unique**.
-> - all 10 dataset files present including `export/`; **no junk** (`__pycache__`,
->   `.pyc`, `.DS_Store`) in the repo.
->
-> What the audit fixed, for the record: **Homologia's architecture was living in
-> `modal_app/`** (a §3 violation — the published model could not load without the
-> layer that boundary says must be deletable); it now lives in
-> `oikonomia/relations/model.py` with a one-call `load_homologia()`. **The dataset
-> documented a `person_id` that did not exist** — it ships one now. **The dataset
-> viewer was dead** (malformed frontmatter). **`check_ready` listed only top-level
-> files** while the upload recurses, so it could ship the dataset missing two of
-> its eight tables; it also now excludes interpreter/editor junk via shared
-> `IGNORE_PATTERNS`. **`docs/project_summary.md` wrote up a unit artifact as a
-> 4th-century hyperinflation finding** — there is no 4c wheat data at all; that
-> section is rewritten. Plus CI (`.github/workflows/ci.yml`). Full table + the
-> `trust_remote_code` decision: the phase-11 doc.
->
-> **Next front is open, not forced.** The highest-value item is **cross-document
-> entity resolution** (§ "Then, in priority order" below) — it turns 21,895
-> principal *mentions* into a prosopography and lets F3/F4 be measured per person.
-> `person_id` is already shipped as the join key and 64.8% of women principals
-> carry a patronymic.
-
-**WOMEN ANALYSIS — COMPLETE (2026-07-24).** Ran end to end on the trained models,
-not rules, as directed. Corpus-scale NER on an A10 over all 61,249 docs (1,368,079
-entities, 3,304 long docs windowed, provenance 0/1.37M mismatch) → person-blob
-split (`db/names.py`, 129k father links) → gender + typed guardian over the 350k
-model PERSON spans (`db/personscan.py`) → the autonomy curve (`db/autonomy.py`).
-Then the RE model was made shippable (`build_relation_head` factory, all-gold train
-+ save, standalone inference on NER-predicted entities), measured end to end
-(**PARTY_OF oracle 0.705 → e2e 0.623**), and run over the corpus (228,945 relations
-/ 16,315 PARTY_OF) to produce the principals table. Gold-validated: gender rules
-100% deterministic (613/613), χωρὶς matches gold exactly so the autonomy rise is
-conservative. Findings F3/F4 in §5; build detail in the phase-9 doc.
-
-**What is on Modal (checked 2026-07-24, do not re-guess):** NER model at
-`oikonomia-ner:/models/b1/final` (`RobertaForTokenClassification`, 15 labels / 31
-BIO) — this is what the corpus run loaded. DAPT backbone
-`oikonomia-dapt:/checkpoints/full/final`. Volume data: `silver/gold/labels/
-relation_labels` (relation_labels re-pushed 2026-07-24, carries AGE/OCCUPATION).
-RE model at `oikonomia-ner:/models/relation/final` (custom `relation_head.pt`
-state_dict + `config.json`). Predictions: `predictions/ner_corpus.jsonl` (1.37M
-entities), `predictions/re_corpus.jsonl` (16,315 PARTY_OF; 35 dense registers
-skipped by design).
-
-**MODEL RELEASE (deliverable #1) — PUBLISHED (2026-07-24).** Family **OIKONOMIA**;
-**Grammateus** (γραμματεύς "the scribe" — entities,
-`ainouche-abderahmane/grammateus`) and **Homologia** (ὁμολογία "the acknowledgment"
-— relations, `ainouche-abderahmane/homologia`), plus the dataset
-`datasets/ainouche-abderahmane/oikonomia-db`. Local copies in
-`artifacts/models/{grammateus,homologia}/` (gitignored), verified against the
-**live** repos: the Grammateus card snippet tags a test phrase correctly, and
-`load_homologia("ainouche-abderahmane/homologia")` pulls from the Hub and loads
-`strict=True` (129.1M params). Cards: `resources/release/*_CARD.md`, all three now
-guarded by `tests/test_release_cards.py` (the dataset card's `configs:` block is
-tied to the release spec's required files, so they cannot drift).
-
-**Publishing is a LAPTOP step, not a Modal one** (`oik release check|push`,
-`src/oikonomia/{models/release.py,cli/release_cmd.py}`): licence firewall +
-completeness gate, `--dry-run`, private by default, token read from `hf auth
-login`/`HF_TOKEN` and **never** from argv. The completeness gate **recurses** —
-it did not, which meant it could ship the dataset missing the two `export/` tables.
-
-**The published RE architecture lives in `oikonomia/relations/model.py`, not
-`modal_app/`.** Use `load_homologia(repo_or_dir)`; `modal_app` delegates to the
-same factory. `tests/test_architecture.py` fails if layers reappear in `modal_app`.
-Detail: [`docs/phases/phase_11_release.md`](docs/phases/phase_11_release.md).
-
-**THE PIVOT — read before doing anything.** The deliverable is a **queryable,
-auditable economic database + findings** (§1). The models are frozen at a
-publishable bar (entity 0.737, relation 0.713 oracle). **Do NOT resume relation-F1
-tuning** — it is measured out (8a: every model-side knob neutral; direction is
-data-bound at PAID_BY 0.15 and parked). The active work is **Phase 9: the
-database** — deterministic, laptop, no GPU. Every hour goes to fact assembly,
-normalization, and the first finding, not to moving 0.71 → 0.75.
-
-**Phase 9 state — the full-corpus database exists.** `oik db build --sample 0` →
-`data/processed/db/monetary.parquet` (gitignored, re-derivable, ~2.6 MB / 195,906
-rows): **99% normalized, 100% provenance, silver 140k / gold 54.8k.** Validation:
-2c AD wheat ≈ 12 dr/artaba (lit. ~7–8) and the silver→gold monetization transition.
-**Two findings are ready in the table: 7,725 prices (wheat/wine/oil/barley, 8–9
-centuries) and 6,623 tax payments (demosia/laographia/phoros — cleaner, no
-per-unit math).** Code: `src/oikonomia/db/{money,dates,facts}.py` + `cli/db_cmd.py`.
-Detail: [`docs/phases/phase_9_database.md`](docs/phases/phase_9_database.md).
-
-**Wheat price finding — DONE + validated (`oik db prices`).** `src/oikonomia/db/
-prices.py` cleans the fact table (drops the 48% `value_num==quantity` double-link
-artifact, bronze `chalkous`, wrong units, implausible qty/price). 70 clean wheat
-obs reproduce the literature: 3c BC **2.53** (lit ~1–2), **2c AD 13.33 [IQR 6–27.5]
-n=37** (lit ~7–12 — IQR brackets it), 3c AD 3.76. Writes `db/prices.parquet` (98
-obs, full provenance). Small n is the honest cost of precision filtering.
 
 **MODELS vs RULES — read this so it never confuses again.** The economic findings
 (prices/taxes) run on the **lexicon + rules**, NOT the trained neural models —
 correctly: prices need closed-class vocab (drachma/artaba/wheat) a gazetteer
 matches at ceiling, so the model adds nothing. The trained models earn their keep
 elsewhere: (1) as **deliverable #1** (a released papyri Greek NER+RE model — a
-contribution in itself), and (2) for the **person/place-heavy findings** (women-as-
-principals, kinship) where PERSON/PLACE are open-class and rules fail (model beats
-rules +19 PERSON / +11 PLACE). The entity model is now **wired into the DB** — its
-corpus-scale run (`ner_corpus.jsonl`) drives the autonomy finding (steps 1–6). The
-relation model is now **saved too** (step 7, 2026-07-24: `/vol/models/relation/final`,
-end-to-end PARTY_OF 0.623) and drives **step 8** (women as principals), next.
+contribution in itself), and (2) for the **person-heavy findings** (women as
+principals, autonomy) where PERSON/PLACE are open-class and rules fail (model
+beats rules +19 PERSON / +11 PLACE). Both corpus-scale runs are done and drive
+the findings: `ner_corpus.jsonl` → autonomy, `re_corpus.jsonl` → principals.
 
-**Tax finding — DONE + validated (`oik db taxes`).** `src/oikonomia/db/taxes.py`
-+ `places.py`. (1) **Fiscal-regime map** (tax × era) reproduces textbook history:
-laographia (poll tax) Roman-only, prosdiagraphomena Roman surcharge, demosia the
-Byzantine land tax, phylakitikon Ptolemaic-fading. (2) **Poll-tax payments** by
-century (installments: median ~4 dr, p90 20 dr → the known annual ~16–40 dr tail)
-and **by region** (place names resolved from HGV: Arsinoites 25 dr vs
-Herakleopolites 2 dr — real nome variation). Writes `db/taxes.parquet` (592 obs).
+**What is on Modal (checked 2026-07-24, do not re-guess):** NER model at
+`oikonomia-ner:/models/b1/final` (`RobertaForTokenClassification`, 15 labels / 31
+BIO) — what the corpus run loaded. DAPT backbone
+`oikonomia-dapt:/checkpoints/full/final`. Volume data: `silver/gold/labels/
+relation_labels` (re-pushed 2026-07-24, carries AGE/OCCUPATION). RE model at
+`oikonomia-ner:/models/relation/final`. Predictions:
+`predictions/{ner,re}_corpus.jsonl`.
 
-**AUTONOMY FINDING — DONE end-to-end on the trained model (steps 1–6, 2026-07-24).**
-The full pipeline runs the **model's** corpus-scale NER (not rules), as directed:
-`db/names.py` (`parse_person_name`: head/patronymic split — 129k father links) →
-`db/personscan.py` (`oik db persons`: gender + typed guardian over the 350k model
-PERSON spans) → `db/autonomy.py` (`oik db autonomy`: the curve). **Result — the
-χωρὶς-κυρίου (autonomous) share by century: 0% (≤1c AD) → 39% (3c) → 80% (4c)**,
-reproducing the *ius liberorum* spread / decline of tutela mulierum unsupervised.
-Gold-validated (`oik db validate-women`): gender rules **100% deterministic**;
-over-count is on the μετὰ side so the rise is **conservative**. Gender logic
-(`db/persons.py`, precision-ordered: guardian→female, nomen `Αὐρήλιος`m/`Αὐρηλία`f,
-θυγάτηρ/υἱός, Egyptian `Τα-`f/`Πα-`m, gazetteer; guards for metronymic `μητρὸς X`,
-the `καὶ ὁ υἱὸς` handoff, masc-inflection veto) is unchanged and each attribution
-labels its `basis`. **A bootstrapped name gazetteer was built then REMOVED as slop
-(2026-07-24)** (synthetic shortcut, §2). The old rule-based party path
-(`oik db women`/`db/parties.py`) was **deleted 2026-07-24** once step 8 superseded
-it with the trained RE model (`oik db principals`); its gold validation result is
-preserved in the phase-9 doc and is not re-runnable at HEAD.
+**Publishing is a LAPTOP step, not a Modal one** (`oik release check|push`):
+licence firewall + completeness gate (it **recurses** — it did not, which meant it
+could ship the dataset missing two of its eight tables), `--dry-run`, private by
+default, token from `hf auth login`/`HF_TOKEN` and **never** from argv. The
+published RE architecture lives in `oikonomia/relations/model.py`, not
+`modal_app/`; load it with `load_homologia(repo_or_dir)`.
+`tests/test_architecture.py` fails if layers reappear in `modal_app`.
+
+**Phases 9–11 detail lives in the phase docs, not here:** the fact table and its
+build ([`phase_9`](docs/phases/phase_9_database.md)), the five findings with
+mechanism + control + limits ([`phase_10`](docs/phases/phase_10_findings.md)),
+the release and card history ([`phase_11`](docs/phases/phase_11_release.md)), the
+paper ([`phase_12`](docs/phases/phase_12_publication.md)).
 
 **Triage (what is shelved/frozen — do not reopen without a finding that demands it):**
 
@@ -626,9 +435,9 @@ cd /Users/abdoumagico/Development/ACHATES
 # 1b. The paper — LOCAL-ONLY, gitignored (see the §7 callout; the active work):
 cd paper/chr2027 && make && ../../.venv/bin/python check_submission.py  # expect 16/16 READY
 
-# 2. ⇒ ALL THREE DELIVERABLES ARE SHIPPED AND RE-PUSHED. Nothing is outstanding.
-#    Re-run these only after changing a card or a shipped table:
-.venv/bin/oik release check grammateus && .venv/bin/oik release check homologia && .venv/bin/oik release check db
+# 2. ⚠️ OUTSTANDING: the dataset card's lexicon number was fixed locally and needs
+#    one re-push (owner-run, HF write token). The two model cards are current.
+.venv/bin/oik release check db && .venv/bin/oik release push db
 
 # 3. Finding tables regenerate on the laptop (all gitignored, re-derivable):
 .venv/bin/oik db persons && .venv/bin/oik db autonomy      # autonomy curve (reads ner_corpus.jsonl)
@@ -641,22 +450,26 @@ cd paper/chr2027 && make && ../../.venv/bin/python check_submission.py  # expect
 .venv/bin/oik gold check            # 115 docs, 0 errors
 ```
 
-**Then, in priority order — but note the CHR deadline (14 Aug 2026) outranks all
-of these until it passes; the three pre-submission items in the §7 callout come
-first.**
-**(1) entity identity / coreference across documents** — the highest-value item:
-it turns 21,895 principal *mentions* into a prosopography and lets F3/F4 be
-measured per person rather than per mention. `person_id` ships as the join key and
-64.8% of women principals carry a patronymic. **(2) harden the wheat
-price slice** — outlier filter, fix per-unit semantics (`unit_price =
-value/quantity` over-divides when the amount is already per-unit), → a defensible
-series with error bars vs Rathbone/Bagnall. This is also the weakest published
-finding (F5), so it is where a reviewer will push first. **(3) entity identity / coreference**
-for cross-document prosopography (the principals table now has 65% patronymic
-coverage — a real hook). **(4) release the frozen models** (deliverable #1, already
-packaged). **Do NOT** reopen relation-F1 work, silver re-emission, or Modal xval
-unless a *specific finding* proves the frozen model is the binding constraint — the
-audits say it is not.
+**Then, in priority order — but the CHR deadline (14 Aug 2026) outranks all of
+them until it passes, and the dataset-card re-push above is a one-minute job.**
+
+**(1) Expert validation of the 16 `double_annotate` docs.** The project's top
+item, named as such in the paper: one papyrologist, 504 entities, converts every
+model number from *agreement* into *accuracy*. Tooling cannot do it.
+**(2) Cross-document entity resolution.** Turns 21,895 principal *mentions* into
+a prosopography and lets F3/F4 be measured per person. `person_id` ships as the
+join key; 64.8% of women principals carry a recovered filiation name — but a
+third of those are a *nomen* + personal name rather than a father
+(phase_12 §4), so the matching key is weaker than the raw number suggests.
+**(3) Harden the wheat price slice** — outlier filter, fix the per-unit semantics
+(`unit_price = value/quantity` over-divides when the amount is already per-unit).
+F5 is the weakest published finding and is where a reviewer will push first.
+**(4) The ACL 2027 model paper** (ARR October cycle) — needs the declared
+per-label/per-fold gaps, i.e. one `ner.py::xval` GPU run.
+
+**Do NOT** reopen relation-F1 work, silver re-emission, or Modal xval as an F1
+exercise unless a *specific finding* proves the frozen model is the binding
+constraint — the audits say it is not.
 
 ### Operational gotchas (do not relearn these the hard way)
 
@@ -685,8 +498,9 @@ audits say it is not.
   `oik relation prepare` → `relations.py::push` before a relation run** if the
   signatures changed. Current schema: 12 rel labels / 13 entity labels, recall
   guard 0 uncovered.
-- **8 dense gold docs are held** (too fragmentary to auto-draft; need careful
-  human work): `23914 25467 27734 28329 31975 33510 37263`.
+- **7 dense gold docs are held** (too fragmentary to auto-draft; need careful
+  human work): `23914 25467 27734 28329 31975 33510 37263`. (This said "8" over a
+  seven-id list until 2026-07-25; the ids are the record, the count was wrong.)
 
 ### Artifacts on disk (all gitignored, re-derivable) & Modal state
 
@@ -765,21 +579,14 @@ audits say it is not.
   model — the shippable NER model is produced by **`launch`**
   (`train(save_final=True)` → `models/release/final`, all gold), then **`push_to_hub`**.
 
-**DB DOCUMENTATION COMPLETE (2026-07-24).** [`docs/database.md`](docs/database.md)
-is now the full reference: per-table column dictionaries with measured types +
-null-coverage, the join map, controlled vocabularies (currency/commodity/unit/tax
-ids, `gender_basis`, `roles`, `deal_type`), a **verified** DuckDB query cookbook
-(every output pasted from a real run), and 8 pitfalls. [`docs/db.sql`](docs/db.sql)
-bootstraps one view per table. Cleanup: removed the empty
-`scratch/`, `.claude/`, `tests/fixtures/translations/`; `make lint` and
-`pre-commit` both cover `modal_app` like the documented gate. **The superseded rule-based party path was
-DELETED** (`db/parties.py`, `oik db women`, `tests/test_db_parties.py`,
-`db/parties.parquet`) — step 8's `oik db principals` covers it with the trained RE
-model; the gold-validation numbers it produced live on in the phase-9 doc.
+**The DB reference is [`docs/database.md`](docs/database.md)** — per-table column
+dictionaries with measured types + null coverage, the join map, the controlled
+vocabularies, a DuckDB cookbook whose every output was pasted from a real run, and
+8 pitfalls. [`docs/db.sql`](docs/db.sql) bootstraps one view per table.
 
 **Quality gate at last save:** ruff (src tests modal_app) · mypy (90 files) ·
 **674 tests** · caches cleared — all green. (`paper/` is gitignored and outside
-the gate, but its two scripts are kept ruff-clean by hand.) Also green in a **clean venv with no ML
+the gate, but its 5 scripts are kept ruff-clean by hand — verified 2026-07-25.) Also green in a **clean venv with no ML
 stack** (644 + 2 skipped): mypy overrides now make the answer independent of whether
 torch happens to be installed, so CI and the laptop agree. `oik gold check` 0 errors.
 Corpus NER run provenance-validated 0/1.37M mismatch. Women pipeline gold-validated
@@ -789,7 +596,7 @@ docs / 16,315 PARTY_OF; principals deal-type ordering stable at n≥40. DB packa
 schema `docs/database.md`. Every SQL block in `docs/database.md` (11) and the
 dataset card (2) was executed against the shipped parquet files.
 
-**CI (new):** `.github/workflows/ci.yml` runs the gate on every push and PR,
+**CI:** `.github/workflows/ci.yml` runs the gate on every push and PR,
 installing only `.[dev]` — so it enforces the §3 no-ML-stack boundary as a side
 effect. It mirrors `make install` + `make check` so green means the same thing in
 both places.
@@ -823,8 +630,14 @@ Consult these constantly; the full ledger has the rest and the evidence.
   `koine-t5*` are **CC-BY-NC-SA — never release on them.**
 - **Word order: units PRECEDE their numeral** (`πυροῦ ἀρτάβαι ιβ`; δραχμαι left of
   the numeral 81.5% of the time). Any proximity rule breaks ties **leftward**.
-- **Leakage signals:** near-duplication **2.89%** (475 clusters); **1,706 docs
-  share a TM id**. Both are grouped before splitting.
+- **Leakage signals:** near-duplication **2.89%** (1,769 docs in 475 clusters);
+  **618 docs share a TM id** (231 groups, working set). Both are grouped before
+  splitting; the union is 2,349 docs. *(This said 1,706 until 2026-07-25 — it
+  matched nothing recomputable and had reached the paper. `splits.parquet` is
+  authoritative.)*
+- **Lexicon: 132 entries / 545 unique surface forms, 545 attested, 0 unattested**
+  (`oik lexicon verify`). Phase 2's "88 / 336" is that phase's snapshot and is
+  superseded — it grew with 8b's occupations. Quote the verifier, not a phase doc.
 - **Modal (re-verify at `modal.com/docs` before use):** `modal.App` (not `Stub`);
   **`gpu="A10"`** (NOT `"A10G"`); `Volume.from_name(create_if_missing=True)`;
   `evaluation_strategy`→`eval_strategy` (transformers ≥5); **`.map()`/`.starmap()`
