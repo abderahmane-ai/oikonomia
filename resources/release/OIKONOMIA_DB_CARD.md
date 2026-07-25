@@ -445,8 +445,11 @@ audit). All supervision was built for this project:
 1. A deterministic lexicon + rules labeler (mined lexicons: 88 entries / 336
    attested surface forms, 0 unattested) produced *silver* labels over ~49k
    training documents.
-2. **115 documents were fully human-annotated and validated** — 2,995 entities,
-   710 relations — as gold.
+2. **115 documents form the reference set** — 2,995 entities, 710 relations —
+   drafted by one language model and re-checked by a second. Mechanically
+   validated (offsets, byte-identity, numeral coverage, schema legality) but
+   **not adjudicated by a papyrologist**; the maintainers do not read Ancient
+   Greek. Model scores are agreement with this reference, not expert accuracy.
 3. Models were silver-pretrained and gold fine-tuned, then run over the whole
    corpus (1,368,079 entities; 228,945 relations).
 4. The money layer runs on the rules, not the models, because closed-class

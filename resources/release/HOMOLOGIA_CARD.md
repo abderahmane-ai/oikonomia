@@ -200,9 +200,11 @@ Entity endpoints (13): `AGE`, `COMMODITY`, `CURRENCY`, `DATE_REF`, `FRACTION`,
 - **The papyri carry no relation markup upstream.** All supervision was built for
   this project:
   - **Silver:** a deterministic lexicon + rules labeler over **48,891** documents.
-  - **Gold:** **115 documents, fully human-annotated** — 710 relations, including
-    **87 hand-adjudicated payment-direction edges** (adjudicated by verb class, not
-    by grammatical case).
+  - **Reference set:** **115 documents** — 710 relations, including **87
+    payment-direction edges** adjudicated by verb class, not by grammatical case.
+    Model-drafted and model-re-checked, not expert-validated.
+
+**Note on provenance.** This reference set was drafted by one language model and re-checked span by span by a second, different one. It is mechanically constrained (offsets computed not typed, text byte-identical to the corpus, every numeral either labelled or explicitly skipped with a reason, every relation schema-legal) but **no papyrologist or other domain expert has adjudicated it, and the maintainers do not read Ancient Greek**. Scores below are therefore *agreement with this reference*, not accuracy against expert ground truth. Independent expert annotation is the top outstanding item.
 
 ### Training Procedure
 

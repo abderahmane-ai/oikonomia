@@ -164,8 +164,8 @@ window with span-offset remapping (`oikonomia.ner.inference`).
   All supervision was built for this project:
   - **Silver:** a deterministic lexicon + rules labeler over **48,891 training
     documents** (measured against gold at micro F1 0.667).
-  - **Gold:** **115 documents, every one human-annotated and validated** — 2,995
-    entities.
+  - **Reference set:** **115 documents** — 2,995 entities. Model-drafted and
+    model-re-checked, not expert-validated; see the provenance note below.
 - Splits are leak-free: near-duplicate clusters (2.89% of the corpus) and
   TM-sibling documents are grouped before assignment, so no document's near-twin
   sits across the split boundary.
@@ -213,10 +213,12 @@ tracked; a run of this size is on the order of GPU-hours, not GPU-days.
 
 ### Testing Data, Factors & Metrics
 
-**Testing data.** 5-fold cross-validation over the **115 fully human-validated
-gold documents** (2,995 entities). No separate held-out test set exists — the gold
-set is small enough that spending part of it on a test split would make every
-number noisier than cross-validation does.
+**Testing data.** 5-fold cross-validation over the **115-document reference set**
+(2,995 entities). No separate held-out test set exists — the set is small enough
+that spending part of it on a test split would make every number noisier than
+cross-validation does.
+
+**Note on provenance.** This reference set was drafted by one language model and re-checked span by span by a second, different one. It is mechanically constrained (offsets computed not typed, text byte-identical to the corpus, every numeral either labelled or explicitly skipped with a reason, every relation schema-legal) but **no papyrologist or other domain expert has adjudicated it, and the maintainers do not read Ancient Greek**. Scores below are therefore *agreement with this reference*, not accuracy against expert ground truth. Independent expert annotation is the top outstanding item.
 
 **Metrics.** Micro-averaged span F1, in two regimes: **strict** requires an exact
 span *and* label match; **relaxed** credits an overlapping span of the right label.

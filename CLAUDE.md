@@ -280,7 +280,7 @@ opportunistically, not as the critical path.
 **Assets in hand:** validated ingestion over all 67,980 docs (parse rate 1.000)
 with HGV date/place/genre + decoded numerals as parquet columns; mined lexicons
 with canonical ids (currency/commodity/unit) that make DB normalization free;
-DAPT B1 backbone; frozen entity + relation models; 115-doc all-human gold; the
+DAPT B1 backbone; frozen entity + relation models; the 115-doc reference set; the
 deterministic silver labeler (doubles as the DB's extraction engine).
 
 ---
@@ -296,7 +296,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 2 Characterization & schema | ✅ | mined lexicons (88 entries/336 forms, 0 unattested); baseline 74.5% numeral link | [phase_2](docs/phases/phase_2_characterization_schema.md) |
 | 3 Splits | ✅ | leak-free stratified + chronological; 475 dup clusters (2.89%) removed | [phase_3](docs/phases/phase_3_splits.md) |
 | 4 DAPT | ✅ | **full-FT wins** (dev ppl 4.54); `checkpoints/full/final` = **B1** | [phase_4](docs/phases/phase_4_dapt.md) |
-| 5 Gold annotation | ✅ | **115 docs, all human_validated**, 2,995 ent / 710 rel, 0 errors | [phase_5](docs/phases/phase_5_gold_annotation.md) |
+| 5 Reference set | ✅ | **115 docs, model-drafted + model-re-checked (NOT expert-validated)**, 2,995 ent / 710 rel, 0 errors | [phase_5](docs/phases/phase_5_gold_annotation.md) |
 | 5c Payment direction | ✅ | 87 PAID_BY/PAID_TO edges merged (verb-class rule, not case) | [phase_5](docs/phases/phase_5_gold_annotation.md) |
 | 6 Silver labeling | ✅ | Silver-v2 labeler micro F1 0.585→**0.667**; emitted over 48.9k train docs | [phase_6](docs/phases/phase_6_silver_labeling.md) |
 | 7 Entity NER | ✅ | **DAPT beats no-DAPT control +9.5 strict F1** (PERSON +19, PLACE +11) | [phase_7](docs/phases/phase_7_entity_ner.md) |
@@ -305,7 +305,7 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 9 Corpus→DB | ✅ (opt. hardening left) | **195,906 facts**; 5 findings — **prices**, **taxes**, **AUTONOMY** χωρὶς curve **0%→39%→80% (3c→4c AD)**, **PRINCIPALS by deal type** (21,895; women 18.0% mentions / 20.1% distinct; **sale 30%/loan 28% vs receipt 10%**), monetization; **DB packaged + queryable** (`oik db export`, `docs/database.md`) | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ✅ | **the five findings recorded**, every number recomputed from the shipped tables, each with mechanism + control + limits | [phase_10](docs/phases/phase_10_findings.md) |
 | 11 Release | ✅ PUBLISHED | all three live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; post-publication audit (7 fixes) re-pushed and **verified against the Hub**; **cards rebuilt to HF template structure 2026-07-25 (13 defects) — NOT YET PUSHED** | [phase_11](docs/phases/phase_11_release.md) |
-| 12 Publication | ✅ READY | **CHR 2027 long paper SUBMISSION-READY, 16/16 checks, 5,414/6,000 words** — venue picked after a live scan (§7); figures regenerate from the shipped tables | `paper/chr2027/` (**gitignored, local-only**) |
+| 12 Publication | ✅ READY | **CHR 2027 long paper SUBMISSION-READY, 16/16 checks, 5,774/6,000 words** — venue picked after a live scan (§7); figures regenerate from the shipped tables | `paper/chr2027/` (**gitignored, local-only**) |
 
 ---
 
@@ -339,7 +339,7 @@ _Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree c
 > `data/processed/db/`) — but **the prose is not**.
 >
 > **State: `paper/chr2027/` compiles clean** — 0 LaTeX errors, 0
-> missing glyphs, 0 undefined citations/refs, 14 pp, **5,414 of 6,000 words**.
+> missing glyphs, 0 undefined citations/refs, 14 pp, **5,774 of 6,000 words**.
 > Title: *How Often, and How Freely: Women in Greco-Roman Egypt, and an Auditable
 > Economic Database of 61,249 Documentary Papyri* — the hook names the two novel
 > findings (F3 how freely, F4 how often); F1/F2 are deliberately NOT in it, they
@@ -357,7 +357,7 @@ _Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree c
 > build clean, word count, anonymity across four surfaces (source, rendered text,
 > PDF metadata, embedded paths incl. the figure PDFs), no placeholders, all refs
 > cited, all floats referenced, reviewer bundle clean — and reports
-> **16/16 READY, 5,414 words, 14 pp**. Upload `paper.pdf` plus
+> **16/16 READY, 5,774 words, 14 pp**. Upload `paper.pdf` plus
 > `anon-artifact.zip` (supplementary, if EasyChair takes it). The availability
 > section says the bundle is available "through the programme chairs", so there
 > is **no dead link and nothing to register**.
@@ -381,6 +381,20 @@ _Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree c
 > relocatable** (`brew install biber`). The template's 42 MB of fonts are
 > gitignored; re-fetch per the README. `matplotlib` was added to `.venv` for the
 > figures (not a project dep, same category as duckdb/torch — see §4).
+>
+> ## 🚨 URGENT: the LIVE cards carry a claim now known to be FALSE
+>
+> All three published cards said the 115-doc set was "fully human-annotated /
+> human-validated". **It is not** (see §8's provenance fact). Corrected locally on
+> 2026-07-25 in all three cards + `docs/database.md`; each card now carries a
+> provenance note saying the set is model-drafted, model-re-checked, not
+> expert-adjudicated, and that scores are agreement rather than accuracy.
+> **These corrections are NOT on the Hub yet — the live cards still make the false
+> claim.** Pushing is now a correctness fix, not a formatting one:
+>
+> ```bash
+> .venv/bin/oik release push grammateus && .venv/bin/oik release push homologia && .venv/bin/oik release push db
+> ```
 >
 > ## ⚠️ ALSO OUTSTANDING: the rebuilt cards are local, not on the Hub
 >
@@ -574,7 +588,7 @@ cd paper/chr2027 && make && ../../.venv/bin/python check_submission.py  # expect
 #     pull from the oikonomia-ner volume if missing: /predictions/{ner,re}_corpus.jsonl)
 
 # 4. Laptop artifacts intact? (only if rebuilding; all gitignored)
-.venv/bin/oik gold check            # 115 docs, all human_validated, 0 errors
+.venv/bin/oik gold check            # 115 docs, 0 errors
 ```
 
 **Then, in priority order — but note the CHR deadline (14 Aug 2026) outranks all
@@ -635,7 +649,8 @@ audits say it is not.
 - `data/processed/silver.jsonl` — 146 MB, Silver-v2 over train
   (`sha=96428892f944 docs=48891 age=4888`). Regen: `oik silver distmap` →
   `oik silver label`. Needs `silver_label_dist.json`.
-- `data/gold/annotated.jsonl` — **git-tracked**, 115 docs all `human_validated`,
+- `data/gold/annotated.jsonl` — **git-tracked**, 115 docs, `provenance:
+  model_drafted_model_checked`,
   2,995 entities / 710 relations (incl. 87 PAID_*), 0 errors. `direction_draft.jsonl`
   is the auditable record of the merged direction edges.
 - `data/processed/relations/relation_labels.json` — gitignored; `oik relation prepare`.
@@ -764,6 +779,22 @@ Consult these constantly; the full ledger has the rest and the evidence.
   **`gpu="A10"`** (NOT `"A10G"`); `Volume.from_name(create_if_missing=True)`;
   `evaluation_strategy`→`eval_strategy` (transformers ≥5); **`.map()`/`.starmap()`
   are positional-only — use `.spawn()` + `FunctionCall.get()`** to vary kwargs.
+- **THE REFERENCE SET IS NOT EXPERT-VALIDATED — never call it "human gold".**
+  `data/gold/annotated.jsonl` was **drafted by one LLM and re-checked by a second**;
+  the owner designed the schema, wrote the guidelines, built the validators and
+  directed the process, but **does not read Ancient Greek**, and no papyrologist has
+  adjudicated any annotation. `meta.annotator` names the *drafting* model;
+  `meta.reviewed_by` names who *directed* the review, not a human annotator.
+  `provenance` was corrected from `human_validated` to
+  `model_drafted_model_checked` on 2026-07-25. What IS guaranteed is mechanical:
+  offsets computed not typed, text byte-identical to the corpus, every numeral
+  labelled or explicitly skipped, every relation schema-legal. **Consequence: entity
+  0.737 / relation 0.713 are AGREEMENT with a machine reference, not accuracy.**
+  F1/F2 (money, taxes) are insulated — lexicon + rules checked against external
+  history. F3/F4 (women) run through the trained models and inherit the caveat in
+  full. Independent expert annotation of the 16 `double_annotate` docs is the top
+  outstanding item for the whole project.
+
 - **Zero entity markup upstream** (0% over 200 docs) — all entity/relation
   supervision is built by hand. This is why gold is the critical path and
   relations the scientific risk.

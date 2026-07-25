@@ -329,8 +329,9 @@ female / `Πα-` male — 0.72) · `ethnic` 28 · `none` 244,488 (no rule fired 
 #### `guardian`
 `with` — a μετὰ κυρίου formula (the woman transacts under a guardian) ·
 `without` — χωρὶς κυρίου (she transacts alone) · `none` — no formula in the window.
-Validation against the 115-document human gold showed the `with` side is
-over-counted and the `without` side matches gold exactly, so the rise in the
+Checked against the 115-document reference set (model-drafted, model-re-checked,
+not expert-adjudicated), the `with` side is over-counted and the `without` side
+matches it exactly, so the rise in the
 autonomous share is **conservative**, not inflated.
 
 #### `roles`
@@ -534,8 +535,9 @@ model's score (0.34–1.00, median 0.85) and *is* a usable precision knob.
 Entity NER strict F1 is 0.737; end-to-end `PARTY_OF` is ≈0.62. Absolute totals
 therefore carry extraction error. The robust claims are the **relative** ones —
 across deal types, centuries, regions — where the error is roughly common-mode. The
-autonomy curve is additionally validated against gold: the gender rules agree with
-human annotation 613/613, and the over-count is on the μετὰ side.
+autonomy curve is additionally checked against the reference set: the gender rules
+agree with it 613/613, and the over-count is on the μετὰ side. That reference is
+model-produced, so this is consistency, not expert validation.
 
 #### 7. `genres` is a JSON string
 It is stored as text like `["list", "account"]`, not as a list. Query it with
