@@ -42,3 +42,10 @@ _fixture_study/
 .DS_Store
 .idea/
 .vscode/
+
+# --- paper -----------------------------------------------------------------
+# Manuscripts live outside version control here. Everything under paper/ is
+# re-derivable: the ACH template is re-fetched from anthology.ach.org and the
+# figures regenerate from data/processed/db/ via figures/make_figures.py.
+# See paper/chr2027/README.md (also local-only).
+paper/

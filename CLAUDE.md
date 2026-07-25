@@ -112,9 +112,9 @@ its logic** (or run `--force` while iterating). Full detail:
 uv venv --python 3.12
 uv pip install -e ".[dev]"        # library + dev tools (no GPU stack)
 # Modal extras (.[modal], .[train]) only when a Modal phase begins.
-# NOTE: this .venv additionally has torch/transformers/huggingface_hub + duckdb,
-# installed to verify the published models actually load and to run the documented
-# DuckDB cookbook. They are NOT project deps. Two tests in test_relations_model.py
+# NOTE: this .venv additionally has torch/transformers/huggingface_hub + duckdb
+# + matplotlib, installed to verify the published models actually load, to run the
+# documented DuckDB cookbook, and to build the paper figures. They are NOT project deps. Two tests in test_relations_model.py
 # skip without torch; CI installs `.[dev]` only, so it still enforces §3's
 # no-ML-stack boundary. The gate is green in both states — do not "fix" the mypy
 # overrides for torch/transformers, they are what keeps the two answers identical.
@@ -305,14 +305,65 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 9 Corpus→DB | ✅ (opt. hardening left) | **195,906 facts**; 5 findings — **prices**, **taxes**, **AUTONOMY** χωρὶς curve **0%→39%→80% (3c→4c AD)**, **PRINCIPALS by deal type** (21,895; women 18.0% mentions / 20.1% distinct; **sale 30%/loan 28% vs receipt 10%**), monetization; **DB packaged + queryable** (`oik db export`, `docs/database.md`) | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ✅ | **the five findings recorded**, every number recomputed from the shipped tables, each with mechanism + control + limits | [phase_10](docs/phases/phase_10_findings.md) |
 | 11 Release | ✅ PUBLISHED | all three live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; post-publication audit (7 fixes) re-pushed and **verified against the Hub**; **cards rebuilt to HF template structure 2026-07-25 (13 defects) — NOT YET PUSHED** | [phase_11](docs/phases/phase_11_release.md) |
+| 12 Publication | 🔶 DRAFTED | **CHR 2027 long paper drafted, compiles clean, 4,876/6,000 words** — venue picked after a live scan (§7); figures regenerate from the shipped tables | `paper/chr2027/` (**gitignored, local-only**) |
 
 ---
 
 ## 7. Current machine state — READ THIS FIRST in a new session
 
-_Last updated: 2026-07-24. Branch **`main`**, synced with origin; working tree clean._
+_Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree clean._
 
-> ## ⚠️ ONE ACTION OUTSTANDING: the rebuilt cards are local, not on the Hub
+> ## 📄 THE ACTIVE WORK: CHR 2027 paper — DRAFTED, deadline **14 Aug 2026**
+>
+> **Venue chosen after a live scan of what is actually open (2026-07-25).** The
+> field was: LT4HALA 2026 (happened May 2026 @ LREC — missed, next likely 2028),
+> NLP4DH 2026 (happened Jul 2026 @ ACL — missed), ML4AL (only ever ran once, ACL
+> 2024 — dormant), EMNLP 2026 main (closed; none of its 27 workshops fit), ARR Aug
+> cycle → EACL 2027 (3 Aug — too tight), ARR Oct cycle → ACL 2027 (12 Oct).
+> **Winner: CHR 2027** — Manchester, 6–8 Jan 2027, submissions **14 Aug 2026 AoE**,
+> EasyChair, ACH LaTeX template, 6,000 words excl. abstract/refs/tables/figures.
+> Its stated priorities (ML applications + hypothesis-driven modelling in the
+> humanities) are exactly Phases 9–10.
+>
+> **Plan of record: two papers, two audiences.** CHR 2027 = the *findings* paper
+> (drafted, below). ARR **October** cycle → ACL 2027 = the *resource/model* paper
+> (Grammateus + Homologia + the silver→gold recipe + the DAPT ablation). Do NOT
+> rush the model paper into the 3 Aug ARR deadline. The declared per-label/
+> per-fold gaps (`ner.py::xval`) are a prerequisite for the ACL paper only — CHR
+> does not need a GPU run.
+>
+> **⚠️ `paper/` IS GITIGNORED — it exists only on this machine.** It is not in the
+> repo and will not survive a fresh clone or a `git clean -xdf`. Back it up
+> separately if it matters. Everything in it is re-derivable in principle (the ACH
+> template re-fetches from `anthology.ach.org`, the figures regenerate from
+> `data/processed/db/`) — but **the prose is not**.
+>
+> **State: `paper/chr2027/` compiles clean** — 0 LaTeX errors, 0
+> missing glyphs, 0 undefined citations/refs, 12 pp, **4,876 of 6,000 words**.
+> Anonymisation is automatic (the class prints "Under Review / Anonymous
+> Submission" unless `[final]`); a grep guard confirms no repo/model/author
+> strings leak. All 20 bib entries were checked against a live source.
+> **Every number in it was recomputed from the parquet tables, not copied from
+> the phase docs** — two small deltas found and the recomputed values used
+> (Spearman ρ **0.861** over 15 deal-type buckets, not 0.856; the n≥40 deal-type
+> table has 16 rows, incl. `letter_official` 0.218 and `letter` 0.071, which
+> phase_10's table omitted). Build/checklist: `paper/chr2027/README.md` (local-only).
+>
+> **Before submitting (in the README too, this is the real list):**
+> 1. **A second annotator** on some of the 115 gold docs + an agreement number.
+>    The paper declares the single-annotator limit in Threats to Validity; this is
+>    the highest-value fix and the thing a reviewer will hit first.
+> 2. **A papyrologist's read of the autonomy finding** (§7.1) before it goes out.
+> 3. **An anonymous artifact mirror** (`anonymous.4open.science`); the data
+>    availability section currently withholds links entirely.
+>
+> Toolchain notes so a new session doesn't re-derive them: BasicTeX has no
+> biblatex/biber — `tlmgr --usermode install biblatex …` works, but **biber is not
+> relocatable** (`brew install biber`). The template's 42 MB of fonts are
+> gitignored; re-fetch per the README. `matplotlib` was added to `.venv` for the
+> figures (not a project dep, same category as duckdb/torch — see §4).
+>
+> ## ⚠️ ALSO OUTSTANDING: the rebuilt cards are local, not on the Hub
 >
 > **2026-07-25 — all three cards were rewritten** (HF template structure; 13
 > defects fixed, biggest: the dataset card documented tables but **not a single
@@ -486,8 +537,11 @@ preserved in the phase-9 doc and is not re-runnable at HEAD.
 ```bash
 cd /Users/abdoumagico/Development/ACHATES
 
-# 1. Green before changing anything (653 tests, mypy 90 files, ruff clean at last save)
+# 1. Green before changing anything (674 tests, mypy 90 files, ruff clean at last save)
 .venv/bin/ruff check src tests modal_app && .venv/bin/python -m mypy src && .venv/bin/python -m pytest
+
+# 1b. The paper — LOCAL-ONLY, gitignored (see the §7 callout; the active work):
+cd paper/chr2027 && make && python3 wordcount.py   # 0 errors; <= 6000 words
 
 # 2. ⇒ ALL THREE DELIVERABLES ARE SHIPPED AND RE-PUSHED. Nothing is outstanding.
 #    Re-run these only after changing a card or a shipped table:
@@ -504,7 +558,9 @@ cd /Users/abdoumagico/Development/ACHATES
 .venv/bin/oik gold check            # 115 docs, all human_validated, 0 errors
 ```
 
-**Then, in priority order (all three deliverables are out and re-pushed):**
+**Then, in priority order — but note the CHR deadline (14 Aug 2026) outranks all
+of these until it passes; the three pre-submission items in the §7 callout come
+first.**
 **(1) entity identity / coreference across documents** — the highest-value item:
 it turns 21,895 principal *mentions* into a prosopography and lets F3/F4 be
 measured per person rather than per mention. `person_id` ships as the join key and
@@ -638,7 +694,8 @@ DELETED** (`db/parties.py`, `oik db women`, `tests/test_db_parties.py`,
 model; the gold-validation numbers it produced live on in the phase-9 doc.
 
 **Quality gate at last save:** ruff (src tests modal_app) · mypy (90 files) ·
-**653 tests** · caches cleared — all green. Also green in a **clean venv with no ML
+**674 tests** · caches cleared — all green. (`paper/` is gitignored and outside
+the gate, but its two scripts are kept ruff-clean by hand.) Also green in a **clean venv with no ML
 stack** (644 + 2 skipped): mypy overrides now make the answer independent of whether
 torch happens to be installed, so CI and the laptop agree. `oik gold check` 0 errors.
 Corpus NER run provenance-validated 0/1.37M mismatch. Women pipeline gold-validated
