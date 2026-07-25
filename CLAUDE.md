@@ -305,13 +305,14 @@ Full write-ups: [`docs/phases/`](docs/phases). Headline result per phase:
 | 9 Corpus→DB | ✅ (opt. hardening left) | **195,906 facts**; 5 findings — **prices**, **taxes**, **AUTONOMY** χωρὶς curve **0%→39%→80% (3c→4c AD)**, **PRINCIPALS by deal type** (21,895; women 18.0% mentions / 20.1% distinct; **sale 30%/loan 28% vs receipt 10%**), monetization; **DB packaged + queryable** (`oik db export`, `docs/database.md`) | [phase_9](docs/phases/phase_9_database.md) |
 | 10 Analysis | ✅ | **the five findings recorded**, every number recomputed from the shipped tables, each with mechanism + control + limits | [phase_10](docs/phases/phase_10_findings.md) |
 | 11 Release | ✅ PUBLISHED | all three live on HF: **Grammateus** · **Homologia** · **OIKONOMIA-DB**; post-publication audit (7 fixes) re-pushed and **verified against the Hub**; **cards rebuilt to HF template structure 2026-07-25 (13 defects) — NOT YET PUSHED** | [phase_11](docs/phases/phase_11_release.md) |
-| 12 Publication | ✅ READY | **CHR 2027 long paper SUBMITTED (#7) + re-upload pending, 16/16, 5,900/6,000 words** — venue picked after a live scan (§7); figures regenerate from the shipped tables | `paper/chr2027/` (**gitignored, local-only**) |
+| 12 Publication | ✅ READY | **CHR 2027 long paper SUBMITTED (#7) + re-upload pending, 16/16, 5,906/6,000 words** — venue picked after a live scan (§7); figures regenerate from the shipped tables | `paper/chr2027/` (**gitignored, local-only**) |
 
 ---
 
 ## 7. Current machine state — READ THIS FIRST in a new session
 
-_Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree clean._
+_Last updated: 2026-07-25. Branch **`main`**, pushed to origin (the 6-commit
+backlog is gone); working tree clean._
 
 > ## 📄 THE ACTIVE WORK: CHR 2027 paper — DRAFTED, deadline **14 Aug 2026**
 >
@@ -339,7 +340,7 @@ _Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree c
 > `data/processed/db/`) — but **the prose is not**.
 >
 > **State: `paper/chr2027/` compiles clean** — 0 LaTeX errors, 0
-> missing glyphs, 0 undefined citations/refs, 14 pp, **5,900 of 6,000 words**.
+> missing glyphs, 0 undefined citations/refs, 14 pp, **5,906 of 6,000 words**.
 > Title: *How Often, and How Freely: Women in Greco-Roman Egypt, and an Auditable
 > Economic Database of 61,249 Documentary Papyri* — the hook names the two novel
 > findings (F3 how freely, F4 how often); F1/F2 are deliberately NOT in it, they
@@ -374,8 +375,21 @@ _Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree c
 > periodization. Plus: a stray "silver" left over from the terminology rename,
 > "four quantitative results" sitting above a five-item list, two different tax
 > denominators (6,441 dated vs 6,623 total) used without saying so, and an
-> unhedged "first ... models" priority claim. All fixed. Now
-> **5,900/6,000 words, 16/16**.
+> unhedged "first ... models" priority claim. All fixed.
+>
+> **Then a full numbers audit (2026-07-25) recomputed every claim from the
+> artifacts rather than from the phase docs, and found two stale numbers that had
+> reached the paper** — `1,706 documents share a TM id` (the real figure is
+> **618** in 231 groups; `splits.parquet` is authoritative, and the ledger already
+> contradicted itself on this) and the lexicon's `88 entries / 336 forms` (the
+> phase-2 snapshot; `oik lexicon verify` says **132 / 545**, 0 unattested). Both
+> corrected in the paper and at their source (ledger, two docstrings, one test
+> docstring). Also fixed: a duplicated "and" in the intro, and §5.1 saying
+> "system-attributed" where the plotted denominator includes the 1,095
+> unknown-system rows. Everything else recomputes — see commit `152e9ab`.
+> **A review claiming the paper's Spearman ρ 0.861 should be 0.856 was WRONG**:
+> 0.861 is over the 15 deal-type buckets the figure plots, 0.856 includes the
+> unclassified bucket. Do not "fix" it. Now **5,906/6,000 words, 16/16**.
 > **EasyChair accepts PDF replacement until 14 Aug 2026 (23:59:59 UTC-12)** —
 > upload `paper/chr2027/paper.pdf` again to supersede the submitted version.
 >
@@ -395,7 +409,7 @@ _Last updated: 2026-07-25. Branch **`main`**, synced with origin; working tree c
 > build clean, word count, anonymity across four surfaces (source, rendered text,
 > PDF metadata, embedded paths incl. the figure PDFs), no placeholders, all refs
 > cited, all floats referenced, reviewer bundle clean — and reports
-> **16/16 READY, 5,900 words, 14 pp**. Upload `paper.pdf` plus
+> **16/16 READY, 5,906 words, 14 pp**. Upload `paper.pdf` plus
 > `anon-artifact.zip` (supplementary, if EasyChair takes it). The availability
 > section says the bundle is available "through the programme chairs", so there
 > is **no dead link and nothing to register**.
