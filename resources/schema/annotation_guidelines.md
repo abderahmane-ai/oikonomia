@@ -82,7 +82,7 @@ annotator does not have.
 
 ---
 
-## 1. What we are annotating, and why
+## 1. What I am annotating, and why
 
 The target is **the economic transaction**: who transferred what, how much of
 it, to whom, when, and under what heading. A papyrus that says
@@ -115,7 +115,7 @@ This is acceptable and reversible: every document carries a bidirectional
 `OffsetMap`, so any edited-view span whose characters are shared with the
 diplomatic view can be projected back. Spans that do not project are exactly
 the spans that exist only because an editor restored them — which is
-information we want to keep, not lose.
+information I want to keep, not lose.
 
 Offsets are Python character indices into `edited_text`, half-open `[start,
 end)`, as `CharSpan`.

@@ -69,7 +69,7 @@ blended); and the released artifacts.
   2026 and the conference is Jan 2027, so a lapsing student address is a real way
   to miss an acceptance.
 
-## 4. Audit history — three rounds after submission
+## 4. Audit history — five rounds after submission
 
 Each round found real defects. Recorded so they are not re-found or re-argued.
 
@@ -182,6 +182,44 @@ archive regenerated. The gold JSONL itself was already correct
 only the generated README was stale. **Audit the bundle's own prose, not just its
 filenames** — `check_submission.py` verifies anonymity and file inventory, not
 whether the README tells the truth.
+
+### Round 5 — the coverage objection, measured (2026-07-25)
+
+Adding a plot turned into a finding, so it is recorded here rather than in a
+caption. Figures cost **no words** at CHR (tables/illustrations are excluded), so
+the only price is page space — verified empirically: caption edits do not move
+`wordcount.py`.
+
+**The question:** only 42% of principals get a gender verdict. If that coverage
+varies by deal type, the F4 gradient could be a map of where the gender cascade
+fires rather than a fact about women. The paper's old defence was a two-point
+spot check (sale 0.461 vs receipt 0.417 attribution).
+
+**What the data says — the spot check was too kind.** Over the 15 deal-type
+buckets with n ≥ 40, attribution rate and women's share **do** correlate:
+**Spearman ρ = 0.589**. It is not the female-only guardian channel doing it —
+removing that channel only drops it to **0.500**.
+
+**But the gradient is not explained by coverage.** Restricted to the seven
+buckets whose attribution rate lies between 0.373 and 0.476 — a 10-point window
+— women's share still spans **3.0×** (receipt 0.102 → sale 0.304) and the
+within-band correlation collapses to **ρ = 0.143**. Coverage moves ten points
+there; the outcome moves threefold.
+
+The paper now states the correlation instead of the flattering pair, and
+`figures/coverage.pdf` (`fig_coverage` in `make_figures.py`, regenerated from
+`principals.parquet` like the other four) plots all fifteen buckets with the
+matched-coverage band shaded. **Do not replace this with the old sale-vs-receipt
+sentence** — a reviewer who computes ρ over all buckets gets 0.59 and would
+rightly feel handled.
+
+Figures considered and rejected: a corpus-coverage-by-century bar chart (the
+fiscal heatmap already prints per-century counts), a price series for F5
+(plotting a deliberate negative result gives it weight the text denies it), and
+any model-performance plot (ACL model-paper material). A "crossing curves"
+figure — women's share of principals falling while autonomy rises — is viable
+and the data is verified, but the two series have different denominators and
+would need twin axes plus an explicit caption warning; left unbuilt.
 
 ## 5. Annotation reliability — the position the paper takes
 
