@@ -242,7 +242,36 @@ subset a second annotator should be given.
 **The one thing tooling cannot do: get a papyrologist to read the autonomy
 finding before it goes out.** That remains open and is the project's top item.
 
-## 6. Sending the artifact bundle — the decision procedure
+## 6. The artifact bundle — DEPOSITED
+
+**DOI: `10.5281/zenodo.21576045`** → https://doi.org/10.5281/zenodo.21576045
+Published 2026-07-26. **Verified live against the Zenodo API, not assumed:**
+title "Anonymised artifact bundle for a CHR 2027 submission", resource type
+Dataset, licence `cc-by-3.0`, creators `['Anonymous']`, one file
+`anon-artifact.zip` at **145,404 bytes — byte-for-byte the local archive**, and
+**zero hits** for the author, institution, project, model or repo names anywhere
+in the public metadata. The paper's availability section cites this DOI; the old
+"available through the programme chairs" wording is gone, since the CFP
+describes no such relay.
+
+**Why Zenodo and not an EasyChair attachment:** the submission form for CHR 2027
+offers only *Update information · Update topics · Update authors · Update file ·
+Withdraw*. "Update file" is the paper PDF; there is **no attachment slot**. The
+CFP's own mechanism for artifacts is an anonymised link, and it names Zenodo.
+
+**Licence pick, for the record:** Zenodo's picker offers CC BY 3.0 in three
+flavours — Austria, United States and **Unported**. Unported (SPDX `CC-BY-3.0`)
+is the jurisdiction-neutral one and the one `creativecommons.org/licenses/by/3.0/`
+resolves to, which is what `DATA_ATTRIBUTION.md` cites for the DDbDP source data.
+The ported national versions would misstate the source terms.
+
+**After acceptance:** hit Edit on the record and swap `Anonymous` for the real
+name and affiliation. Metadata edits need no new version and do not change the
+DOI, so the citation in the published paper keeps resolving. Also note Zenodo
+allows the owner to **delete a published record within 30 days**; after that only
+in justified cases.
+
+## 7. How the delivery decision was made (superseded by §6, kept for the reasoning)
 
 `paper/chr2027/anon-artifact.zip`, 17 files, **0.1 MB zipped**. Verified
 name-neutral: 0 hits for the author, institution, project, model, dataset, repo
@@ -270,7 +299,7 @@ chairs" — a channel the CFP describes nowhere. It should say either that the
 bundle is attached to the submission (route 1) or give the anonymised link
 (route 2).
 
-## 7. Submission mechanics
+## 8. Submission mechanics
 
 `check_submission.py` runs 16 checks — build clean, word count, anonymity across
 four surfaces (source, rendered text, PDF metadata, embedded paths including the

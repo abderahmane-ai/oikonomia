@@ -345,6 +345,21 @@ repeat now live only in `docs/phases/`, and the paper's history moved to
 > - **the deal-type ratio 3.8× → 3.1×** is the unweighted mean of the four bucket
 >   shares; pooled it is 2.9× → 2.6×. Both are in phase_10 now.
 >
+> **Artifact bundle: DEPOSITED** — `10.5281/zenodo.21576045`, CC BY 3.0, creators
+> `Anonymous`, verified live against the Zenodo API (145,404 bytes, byte-for-byte
+> the local `anon-artifact.zip`, zero identity leaks in the public metadata). The
+> paper's availability section cites it. EasyChair has **no attachment slot** —
+> only Update information/topics/authors/file/Withdraw — so this was the route,
+> and it is the one the CFP names.
+>
+> **⚠️ STILL STALE ON EASYCHAIR: the stored abstract.** It is a separate metadata
+> field that no PDF upload touches, and the submitted copy still says
+> **"eighteen named taxes"** (the round-1 error) and reads "We report / our
+> models". Fix via **Update information**; the current text is in the paper's
+> abstract. EasyChair timestamps are **UTC while the machine is UTC+1** — do not
+> conclude the uploaded PDF is stale from the displayed time without adding an
+> hour.
+>
 > **Still open:** add the gmail as a secondary EasyChair email (the submission
 > used a lapsing student address; notification is 23 Oct 2026). **Anonymity period
 > runs to 23 Oct 2026** — no public promotion before then; prefer Zenodo over
